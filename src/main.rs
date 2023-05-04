@@ -60,7 +60,7 @@ async fn calculate_usdt_arbitrage_profit(
     let profit = final_usdt_amount - amount;
     if profit > 0.0 {
         log::info!(
-            "Arbitrage opportunity detected between {} and {} for USDT - {}! Profit: {} USDT",
+            "Arbitrage opportunity [{} and {}] for (USDT - {}). Profit: {} USDT",
             dex1.get_name(),
             dex2.get_name(),
             token_symbol,
@@ -68,7 +68,7 @@ async fn calculate_usdt_arbitrage_profit(
         );
     } else {
         log::info!(
-            "No arbitrage opportunity detected between {} and {} for USDT - {}. Loss: {} USDT",
+            "No arbitrage opportunity [{} and {}] for (USDT - {}). Loss: {} USDT",
             dex1.get_name(),
             dex2.get_name(),
             token_symbol,
@@ -134,9 +134,9 @@ async fn main() -> std::io::Result<()> {
     const DEX_LIST: &[&str] = &["PancakeSwap", "BiSwap" /*"BakerySwap", "ApeSwap" */];
 
     const TOKEN_PAIRS: &[(&str, &str)] = &[
-        ("BNB", BNB_ADDRESS),
+        ("BNB ", BNB_ADDRESS),
         ("BTCB", BTCB_ADDRESS),
-        ("ETH", ETH_ADDRESS),
+        ("ETH ", ETH_ADDRESS),
         ("BUSD", BUSD_ADDRESS),
         ("USDC", USDC_ADDRESS),
         //("CAKE", CAKE_ADDRESS),

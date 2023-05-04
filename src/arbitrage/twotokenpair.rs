@@ -81,7 +81,11 @@ impl Arbitrage for TwoTokenPairArbitrage {
                     let profit = final_usdt_amount - self.amount;
                     if profit > 0.0 {
                         log::info!(
+<<<<<<< HEAD
                             "Arbitrage opportunity detected between {} and {} for USDT - {}! Profit: {} USDT",
+=======
+                            "Arbitrage opportunity [{} and {}] for (USDT - {}). Profit: {} USDT",
+>>>>>>> a3dee14... Fix compilation errors
                             dex1.get_name(),
                             dex2.get_name(),
                             token_symbol,
@@ -92,7 +96,11 @@ impl Arbitrage for TwoTokenPairArbitrage {
                         });
                     } else {
                         log::info!(
+<<<<<<< HEAD
                             "No arbitrage opportunity detected between {} and {} for USDT - {}. Loss: {} USDT",
+=======
+                            "No arbitrage opportunity [{} and {}] for (USDT - {}). Loss: {} USDT",
+>>>>>>> a3dee14... Fix compilation errors
                             dex1.get_name(),
                             dex2.get_name(),
                             token_symbol,
