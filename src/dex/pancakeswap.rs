@@ -39,9 +39,9 @@ impl Dex for PancakeSwap {
 
     async fn swap_tokens(
         &self,
-        input_token: Address,
-        output_token: Address,
-        amount: f64,
+        _input_token: Address,
+        _output_token: Address,
+        _amount: f64,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // implementation for PancakeSwap
         // ...

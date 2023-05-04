@@ -2,21 +2,17 @@ use ethers::{
     providers::{Http, Provider},
     types::Address,
 };
-use futures::future::join_all;
 use futures::{stream::FuturesUnordered, StreamExt};
 use std::time::{Duration, Instant, SystemTime};
 use std::{env, sync::RwLock};
 use std::{str::FromStr, sync::Arc};
-use tokio::signal::ctrl_c;
 
 use crate::addresses::{
-    BNB_ADDRESS, BTCB_ADDRESS, BUSD_ADDRESS, CAKE_ADDRESS, ETH_ADDRESS, TUSD_ADDRESS, USDC_ADDRESS,
+    BNB_ADDRESS, BTCB_ADDRESS, BUSD_ADDRESS, ETH_ADDRESS, USDC_ADDRESS,
     USDT_ADDRESS,
+    /* CAKE_ADDRESS, TUSD_ADDRESS, */
 };
-use crate::{
-    addresses::BAKERY_SWAP_ROUTER,
-    dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap},
-};
+use crate::dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap};
 
 mod addresses;
 mod dex;

@@ -16,7 +16,7 @@ pub async fn start_server(price_history: Arc<RwLock<Vec<PriceData>>>) -> std::io
 
     HttpServer::new(move || {
         App::new()
-            .data(price_history.clone())
+            .app_data(price_history.clone())
             .route("/price_history", web::get().to(price_history_handler))
     })
     .bind("0.0.0.0:".to_owned() + &port)?
