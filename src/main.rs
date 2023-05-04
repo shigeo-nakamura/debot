@@ -15,8 +15,10 @@ use crate::addresses::{
 use crate::dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap};
 
 mod addresses;
+mod arbitrage;
 mod dex;
 mod http;
+
 use http::PriceData;
 
 async fn calculate_usdt_arbitrage_profit(
@@ -103,7 +105,7 @@ fn store_price_history(
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs(),
-        token_pair: (String::from("USDT"), String::from(token_symbol)),
+        tokens: [String::from("USDT"), String::from(token_symbol)].to_vec(),
         dex_prices: vec![
             (String::from(dex1_name), swap_to_token_price),
             (String::from(dex2_name), swap_to_usdt_price),

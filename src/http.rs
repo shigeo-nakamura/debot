@@ -6,7 +6,7 @@ use std::{env, sync::Arc, sync::RwLock};
 #[derive(Debug, Serialize)]
 pub struct PriceData {
     pub timestamp: u64,
-    pub token_pair: (String, String),
+    pub tokens: Vec<String>,
     pub dex_prices: Vec<(String, f64)>,
     pub profit: f64,
 }

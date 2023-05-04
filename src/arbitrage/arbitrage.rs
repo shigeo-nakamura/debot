@@ -1,10 +1,21 @@
+use crate::{dex::Dex, http::PriceData};
+use anyhow::Error;
+use async_trait::async_trait;
+use std::{
+    sync::{Arc, RwLock},
+    time::SystemTime,
+};
+
+pub struct ArbitrageOpportunity {}
+
+#[async_trait]
 pub trait Arbitrage {
     async fn find_opportunities(
         &self,
         dexes: &[(String, Box<dyn Dex>)],
         price_history: Arc<RwLock<Vec<PriceData>>>,
-    ) -> Vec<ArbitrageOpportunity>;
-    
+    ) -> Result<Vec<ArbitrageOpportunity>, Error>;
+
     fn store_price_history(
         dex_names: &[&str],
         token_symbols: &[&str],
@@ -18,7 +29,10 @@ pub trait Arbitrage {
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
-            token_pair: token_symbols.iter().map(|symbol| String::from(*symbol)).collect(),
+            tokens: token_symbols
+                .iter()
+                .map(|symbol| String::from(*symbol))
+                .collect::<Vec<String>>(),
             dex_prices: dex_names
                 .iter()
                 .zip(prices.iter())

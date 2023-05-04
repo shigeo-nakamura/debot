@@ -944,6 +944,7 @@ version = "0.1.0"
 dependencies = [
  "actix-rt",
  "actix-web",
+ "anyhow",
  "async-trait",
  "chrono",
  "env_logger",
