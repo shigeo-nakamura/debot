@@ -1,13 +1,13 @@
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
-
 use ethers::{
     providers::{Http, Provider},
     types::Address,
 };
-use serde::Serialize;
-use std::time::{Duration, Instant};
+use futures::future::join_all;
+use futures::{stream::FuturesUnordered, StreamExt};
+use std::time::{Duration, Instant, SystemTime};
 use std::{env, sync::RwLock};
 use std::{str::FromStr, sync::Arc};
+use tokio::signal::ctrl_c;
 
 use crate::addresses::{
     BNB_ADDRESS, BTCB_ADDRESS, BUSD_ADDRESS, CAKE_ADDRESS, ETH_ADDRESS, TUSD_ADDRESS, USDC_ADDRESS,
@@ -18,39 +18,10 @@ use crate::{
     dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap},
 };
 
-use actix_web::web::Json;
-
 mod addresses;
 mod dex;
-
-#[derive(Debug, Serialize)]
-struct PriceData {
-    timestamp: u64,
-    token_pair: (String, String),
-    dex_prices: Vec<(String, f64)>,
-    price_differences: Vec<(String, String, f64)>,
-}
-
-async fn start_server(price_history: Arc<RwLock<Vec<PriceData>>>) -> std::io::Result<()> {
-    let port = env::var("PORT").unwrap_or("5000".to_string());
-
-    HttpServer::new(move || {
-        App::new()
-            .data(price_history.clone())
-            .route("/price_history", web::get().to(price_history_handler))
-    })
-    .bind("0.0.0.0:".to_owned() + &port)?
-    .run()
-    .await
-}
-
-async fn price_history_handler(
-    price_history: web::Data<Arc<RwLock<Vec<PriceData>>>>,
-) -> impl Responder {
-    let price_history_arc = price_history.into_inner();
-    let price_history_guard = price_history_arc.read().unwrap();
-    HttpResponse::Ok().json(Json(&*price_history_guard))
-}
+mod http;
+use http::PriceData;
 
 async fn calculate_usdt_arbitrage_profit(
     dex1: Box<dyn Dex + Send + Sync>,
@@ -58,6 +29,7 @@ async fn calculate_usdt_arbitrage_profit(
     token_a: Address,
     amount: f64,
     token_symbol: &str,
+    price_history: Arc<RwLock<Vec<PriceData>>>,
 ) -> Result<f64, Box<dyn std::error::Error + Send + Sync + 'static>> {
     let usdt_address = Address::from_str(USDT_ADDRESS).unwrap();
 
@@ -88,7 +60,6 @@ async fn calculate_usdt_arbitrage_profit(
     );
 
     let profit = final_usdt_amount - amount;
-
     if profit > 0.0 {
         log::info!(
             "Arbitrage opportunity detected between {} and {} for USDT - {}! Profit: {} USDT",
@@ -107,8 +78,28 @@ async fn calculate_usdt_arbitrage_profit(
         );
     }
 
+    // Store price data in price_history
+    let mut price_history_guard = price_history.write().unwrap();
+    price_history_guard.push(PriceData {
+        timestamp: SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+        token_pair: (String::from("USDT"), String::from(token_symbol)),
+        dex_prices: vec![
+            (String::from(dex1.get_name()), swap_to_token_price),
+            (String::from(dex2.get_name()), swap_to_usdt_price),
+        ],
+        price_differences: vec![(
+            String::from(dex1.get_name()),
+            String::from(dex2.get_name()),
+            profit,
+        )],
+    });
+
     Ok(profit)
 }
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
@@ -124,6 +115,7 @@ async fn main() -> std::io::Result<()> {
             ));
         }
     };
+
     // Set up DEX list
     const DEX_LIST: &[&str] = &["PancakeSwap", "BiSwap" /*"BakerySwap", "ApeSwap" */];
 
@@ -159,6 +151,13 @@ async fn main() -> std::io::Result<()> {
     let amount_str = env::var("AMOUNT").unwrap_or_else(|_| "100.0".to_string());
     let amount = amount_str.parse::<f64>().unwrap();
 
+    // Create the price history vector
+    let price_history = Arc::new(RwLock::new(Vec::new()));
+
+    // Start the HTTP server
+    let server = http::start_server(price_history.clone()); // Use the start_server function from the http module
+    actix_rt::spawn(server);
+
     loop {
         let start_instant = Instant::now();
 
@@ -172,6 +171,8 @@ async fn main() -> std::io::Result<()> {
                     .map(|(dex_name, dex)| (dex_name.clone(), dex.clone_box()))
                     .collect::<Vec<_>>();
 
+                // Pass the price_history to the calculate_usdt_arbitrage_profit function
+                let price_history_clone = price_history.clone();
                 tokio::spawn(async move {
                     let mut profitable_dex_pairs = Vec::new();
                     for i in 0..boxed_dexes.len() {
@@ -183,6 +184,7 @@ async fn main() -> std::io::Result<()> {
                                     token_a_address,
                                     amount,
                                     token_a_symbol,
+                                    price_history_clone.clone(), // Pass the price_history Arc<RwLock> to the function
                                 )
                                 .await;
                                 if let Ok(profit) = estimate_profit {
@@ -213,9 +215,20 @@ async fn main() -> std::io::Result<()> {
             })
             .collect();
 
-        futures::future::join_all(tasks).await;
+        let tasks_future = FuturesUnordered::from_iter(tasks);
 
-        log::info!("---------------------------------------------------------------");
+        let ctrl_c_fut = tokio::signal::ctrl_c();
+
+        // Run the tasks or break the loop if the ctrl_c signal is received
+        tokio::select! {
+            _ = tasks_future.collect::<Vec<_>>() => {
+                log::info!("---------------------------------------------------------------");
+            },
+            _ = ctrl_c_fut => {
+                println!("SIGINT received. Shutting down...");
+                break Ok(());
+            }
+        }
 
         let elapsed = start_instant.elapsed();
         if elapsed < Duration::from_secs(interval) {
