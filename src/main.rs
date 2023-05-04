@@ -79,6 +79,28 @@ async fn calculate_usdt_arbitrage_profit(
     }
 
     // Store price data in price_history
+    store_price_history(
+        dex1.get_name(),
+        dex2.get_name(),
+        token_symbol,
+        swap_to_token_price,
+        swap_to_usdt_price,
+        profit,
+        price_history,
+    );
+
+    Ok(profit)
+}
+
+fn store_price_history(
+    dex1_name: &str,
+    dex2_name: &str,
+    token_symbol: &str,
+    swap_to_token_price: f64,
+    swap_to_usdt_price: f64,
+    profit: f64,
+    price_history: Arc<RwLock<Vec<PriceData>>>,
+) {
     let mut price_history_guard = price_history.write().unwrap();
     price_history_guard.push(PriceData {
         timestamp: SystemTime::now()
@@ -87,17 +109,11 @@ async fn calculate_usdt_arbitrage_profit(
             .as_secs(),
         token_pair: (String::from("USDT"), String::from(token_symbol)),
         dex_prices: vec![
-            (String::from(dex1.get_name()), swap_to_token_price),
-            (String::from(dex2.get_name()), swap_to_usdt_price),
+            (String::from(dex1_name), swap_to_token_price),
+            (String::from(dex2_name), swap_to_usdt_price),
         ],
-        price_differences: vec![(
-            String::from(dex1.get_name()),
-            String::from(dex2.get_name()),
-            profit,
-        )],
+        profit: profit,
     });
-
-    Ok(profit)
 }
 
 #[actix_web::main]

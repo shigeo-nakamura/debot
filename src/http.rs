@@ -8,7 +8,7 @@ pub struct PriceData {
     pub timestamp: u64,
     pub token_pair: (String, String),
     pub dex_prices: Vec<(String, f64)>,
-    pub price_differences: Vec<(String, String, f64)>,
+    pub profit: f64,
 }
 
 pub async fn start_server(price_history: Arc<RwLock<Vec<PriceData>>>) -> std::io::Result<()> {
