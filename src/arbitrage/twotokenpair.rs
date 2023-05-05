@@ -1,5 +1,5 @@
 use crate::addresses::{
-    BNB_ADDRESS, BTCB_ADDRESS, BUSD_ADDRESS, ETH_ADDRESS, USDC_ADDRESS, USDT_ADDRESS,
+    WBNB_ADDRESS, BTCB_ADDRESS, BUSD_ADDRESS, ETH_ADDRESS, USDC_ADDRESS, USDT_ADDRESS,
 };
 use crate::dex::Dex;
 use crate::http::PriceData;
@@ -16,7 +16,7 @@ pub struct TwoTokenPairArbitrage {
 }
 
 const TOKEN_PAIRS: &[(&str, &str)] = &[
-    ("BNB", BNB_ADDRESS),
+    ("WBNB", WBNB_ADDRESS),
     ("BTCB", BTCB_ADDRESS),
     ("ETH", ETH_ADDRESS),
     ("BUSD", BUSD_ADDRESS),
