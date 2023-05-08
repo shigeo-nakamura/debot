@@ -1,47 +1,52 @@
-use std::{error::Error, sync::Arc};
+// dex.rs
 
+use crate::token::Token;
 use async_trait::async_trait;
 use ethers::{
     abi::Abi,
     prelude::*,
     types::{Address, U256},
 };
+use std::{error::Error, sync::Arc};
 
-static ERC20_TOKEN_ABI_JSON: &'static [u8] = include_bytes!("../../resources/ERC20TokenABI.json");
+#[derive(Debug, Clone)]
+pub struct BaseDex {
+    pub router_address: Address,
+    pub provider: Arc<Provider<Http>>,
+}
+
+impl BaseDex {
+    pub fn router_contract(
+        &self,
+        abi_json: &[u8],
+    ) -> Result<Contract<Provider<Http>>, Box<dyn Error + Send + Sync>> {
+        let router_abi = Abi::load(abi_json)?;
+        let router_contract = Contract::new(
+            self.router_address,
+            router_abi,
+            self.provider.clone().into(),
+        );
+        Ok(router_contract)
+    }
+
+    pub fn get_provider(&self) -> Arc<Provider<Http>> {
+        self.provider.clone()
+    }
+}
 
 #[async_trait]
 pub trait Dex: Send + Sync {
-    fn token_abi_json(&self) -> &'static [u8] {
-        ERC20_TOKEN_ABI_JSON
-    }
-
-    fn token_contract(
-        &self,
-        token_address: Address,
-        abi_json: &[u8],
-    ) -> Result<Contract<Provider<Http>>, Box<dyn Error + Send + Sync>> {
-        let token_abi = Abi::load(abi_json)?;
-        let token_contract = Contract::new(token_address, token_abi, self.get_provider().into());
-        Ok(token_contract)
-    }
-
-    async fn get_token_decimals(
-        &self,
-        token_address: Address,
-    ) -> Result<u8, Box<dyn std::error::Error + Send + Sync + 'static>> {
-        let token_contract = self.token_contract(token_address, self.token_abi_json())?;
-        let decimals: u8 = token_contract.method("decimals", ())?.call().await?;
-        Ok(decimals)
-    }
-
     async fn get_token_price(
         &self,
-        input_token: Address,
-        output_token: Address,
+        input_token: &dyn Token,
+        output_token: &dyn Token,
         amount: f64,
     ) -> Result<f64, Box<dyn std::error::Error + Send + Sync + 'static>> {
-        let input_decimals = self.get_token_decimals(input_token).await?;
-        let output_decimals = self.get_token_decimals(output_token).await?;
+        let input_address = input_token.address();
+        let output_address = output_token.address();
+
+        let input_decimals = input_token.decimals().await?;
+        let output_decimals = output_token.decimals().await?;
 
         let amount_in = U256::from_dec_str(&format!(
             "{:.0}",
@@ -52,7 +57,7 @@ pub trait Dex: Send + Sync {
         let amounts_out: Vec<U256> = router_contract
             .method::<_, Vec<U256>>(
                 "getAmountsOut",
-                (amount_in, vec![input_token, output_token]),
+                (amount_in, vec![input_address, output_address]),
             )?
             .call()
             .await?;
@@ -70,13 +75,6 @@ pub trait Dex: Send + Sync {
 
         Ok(price_f64)
     }
-
-    async fn swap_tokens(
-        &self,
-        input_token: Address,
-        output_token: Address,
-        amount: f64,
-    ) -> Result<(), Box<dyn std::error::Error>>;
 
     fn router_contract(
         &self,

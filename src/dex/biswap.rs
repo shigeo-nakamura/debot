@@ -1,28 +1,28 @@
-use std::{error::Error, str::FromStr};
-
-use async_trait::async_trait;
-use ethers::{abi::Abi, prelude::*, types::Address};
-
-use crate::addresses::BI_SWAP_ROUTER;
-
+// BiSwap.rs
+use super::dex::BaseDex;
 use super::Dex;
+use crate::addresses::BSC_BI_SWAP_ROUTER;
+use async_trait::async_trait;
+use ethers::{prelude::*, types::Address};
 use std::sync::Arc;
+use std::{error::Error, str::FromStr};
 
 #[derive(Debug, Clone)]
 pub struct BiSwap {
-    pub router_address: Address,
-    pub provider: Arc<Provider<Http>>,
+    base_dex: BaseDex,
 }
 
-static BI_SWAP_ROUTER_ABI_JSON: &'static [u8] =
+static BISWAP_ROUTER_ABI_JSON: &'static [u8] =
     include_bytes!("../../resources/BiSwapRouterABI.json");
 
 impl BiSwap {
     pub fn new(provider: Provider<Http>) -> Self {
-        let router_address = Address::from_str(BI_SWAP_ROUTER).unwrap();
+        let router_address = Address::from_str(BSC_BI_SWAP_ROUTER).unwrap();
         Self {
-            router_address,
-            provider: Arc::new(provider),
+            base_dex: BaseDex {
+                router_address,
+                provider: Arc::new(provider),
+            },
         }
     }
 }
@@ -37,35 +37,18 @@ impl Dex for BiSwap {
         "BiSwap"
     }
 
-    async fn swap_tokens(
-        &self,
-        _input_token: Address,
-        _output_token: Address,
-        _amount: f64,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        // implementation for BiSwap
-        // ...
-        Ok(())
-    }
-
     fn router_contract(
         &self,
         abi_json: &[u8],
     ) -> Result<Contract<Provider<Http>>, Box<dyn Error + Send + Sync>> {
-        let router_abi = Abi::load(abi_json)?;
-        let router_contract = Contract::new(
-            self.router_address,
-            router_abi,
-            self.provider.clone().into(),
-        );
-        Ok(router_contract)
+        self.base_dex.router_contract(abi_json)
     }
 
     fn router_abi_json(&self) -> &'static [u8] {
-        BI_SWAP_ROUTER_ABI_JSON
+        BISWAP_ROUTER_ABI_JSON
     }
 
     fn get_provider(&self) -> Arc<Provider<Http>> {
-        self.provider.clone()
+        self.base_dex.get_provider()
     }
 }
