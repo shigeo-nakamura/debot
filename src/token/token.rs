@@ -1,12 +1,10 @@
 // token.rs
 
-use ethers::signers::Wallet;
 use ethers::types::U256;
 use ethers::{
     abi::Abi, contract::Contract, middleware::SignerMiddleware, providers::Http,
     providers::Provider, signers::LocalWallet, types::Address,
 };
-use ethers_middleware::core::k256::ecdsa::SigningKey;
 
 use std::error::Error;
 use std::sync::Arc;

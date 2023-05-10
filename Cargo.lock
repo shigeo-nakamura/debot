@@ -951,6 +951,7 @@ dependencies = [
  "ethers",
  "ethers-middleware",
  "futures",
+ "lazy_static",
  "log",
  "num",
  "num-rational 0.3.2",

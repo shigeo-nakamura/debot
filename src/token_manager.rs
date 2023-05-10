@@ -1,62 +1,109 @@
-// token_manager.rs
-
 use crate::{
     addresses::{
         BSC_ADA_ADDRESS, BSC_BTCB_ADDRESS, BSC_BUSD_ADDRESS, BSC_CAKE_ADDRESS, BSC_DAI_ADDRESS,
         BSC_ETH_ADDRESS, BSC_LINK_ADDRESS, BSC_TUSD_ADDRESS, BSC_USDC_ADDRESS, BSC_USDT_ADDRESS,
-        BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS,
+        BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS, TESTNET_BSC_BTCB_ADDRESS, TESTNET_BSC_WBNB_ADDRESS,
+        TESTNET_POLYGON_MATIC_ADDRESS,
     },
     token::{
         token::{BlockChain, Token},
         BscToken, PolygonToken,
     },
 };
-use ethers::providers::{Http, Provider};
 use ethers::signers::LocalWallet;
 use ethers::types::Address;
-use std::str::FromStr;
+use ethers::{
+    providers::{Http, Provider},
+    utils::hex,
+};
+use ethers_middleware::core::k256::elliptic_curve::SecretKey;
+use lazy_static::lazy_static;
 use std::{error::Error, sync::Arc};
+use std::{str::FromStr, sync::Mutex};
 
 #[derive(Clone, Debug)]
 pub struct ChainParams {
     pub chain_id: u64,
-    pub rpc_node_url: &'static str,
+    pub rpc_node_urls: &'static [&'static str],
     pub tokens: &'static [(&'static str, &'static str)],
     pub free_rate: f64,
+    pub current_rpc_url: Arc<Mutex<usize>>,
 }
 
-pub const BSC_CHAIN_PARAMS: ChainParams = ChainParams {
-    chain_id: 56,
-    // "https://bsc-dataseed.binance.org/"
-    // "https://bsc-dataseed1.ninicoin.io/"
-    // "https://bsc-dataseed2.ninicoin.io/"
-    rpc_node_url: "https://bsc-dataseed1.defibit.io/",
-    tokens: &[
-        ("WBNB", BSC_WBNB_ADDRESS),
-        ("BTCB", BSC_BTCB_ADDRESS),
-        ("ETH ", BSC_ETH_ADDRESS),
-        ("BUSD", BSC_BUSD_ADDRESS),
-        ("USDC", BSC_USDC_ADDRESS),
-        ("USDT", BSC_USDT_ADDRESS),
-        // ("DAI ", BSC_DAI_ADDRESS),
-        // ("XRP ", BSC_XRP_ADDRESS),
-        // ("ADA ", BSC_ADA_ADDRESS),
-        // ("LINK", BSC_LINK_ADDRESS),
-        // ("CAKE", BSC_CAKE_ADDRESS),
-        // ("TUSD", BSC_TUSD_ADDRESS),
-    ],
-    free_rate: 0.3,
-};
+lazy_static! {
+    pub static ref BSC_CHAIN_PARAMS: ChainParams = ChainParams {
+        chain_id: 56,
+        rpc_node_urls: &[
+            "https://bsc-dataseed.binance.org/",
+            "https://bsc-dataseed1.ninicoin.io/",
+            "https://bsc-dataseed2.ninicoin.io/",
+            "https://bsc-dataseed1.defibit.io/",
+        ],
+        tokens: &[
+            ("WBNB", BSC_WBNB_ADDRESS),
+            ("BTCB", BSC_BTCB_ADDRESS),
+            ("ETH ", BSC_ETH_ADDRESS),
+            ("BUSD", BSC_BUSD_ADDRESS),
+            ("USDC", BSC_USDC_ADDRESS),
+            ("USDT", BSC_USDT_ADDRESS),
+            // ("DAI ", BSC_DAI_ADDRESS),
+            // ("XRP ", BSC_XRP_ADDRESS),
+            // ("ADA ", BSC_ADA_ADDRESS),
+            // ("LINK", BSC_LINK_ADDRESS),
+            // ("CAKE", BSC_CAKE_ADDRESS),
+            // ("TUSD", BSC_TUSD_ADDRESS),
+        ],
+        free_rate: 0.3,
+        current_rpc_url: Arc::new(Mutex::new(0)),
+    };
 
-pub const POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
-    chain_id: 137,
-    rpc_node_url: "https://rpc-mainnet.maticvigil.com/",
-    tokens: &[],
-    free_rate: 0.3,
-};
+    pub static ref BSC_TESTNET_CHAIN_PARAMS: ChainParams = ChainParams {
+        chain_id: 97, // This is the chain ID for Binance Smart Chain Testnet
+        rpc_node_urls: &["https://data-seed-prebsc-1-s1.binance.org:8545/"],
+        tokens: &[
+            // Update these with the correct testnet token addresses
+            ("WBNB", TESTNET_BSC_WBNB_ADDRESS),
+            ("BTCB", TESTNET_BSC_BTCB_ADDRESS),
+            // add other token addresses here...
+        ],
+        free_rate: 0.3,
+        current_rpc_url: Arc::new(Mutex::new(0)),
+    };
+
+    pub static ref POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
+        chain_id: 137,
+        rpc_node_urls: &["https://rpc-mainnet.maticvigil.com/"],
+        tokens: &[],
+        free_rate: 0.3,
+        current_rpc_url: Arc::new(Mutex::new(0)),
+    };
+
+    pub static ref POLYGON_TESTNET_CHAIN_PARAMS: ChainParams = ChainParams {
+        chain_id: 80001, // This is the chain ID for Mumbai Testnet
+        rpc_node_urls: &["https://rpc-mumbai.maticvigil.com"],
+        tokens: &[
+            // Update these with the correct testnet token addresses
+            ("MATIC", TESTNET_POLYGON_MATIC_ADDRESS),
+            // add other token addresses here...
+        ],
+        free_rate: 0.3,
+        current_rpc_url: Arc::new(Mutex::new(0)),
+    };
+}
+
+pub fn create_wallet() -> Result<Arc<LocalWallet>, Box<dyn std::error::Error>> {
+    let private_key_bytes =
+        hex::decode("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")?;
+    let secret_key = SecretKey::from_slice(&private_key_bytes)?;
+
+    let wallet = LocalWallet::from(secret_key);
+    Ok(Arc::new(wallet))
+}
 
 pub fn create_provider(chain_params: &ChainParams) -> Result<Arc<Provider<Http>>, Box<dyn Error>> {
-    let provider = Provider::<Http>::try_from(chain_params.rpc_node_url)?;
+    let mut current_rpc_url = chain_params.current_rpc_url.lock().unwrap();
+    let provider = Provider::<Http>::try_from(chain_params.rpc_node_urls[*current_rpc_url])?;
+    *current_rpc_url = (*current_rpc_url + 1) % chain_params.rpc_node_urls.len();
 
     Ok(Arc::new(provider))
 }
