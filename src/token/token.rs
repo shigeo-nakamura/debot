@@ -108,6 +108,9 @@ impl BaseToken {
         spender: Address,
         amount: U256,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let contract = self.token_contract()?;
+        let call = contract.method::<_, ()>("approve", (spender, amount))?;
+        call.send().await?;
         Ok(())
     }
 }
