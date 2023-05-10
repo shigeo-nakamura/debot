@@ -33,7 +33,7 @@ async fn main() -> std::io::Result<()> {
     };
 
     // Set up DEX list
-    const DEX_LIST: &[&str] = &["PancakeSwap", "BiSwap", /*"BakerySwap", "ApeSwap" */];
+    const DEX_LIST: &[&str] = &["PancakeSwap", "BiSwap" /*"BakerySwap", "ApeSwap" */];
 
     // Initialize DEX instances
     let dexes: Vec<(String, Box<dyn Dex>)> = DEX_LIST
