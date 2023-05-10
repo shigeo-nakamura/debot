@@ -3,7 +3,7 @@
 use crate::arbitrage::{Arbitrage, ArbitrageOpportunity, TwoTokenPairArbitrage};
 use crate::dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap};
 use crate::token::Token;
-use crate::token_list::{create_provider, create_tokens, create_usdt_token, BSC_CHAIN_PARAMS};
+use crate::token_manager::{create_provider, create_tokens, create_usdt_token, BSC_CHAIN_PARAMS};
 use ethers::signers::LocalWallet;
 use ethers::utils::hex;
 use ethers_middleware::core::k256::ecdsa::SigningKey;
@@ -18,7 +18,7 @@ mod arbitrage;
 mod dex;
 mod http;
 mod token;
-mod token_list;
+mod token_manager;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
