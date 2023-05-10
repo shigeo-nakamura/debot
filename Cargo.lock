@@ -954,6 +954,7 @@ dependencies = [
  "log",
  "num",
  "num-rational 0.3.2",
+ "rand",
  "reqwest",
  "serde",
  "serde_json",

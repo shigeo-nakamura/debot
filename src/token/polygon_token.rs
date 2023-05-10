@@ -1,8 +1,12 @@
 // Polygon_token.rs
 
 use super::token::{BaseToken, BlockChain, Token};
-use ethers::types::Address;
-use std::error::Error;
+use ethers::{
+    signers::LocalWallet,
+    types::{Address, U256},
+};
+use ethers_middleware::providers::{Http, Provider};
+use std::{error::Error, sync::Arc};
 
 #[derive(Clone)]
 pub struct PolygonToken {
@@ -13,20 +17,22 @@ pub struct PolygonToken {
 impl Token for PolygonToken {
     fn new(
         block_chain: BlockChain,
-        rpc_node_url: String,
+        provider: Arc<Provider<Http>>,
         address: Address,
         symbol_name: String,
         decimals: Option<u8>,
         fee_rate: f64,
+        wallet: Arc<LocalWallet>,
     ) -> Self {
         Self {
             base_token: BaseToken::new(
                 block_chain,
-                rpc_node_url,
+                provider,
                 address,
                 symbol_name,
                 decimals,
                 fee_rate,
+                wallet,
             ),
         }
     }
@@ -44,10 +50,6 @@ impl Token for PolygonToken {
     // Delegate the implementation of common methods to the BaseToken
     fn block_chain_id(&self) -> u64 {
         self.base_token.block_chain_id()
-    }
-
-    fn rpc_node_url(&self) -> &str {
-        self.base_token.rpc_node_url()
     }
 
     fn address(&self) -> Address {
@@ -68,5 +70,13 @@ impl Token for PolygonToken {
 
     async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.base_token.initialize().await
+    }
+
+    async fn approve(
+        &self,
+        spender: Address,
+        amount: U256,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.base_token.approve(spender, amount).await
     }
 }

@@ -17,12 +17,12 @@ static PANCAKESWAP_ROUTER_ABI_JSON: &'static [u8] =
     include_bytes!("../../resources/PancakeSwapRouterABI.json");
 
 impl PancakeSwap {
-    pub fn new(provider: Provider<Http>) -> Self {
+    pub fn new(provider: Arc<Provider<Http>>) -> Self {
         let router_address = Address::from_str(BSC_PANCAKE_SWAP_ROUTER).unwrap();
         Self {
             base_dex: BaseDex {
                 router_address,
-                provider: Arc::new(provider),
+                provider,
             },
         }
     }

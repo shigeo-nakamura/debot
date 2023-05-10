@@ -3,8 +3,12 @@
 use crate::arbitrage::{Arbitrage, ArbitrageOpportunity, TwoTokenPairArbitrage};
 use crate::dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap};
 use crate::token::Token;
-use crate::token_list::{create_tokens, create_usdt_token, BSC_CHAIN_PARAMS};
-use ethers::providers::{Http, Provider};
+use crate::token_list::{create_provider, create_tokens, create_usdt_token, BSC_CHAIN_PARAMS};
+use ethers::signers::LocalWallet;
+use ethers::utils::hex;
+use ethers_middleware::core::k256::ecdsa::SigningKey;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{env, sync::RwLock};
@@ -20,17 +24,14 @@ mod token_list;
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
-    let provider_result = Provider::<Http>::try_from("https://bsc-dataseed.binance.org/");
-    let provider = match provider_result {
-        Ok(p) => p,
-        Err(e) => {
-            log::error!("Error creating provider: {:?}", e);
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Provider error",
-            ));
-        }
-    };
+    let provider = create_provider(&BSC_CHAIN_PARAMS).expect("Error creating provider");
+
+    let private_key_bytes =
+        hex::decode("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").unwrap();
+    let signing_key = SigningKey::from_bytes((&private_key_bytes[..]).into()).unwrap();
+
+    let mut rng = StdRng::from_entropy();
+    let wallet = Arc::new(LocalWallet::new(&mut rng));
 
     // Set up DEX list
     const DEX_LIST: &[&str] = &["PancakeSwap", "BiSwap" /*"BakerySwap", "ApeSwap" */];
@@ -68,10 +69,10 @@ async fn main() -> std::io::Result<()> {
         let start_instant = Instant::now();
 
         // Create Tokens
-        let tokens = create_tokens(&vec![&BSC_CHAIN_PARAMS]);
+        let tokens = create_tokens(&BSC_CHAIN_PARAMS, wallet.clone()).unwrap();
 
         // Create a base token
-        let usdt_token = create_usdt_token(&BSC_CHAIN_PARAMS).unwrap();
+        let usdt_token = create_usdt_token(&BSC_CHAIN_PARAMS, wallet.clone()).unwrap();
 
         // Clone tokens
         let tokens_cloned: Vec<Box<dyn Token>> = tokens.iter().map(|t| t.clone()).collect();

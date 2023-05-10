@@ -1,9 +1,15 @@
 // token.rs
 
-use ethers::{abi::Abi, prelude::*, types::Address};
-use ethers_middleware::providers::Provider;
-use std::error::Error;
+use ethers::signers::Wallet;
+use ethers::types::U256;
+use ethers::{
+    abi::Abi, contract::Contract, middleware::SignerMiddleware, providers::Http,
+    providers::Provider, signers::LocalWallet, types::Address,
+};
+use ethers_middleware::core::k256::ecdsa::SigningKey;
 
+use std::error::Error;
+use std::sync::Arc;
 static ERC20_TOKEN_ABI_JSON: &'static [u8] = include_bytes!("../../resources/ERC20TokenABI.json");
 
 #[derive(Clone)]
@@ -15,29 +21,32 @@ pub enum BlockChain {
 #[derive(Clone)]
 pub struct BaseToken {
     block_chain: BlockChain,
-    rpc_node_url: String,
+    provider: Arc<Provider<Http>>,
     address: Address,
     symbol_name: String,
     decimals: Option<u8>,
     fee_rate: f64,
+    wallet: Arc<LocalWallet>,
 }
 
 impl BaseToken {
     pub fn new(
         block_chain: BlockChain,
-        rpc_node_url: String,
+        provider: Arc<Provider<Http>>,
         address: Address,
         symbol_name: String,
         decimals: Option<u8>,
         fee_rate: f64,
+        wallet: Arc<LocalWallet>,
     ) -> Self {
         Self {
             block_chain,
-            rpc_node_url,
+            provider,
             address,
             symbol_name,
             decimals,
             fee_rate,
+            wallet,
         }
     }
 
@@ -46,10 +55,6 @@ impl BaseToken {
             BlockChain::BscChain { chain_id } => *chain_id,
             BlockChain::PolygonChain { chain_id } => *chain_id,
         }
-    }
-
-    pub fn rpc_node_url(&self) -> &str {
-        &self.rpc_node_url
     }
 
     pub fn address(&self) -> Address {
@@ -75,25 +80,34 @@ impl BaseToken {
     }
 
     pub async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let provider_result = Provider::<Http>::try_from(&self.rpc_node_url);
-        let provider = match provider_result {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!("Error creating provider: {:?}", e);
-                return Err(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Provider error",
-                )));
-            }
-        };
+        let decimals: u8 = self
+            .token_contract()?
+            .method("decimals", ())?
+            .call()
+            .await?;
+        self.decimals = Some(decimals);
+        Ok(())
+    }
 
+    pub fn token_contract(
+        &self,
+    ) -> Result<
+        Contract<SignerMiddleware<Arc<Provider<Http>>, LocalWallet>>,
+        Box<dyn Error + Send + Sync>,
+    > {
+        let client = SignerMiddleware::new(self.provider.clone(), (*self.wallet).clone());
         let token_contract = Contract::new(
             self.address,
             Abi::load(ERC20_TOKEN_ABI_JSON)?,
-            provider.into(),
+            client.into(),
         );
-        let decimals: u8 = token_contract.method("decimals", ())?.call().await?;
-        self.decimals = Some(decimals);
+        Ok(token_contract)
+    }
+    pub async fn approve(
+        &self,
+        spender: Address,
+        amount: U256,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         Ok(())
     }
 }
@@ -102,11 +116,12 @@ impl BaseToken {
 pub trait Token: Send + Sync {
     fn new(
         block_chain: BlockChain,
-        rpc_node_url: String,
+        provider: Arc<Provider<Http>>,
         address: Address,
         symbol_name: String,
         decimals: Option<u8>,
         fee_rate: f64,
+        wallet: Arc<LocalWallet>,
     ) -> Self
     where
         Self: Sized;
@@ -114,11 +129,15 @@ pub trait Token: Send + Sync {
     async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>>;
     fn block_chain(&self) -> BlockChain;
     fn block_chain_id(&self) -> u64;
-    fn rpc_node_url(&self) -> &str;
     fn address(&self) -> Address;
     fn symbol_name(&self) -> &str;
     async fn decimals(&self) -> Result<u8, Box<dyn Error + Send + Sync>>;
     fn fee_rate(&self) -> f64;
+    async fn approve(
+        &self,
+        spender: Address,
+        amount: U256,
+    ) -> Result<(), Box<dyn Error + Send + Sync>>;
 }
 
 impl Clone for Box<dyn Token> {

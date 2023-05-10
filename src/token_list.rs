@@ -11,9 +11,11 @@ use crate::{
         BscToken, PolygonToken,
     },
 };
+use ethers::providers::{Http, Provider};
+use ethers::signers::LocalWallet;
 use ethers::types::Address;
-use std::error::Error;
 use std::str::FromStr;
+use std::{error::Error, sync::Arc};
 
 #[derive(Clone, Debug)]
 pub struct ChainParams {
@@ -53,56 +55,73 @@ pub const POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
     free_rate: 0.3,
 };
 
-pub fn create_tokens(chain_params_list: &Vec<&ChainParams>) -> Vec<Box<dyn Token>> {
-    let mut tokens = Vec::new();
-    for chain_params in chain_params_list.iter() {
-        tokens.extend(chain_params.tokens.iter().map(|&(symbol, address)| {
-            let token_address = Address::from_str(address).unwrap();
-            let token = if chain_params.chain_id == 56 {
-                Box::new(BscToken::new(
-                    BlockChain::BscChain {
-                        chain_id: chain_params.chain_id,
-                    },
-                    chain_params.rpc_node_url.to_owned(),
-                    token_address,
-                    symbol.to_owned(),
-                    None,
-                    chain_params.free_rate,
-                )) as Box<dyn Token>
-            } else if chain_params.chain_id == 137 {
-                Box::new(PolygonToken::new(
-                    BlockChain::PolygonChain {
-                        chain_id: chain_params.chain_id,
-                    },
-                    chain_params.rpc_node_url.to_owned(),
-                    token_address,
-                    symbol.to_owned(),
-                    None,
-                    chain_params.free_rate,
-                )) as Box<dyn Token>
-            } else {
-                unimplemented!("unsupported chain id: {}", chain_params.chain_id);
-            };
-            token
-        }));
-    }
-    tokens
+pub fn create_provider(chain_params: &ChainParams) -> Result<Arc<Provider<Http>>, Box<dyn Error>> {
+    let provider = Provider::<Http>::try_from(chain_params.rpc_node_url)?;
+
+    Ok(Arc::new(provider))
 }
 
-pub fn create_usdt_token(chain_params: &ChainParams) -> Result<Box<dyn Token>, Box<dyn Error>> {
+pub fn create_tokens(
+    chain_params: &ChainParams,
+    wallet: Arc<LocalWallet>,
+) -> Result<Vec<Box<dyn Token>>, Box<dyn Error>> {
+    let mut tokens = Vec::new();
+    let provider = create_provider(chain_params)?;
+
+    for &(symbol, address) in chain_params.tokens.iter() {
+        let token_address = Address::from_str(address).unwrap();
+        let token = if chain_params.chain_id == 56 {
+            Box::new(BscToken::new(
+                BlockChain::BscChain {
+                    chain_id: chain_params.chain_id,
+                },
+                provider.clone(),
+                token_address,
+                symbol.to_owned(),
+                None,
+                chain_params.free_rate,
+                wallet.clone(),
+            )) as Box<dyn Token>
+        } else if chain_params.chain_id == 137 {
+            Box::new(PolygonToken::new(
+                BlockChain::PolygonChain {
+                    chain_id: chain_params.chain_id,
+                },
+                provider.clone(),
+                token_address,
+                symbol.to_owned(),
+                None,
+                chain_params.free_rate,
+                wallet.clone(),
+            )) as Box<dyn Token>
+        } else {
+            unimplemented!("unsupported chain id: {}", chain_params.chain_id);
+        };
+        tokens.push(token);
+    }
+
+    Ok(tokens)
+}
+
+pub fn create_usdt_token(
+    chain_params: &ChainParams,
+    wallet: Arc<LocalWallet>,
+) -> Result<Box<dyn Token>, Box<dyn Error>> {
     let usdt_symbol = "USDT";
     let usdt_address = Address::from_str(BSC_USDT_ADDRESS).unwrap();
+    let provider = create_provider(chain_params)?;
 
     let usdt_token: Box<dyn Token> = if chain_params.chain_id == 56 {
         let token = BscToken::new(
             BlockChain::BscChain {
                 chain_id: chain_params.chain_id,
             },
-            chain_params.rpc_node_url.to_owned(),
+            provider.clone(),
             usdt_address,
             usdt_symbol.to_owned(),
             None,
             chain_params.free_rate,
+            wallet,
         );
         Box::new(token)
     } else if chain_params.chain_id == 137 {
@@ -110,11 +129,12 @@ pub fn create_usdt_token(chain_params: &ChainParams) -> Result<Box<dyn Token>, B
             BlockChain::PolygonChain {
                 chain_id: chain_params.chain_id,
             },
-            chain_params.rpc_node_url.to_owned(),
+            provider.clone(),
             usdt_address,
             usdt_symbol.to_owned(),
             None,
             chain_params.free_rate,
+            wallet,
         );
         Box::new(token)
     } else {
