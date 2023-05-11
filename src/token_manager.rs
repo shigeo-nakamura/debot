@@ -93,7 +93,7 @@ lazy_static! {
 
 pub fn create_wallet() -> Result<Arc<LocalWallet>, Box<dyn std::error::Error>> {
     let private_key_bytes =
-        hex::decode("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")?;
+        hex::decode("dd84b3084618a0ff534b482c5e3665b53805ce97c7ed1a46e39b671b3b897047")?;
     let secret_key = SecretKey::from_slice(&private_key_bytes)?;
 
     let wallet = LocalWallet::from(secret_key);
