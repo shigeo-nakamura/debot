@@ -79,4 +79,12 @@ impl Token for BscToken {
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.base_token.approve(spender, amount).await
     }
+
+    async fn allowance(
+        &self,
+        owner: Address,
+        spender: Address,
+    ) -> Result<U256, Box<dyn Error + Send + Sync>> {
+        self.base_token.allowance(owner, spender).await
+    }
 }

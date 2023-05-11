@@ -111,6 +111,19 @@ impl BaseToken {
         call.send().await?;
         Ok(())
     }
+
+    pub async fn allowance(
+        &self,
+        owner: Address,
+        spender: Address,
+    ) -> Result<U256, Box<dyn Error + Send + Sync>> {
+        let contract = self.token_contract()?;
+        let allowance: U256 = contract
+            .method("allowance", (owner, spender))?
+            .call()
+            .await?;
+        Ok(allowance)
+    }
 }
 
 #[async_trait::async_trait]
@@ -139,6 +152,11 @@ pub trait Token: Send + Sync {
         spender: Address,
         amount: U256,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
+    async fn allowance(
+        &self,
+        owner: Address,
+        spender: Address,
+    ) -> Result<U256, Box<dyn Error + Send + Sync>>;
 }
 
 impl Clone for Box<dyn Token> {

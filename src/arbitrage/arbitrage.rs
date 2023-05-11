@@ -2,7 +2,9 @@
 
 use crate::{dex::Dex, http::PriceData};
 use async_trait::async_trait;
+use ethers::prelude::LocalWallet;
 use std::{
+    error::Error,
     sync::{Arc, RwLock},
     time::SystemTime,
 };
@@ -22,7 +24,14 @@ pub trait Arbitrage {
         &self,
         dexes: &Arc<Vec<(String, Box<dyn Dex>)>>,
         price_history: Arc<RwLock<Vec<PriceData>>>,
-    ) -> anyhow::Result<Vec<ArbitrageOpportunity>>;
+    ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>>;
+
+    async fn execute_transactions(
+        &self,
+        opportunity: &ArbitrageOpportunity,
+        dexes: &Arc<Vec<(String, Box<dyn Dex>)>>,
+        signer: &LocalWallet,
+    ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
     fn store_price_history(
         dex_names: &[&str],

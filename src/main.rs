@@ -1,5 +1,8 @@
 // main.rs
 
+use ethers::signers::Signer;
+use token_manager::create_dexes;
+
 use crate::arbitrage::{Arbitrage, ArbitrageOpportunity, TwoTokenPairArbitrage};
 use crate::dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap};
 use crate::token::Token;
@@ -21,33 +24,17 @@ mod token_manager;
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
-    let provider = create_provider(&BSC_CHAIN_PARAMS).expect("Error creating provider");
-
-    let wallet = create_wallet().unwrap();
-    // Set up DEX list
-    const DEX_LIST: &[&str] = &["PancakeSwap", "BiSwap" /*"BakerySwap", "ApeSwap" */];
-
-    // Initialize DEX instances
-    let dexes: Vec<(String, Box<dyn Dex>)> = DEX_LIST
-        .iter()
-        .map(|&dex_name| {
-            let dex: Box<dyn Dex> = match dex_name {
-                "PancakeSwap" => Box::new(PancakeSwap::new(provider.clone())),
-                "BiSwap" => Box::new(BiSwap::new(provider.clone())),
-                "BakerySwap" => Box::new(BakerySwap::new(provider.clone())),
-                "ApeSwap" => Box::new(ApeSwap::new(provider.clone())),
-                _ => panic!("Unknown DEX: {}", dex_name),
-            };
-            (dex_name.to_string(), dex)
-        })
-        .collect();
-    let dexes = Arc::new(dexes);
-
     let interval_str = env::var("INTERVAL").unwrap_or_else(|_| "5".to_string());
     let interval = interval_str.parse::<u64>().unwrap();
 
     let amount_str = env::var("AMOUNT").unwrap_or_else(|_| "100.0".to_string());
     let amount = amount_str.parse::<f64>().unwrap();
+
+    // Create a wallet
+    let wallet = create_wallet().unwrap();
+
+    // Create dexes
+    let dexes = create_dexes(&BSC_CHAIN_PARAMS).expect("Error creating DEXes");
 
     // Create the price history vector
     let price_history = Arc::new(RwLock::new(Vec::new()));
@@ -65,31 +52,27 @@ async fn main() -> std::io::Result<()> {
         // Create a base token
         let usdt_token = create_usdt_token(&BSC_CHAIN_PARAMS, wallet.clone()).unwrap();
 
-        // Clone tokens
-        let tokens_cloned: Vec<Box<dyn Token>> = tokens.iter().map(|t| t.clone()).collect();
-
         // Create an instance of TwoTokenPairArbitrage
         let two_token_pair_arbitrage = TwoTokenPairArbitrage::new(amount, tokens, usdt_token);
+        let spender_address = wallet.address();
+        two_token_pair_arbitrage
+            .init(spender_address)
+            .await
+            .unwrap();
 
         // Call the find_opportunities method for all tokens
         let opportunities_future =
             two_token_pair_arbitrage.find_opportunities(&dexes, price_history.clone());
         let ctrl_c_fut = tokio::signal::ctrl_c();
 
-        // Run the tasks or break the loop if the ctrl_c signal is received
-        let mut opportunities: Vec<ArbitrageOpportunity> = vec![];
-
         tokio::select! {
             result = opportunities_future => {
                 log::info!("---------------------------------------------------------------");
                 match result {
                     Ok(opportunities) => {
-
                         for opportunity in &opportunities {
-                            let dex1 = &dexes[opportunity.dex1_index].1;
-                            let dex2 = &dexes[opportunity.dex2_index].1;
-                            let token_a = &tokens_cloned[opportunity.token_a_index];
-                            let token_b = &tokens_cloned[opportunity.token_b_index];                        }
+                            two_token_pair_arbitrage.execute_transactions(&opportunity, &dexes, &wallet).await.unwrap();
+                        }
                     },
                     Err(e) => {
                         log::error!("Error while finding opportunities: {}", e);

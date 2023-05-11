@@ -5,9 +5,11 @@ use crate::dex::Dex;
 use crate::http::PriceData;
 use crate::token::Token;
 use anyhow::Context;
-use anyhow::Result;
 use async_trait::async_trait;
+use ethers::prelude::LocalWallet;
+use ethers::types::Address;
 use futures::future::join_all;
+use std::error::Error;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::task::JoinHandle;
@@ -26,6 +28,15 @@ impl TwoTokenPairArbitrage {
             base_token,
         }
     }
+
+    pub async fn init(&self, spender: Address) -> Result<(), Box<dyn Error + Send + Sync>> {
+        for token in &self.tokens {
+            let allowance = token.allowance(self.base_token.address(), spender).await?;
+            // Log or store the allowance value
+            log::info!("Allowance for token {}: {}", token.symbol_name(), allowance);
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -34,7 +45,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
         &self,
         dexes: &Arc<Vec<(String, Box<dyn Dex>)>>,
         price_history: Arc<RwLock<Vec<PriceData>>>,
-    ) -> anyhow::Result<Vec<ArbitrageOpportunity>> {
+    ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut tasks: Vec<JoinHandle<Result<Vec<ArbitrageOpportunity>, anyhow::Error>>> = vec![];
 
         for token in self.tokens.iter().cloned() {
@@ -151,5 +162,89 @@ impl Arbitrage for TwoTokenPairArbitrage {
         }
 
         Ok(opportunities)
+    }
+
+    async fn execute_transactions(
+        &self,
+        opportunity: &ArbitrageOpportunity,
+        dexes: &Arc<Vec<(String, Box<dyn Dex>)>>,
+        signer: &LocalWallet,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let (dex1_name, dex1) = &dexes[opportunity.dex1_index];
+        let (dex2_name, dex2) = &dexes[opportunity.dex2_index];
+
+        let token_a = &self.tokens[opportunity.token_a_index];
+        let token_b = &self.tokens[opportunity.token_b_index];
+
+        log::info!(
+            "Starting arbitrage: {} to {} via {} and {}",
+            token_a.symbol_name(),
+            token_b.symbol_name(),
+            dex1_name,
+            dex2_name
+        );
+
+        let amount_a_to_b = dex1
+            .swap_token(
+                token_a.as_ref(),
+                token_b.as_ref(),
+                opportunity.amount,
+                signer,
+            )
+            .await
+            .map_err(|err| {
+                format!(
+                    "Failed to swap from {} to {} on dex {}: {}",
+                    token_a.symbol_name(),
+                    token_b.symbol_name(),
+                    dex1.get_name(),
+                    err
+                )
+            })?;
+
+        log::info!(
+            "Swapped {} {} for {} {} on {}",
+            opportunity.amount,
+            token_a.symbol_name(),
+            amount_a_to_b,
+            token_b.symbol_name(),
+            dex1_name
+        );
+
+        let amount_b_to_a = dex2
+            .swap_token(token_b.as_ref(), token_a.as_ref(), amount_a_to_b, signer)
+            .await
+            .map_err(|err| {
+                format!(
+                    "Failed to swap from {} to {} on dex {}: {}",
+                    token_b.symbol_name(),
+                    token_a.symbol_name(),
+                    dex2.get_name(),
+                    err
+                )
+            })?;
+        log::info!(
+            "Swapped {} {} for {} {} on {}",
+            amount_a_to_b,
+            token_b.symbol_name(),
+            amount_b_to_a,
+            token_a.symbol_name(),
+            dex2_name
+        );
+
+        if amount_b_to_a < opportunity.amount {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Arbitrage transaction resulted in a net loss",
+            )));
+        }
+
+        log::info!(
+            "Arbitrage complete. Net gain: {} {}",
+            amount_b_to_a - opportunity.amount,
+            token_a.symbol_name(),
+        );
+
+        Ok(())
     }
 }

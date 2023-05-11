@@ -5,6 +5,7 @@ use crate::{
         BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS, TESTNET_BSC_BTCB_ADDRESS, TESTNET_BSC_WBNB_ADDRESS,
         TESTNET_POLYGON_MATIC_ADDRESS,
     },
+    dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap},
     token::{
         token::{BlockChain, Token},
         BscToken, PolygonToken,
@@ -31,6 +32,8 @@ pub struct ChainParams {
 }
 
 lazy_static! {
+    pub static ref DEX_LIST: Vec<&'static str> = vec!["PancakeSwap", "BiSwap" /*"BakerySwap", "ApeSwap" */];
+
     pub static ref BSC_CHAIN_PARAMS: ChainParams = ChainParams {
         chain_id: 56,
         rpc_node_urls: &[
@@ -192,4 +195,27 @@ pub fn create_usdt_token(
     };
 
     Ok(usdt_token)
+}
+
+pub fn create_dexes(
+    chain_params: &ChainParams,
+) -> Result<Arc<Vec<(String, Box<dyn Dex>)>>, Box<dyn std::error::Error>> {
+    let provider = create_provider(chain_params)?;
+
+    // Initialize DEX instances
+    let dexes: Vec<(String, Box<dyn Dex>)> = DEX_LIST
+        .iter()
+        .map(|&dex_name| {
+            let dex: Box<dyn Dex> = match dex_name {
+                "PancakeSwap" => Box::new(PancakeSwap::new(provider.clone())),
+                "BiSwap" => Box::new(BiSwap::new(provider.clone())),
+                "BakerySwap" => Box::new(BakerySwap::new(provider.clone())),
+                "ApeSwap" => Box::new(ApeSwap::new(provider.clone())),
+                _ => panic!("Unknown DEX: {}", dex_name),
+            };
+            (dex_name.to_string(), dex)
+        })
+        .collect();
+
+    Ok(Arc::new(dexes))
 }
