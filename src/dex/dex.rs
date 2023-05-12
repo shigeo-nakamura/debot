@@ -33,6 +33,10 @@ impl BaseDex {
     pub fn get_provider(&self) -> Arc<Provider<Http>> {
         self.provider.clone()
     }
+
+    pub fn get_router_address(&self) -> Address {
+        self.router_address
+    }
 }
 
 #[async_trait]
@@ -145,4 +149,5 @@ pub trait Dex: Send + Sync {
     fn get_name(&self) -> &str;
     fn router_abi_json(&self) -> &'static [u8];
     fn get_provider(&self) -> Arc<Provider<Http>>;
+    fn get_router_address(&self) -> Address;
 }

@@ -51,4 +51,8 @@ impl Dex for BiSwap {
     fn get_provider(&self) -> Arc<Provider<Http>> {
         self.base_dex.get_provider()
     }
+
+    fn get_router_address(&self) -> Address {
+        self.base_dex.get_router_address()
+    }
 }

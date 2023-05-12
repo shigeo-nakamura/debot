@@ -3,12 +3,9 @@
 use ethers::signers::Signer;
 use token_manager::create_dexes;
 
-use crate::arbitrage::{Arbitrage, ArbitrageOpportunity, TwoTokenPairArbitrage};
+use crate::arbitrage::{Arbitrage, TwoTokenPairArbitrage};
 use crate::dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap};
-use crate::token::Token;
-use crate::token_manager::{
-    create_provider, create_tokens, create_usdt_token, create_wallet, BSC_CHAIN_PARAMS,
-};
+use crate::token_manager::{create_tokens, create_usdt_token, create_wallet, BSC_CHAIN_PARAMS};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{env, sync::RwLock};
@@ -53,16 +50,16 @@ async fn main() -> std::io::Result<()> {
         let usdt_token = create_usdt_token(&BSC_CHAIN_PARAMS, wallet.clone()).unwrap();
 
         // Create an instance of TwoTokenPairArbitrage
-        let two_token_pair_arbitrage = TwoTokenPairArbitrage::new(amount, tokens, usdt_token);
-        let spender_address = wallet.address();
+        let two_token_pair_arbitrage =
+            TwoTokenPairArbitrage::new(amount, tokens, usdt_token, dexes.clone());
         two_token_pair_arbitrage
-            .init(spender_address)
+            .init(wallet.address())
             .await
             .unwrap();
 
         // Call the find_opportunities method for all tokens
         let opportunities_future =
-            two_token_pair_arbitrage.find_opportunities(&dexes, price_history.clone());
+            two_token_pair_arbitrage.find_opportunities(price_history.clone());
         let ctrl_c_fut = tokio::signal::ctrl_c();
 
         tokio::select! {
@@ -71,7 +68,7 @@ async fn main() -> std::io::Result<()> {
                 match result {
                     Ok(opportunities) => {
                         for opportunity in &opportunities {
-                            two_token_pair_arbitrage.execute_transactions(&opportunity, &dexes, &wallet).await.unwrap();
+                            two_token_pair_arbitrage.execute_transactions(&opportunity, &wallet).await.unwrap();
                         }
                     },
                     Err(e) => {

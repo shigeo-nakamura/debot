@@ -199,11 +199,11 @@ pub fn create_usdt_token(
 
 pub fn create_dexes(
     chain_params: &ChainParams,
-) -> Result<Arc<Vec<(String, Box<dyn Dex>)>>, Box<dyn std::error::Error>> {
+) -> Result<Arc<Vec<Box<dyn Dex>>>, Box<dyn std::error::Error>> {
     let provider = create_provider(chain_params)?;
 
     // Initialize DEX instances
-    let dexes: Vec<(String, Box<dyn Dex>)> = DEX_LIST
+    let dexes: Vec<Box<dyn Dex>> = DEX_LIST
         .iter()
         .map(|&dex_name| {
             let dex: Box<dyn Dex> = match dex_name {
@@ -213,7 +213,7 @@ pub fn create_dexes(
                 "ApeSwap" => Box::new(ApeSwap::new(provider.clone())),
                 _ => panic!("Unknown DEX: {}", dex_name),
             };
-            (dex_name.to_string(), dex)
+            dex
         })
         .collect();
 

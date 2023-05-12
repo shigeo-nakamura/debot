@@ -1,6 +1,6 @@
 // arbitrage.rs
 
-use crate::{dex::Dex, http::PriceData};
+use crate::http::PriceData;
 use async_trait::async_trait;
 use ethers::prelude::LocalWallet;
 use std::{
@@ -22,14 +22,12 @@ pub struct ArbitrageOpportunity {
 pub trait Arbitrage {
     async fn find_opportunities(
         &self,
-        dexes: &Arc<Vec<(String, Box<dyn Dex>)>>,
         price_history: Arc<RwLock<Vec<PriceData>>>,
     ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>>;
 
     async fn execute_transactions(
         &self,
         opportunity: &ArbitrageOpportunity,
-        dexes: &Arc<Vec<(String, Box<dyn Dex>)>>,
         signer: &LocalWallet,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
