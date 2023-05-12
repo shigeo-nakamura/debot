@@ -2,8 +2,8 @@ use crate::{
     addresses::{
         BSC_ADA_ADDRESS, BSC_BTCB_ADDRESS, BSC_BUSD_ADDRESS, BSC_CAKE_ADDRESS, BSC_DAI_ADDRESS,
         BSC_ETH_ADDRESS, BSC_LINK_ADDRESS, BSC_TUSD_ADDRESS, BSC_USDC_ADDRESS, BSC_USDT_ADDRESS,
-        BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS, TESTNET_BSC_BTCB_ADDRESS, TESTNET_BSC_WBNB_ADDRESS,
-        TESTNET_POLYGON_MATIC_ADDRESS,
+        BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS, TESTNET_BSC_WBNB_ADDRESS,
+        TESTNET_POLYGON_MATIC_ADDRESS, TESTNET_BSC_BUSD_ADDRESS,
     },
     dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap},
     token::{
@@ -66,7 +66,7 @@ lazy_static! {
         tokens: &[
             // Update these with the correct testnet token addresses
             ("WBNB", TESTNET_BSC_WBNB_ADDRESS),
-            ("BTCB", TESTNET_BSC_BTCB_ADDRESS),
+            ("USD", TESTNET_BSC_BUSD_ADDRESS),
             // add other token addresses here...
         ],
         free_rate: 0.3,
