@@ -8,6 +8,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use ethers::prelude::LocalWallet;
 use ethers::types::Address;
+use ethers::types::U256;
 use futures::future::join_all;
 use std::error::Error;
 use std::sync::Arc;
@@ -47,6 +48,22 @@ impl<'a> TwoTokenPairArbitrage {
                     allowance,
                     dex.get_name(),
                 );
+
+                let token_decimals = token.decimals().await?;
+                let converted_amount = U256::from_dec_str(&format!(
+                    "{:.0}",
+                    self.amount * 10f64.powi(token_decimals as i32)
+                ))?;
+
+                if allowance < converted_amount {
+                    token.approve(spender, converted_amount).await?;
+                    log::info!(
+                        "Approved {} {} for dex {}",
+                        self.amount,
+                        token.symbol_name(),
+                        dex.get_name(),
+                    );
+                }
             }
         }
         Ok(())
