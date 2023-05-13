@@ -37,7 +37,7 @@ impl Token for BscToken {
         }
     }
 
-    fn clone_boxed(&self) -> Box<dyn Token> {
+    fn clone_box(&self) -> Box<dyn Token> {
         Box::new(self.clone())
     }
 

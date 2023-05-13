@@ -151,3 +151,9 @@ pub trait Dex: Send + Sync {
     fn get_provider(&self) -> Arc<Provider<Http>>;
     fn get_router_address(&self) -> Address;
 }
+
+impl Clone for Box<dyn Dex> {
+    fn clone(&self) -> Box<dyn Dex> {
+        self.clone_box()
+    }
+}

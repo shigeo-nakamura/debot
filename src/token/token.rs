@@ -139,7 +139,7 @@ pub trait Token: Send + Sync {
     ) -> Self
     where
         Self: Sized;
-    fn clone_boxed(&self) -> Box<dyn Token>;
+    fn clone_box(&self) -> Box<dyn Token>;
     async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>>;
     fn block_chain(&self) -> BlockChain;
     fn block_chain_id(&self) -> u64;
@@ -161,6 +161,6 @@ pub trait Token: Send + Sync {
 
 impl Clone for Box<dyn Token> {
     fn clone(&self) -> Box<dyn Token> {
-        self.clone_boxed()
+        self.clone_box()
     }
 }
