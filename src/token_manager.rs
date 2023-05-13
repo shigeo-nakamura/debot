@@ -114,14 +114,14 @@ pub fn create_provider(chain_params: &ChainParams) -> Result<Arc<Provider<Http>>
 pub fn create_tokens(
     chain_params: &ChainParams,
     wallet: Arc<LocalWallet>,
-) -> Result<Vec<Box<dyn Token>>, Box<dyn Error>> {
+) -> Result<Arc<Vec<Box<dyn Token>>>, Box<dyn Error>> {
     let mut tokens = Vec::new();
     let provider = create_provider(chain_params)?;
 
     for &(symbol, address) in chain_params.tokens.iter() {
         let token_address = Address::from_str(address).unwrap();
-        let token = if chain_params.chain_id == 56 {
-            Box::new(BscToken::new(
+        let token: Box<dyn Token> = if chain_params.chain_id == 56 {
+            let bsc_token = BscToken::new(
                 BlockChain::BscChain {
                     chain_id: chain_params.chain_id,
                 },
@@ -131,9 +131,10 @@ pub fn create_tokens(
                 None,
                 chain_params.free_rate,
                 wallet.clone(),
-            )) as Box<dyn Token>
+            );
+            Box::new(bsc_token)
         } else if chain_params.chain_id == 137 {
-            Box::new(PolygonToken::new(
+            let polygon_token = PolygonToken::new(
                 BlockChain::PolygonChain {
                     chain_id: chain_params.chain_id,
                 },
@@ -143,20 +144,21 @@ pub fn create_tokens(
                 None,
                 chain_params.free_rate,
                 wallet.clone(),
-            )) as Box<dyn Token>
+            );
+            Box::new(polygon_token)
         } else {
             unimplemented!("unsupported chain id: {}", chain_params.chain_id);
         };
         tokens.push(token);
     }
 
-    Ok(tokens)
+    Ok(Arc::new(tokens))
 }
 
 pub fn create_usdt_token(
     chain_params: &ChainParams,
     wallet: Arc<LocalWallet>,
-) -> Result<Box<dyn Token>, Box<dyn Error>> {
+) -> Result<Arc<Box<dyn Token>>, Box<dyn Error>> {
     let usdt_symbol = "USDT";
     let usdt_address = Address::from_str(BSC_USDT_ADDRESS).unwrap();
     let provider = create_provider(chain_params)?;
@@ -171,7 +173,7 @@ pub fn create_usdt_token(
             usdt_symbol.to_owned(),
             None,
             chain_params.free_rate,
-            wallet,
+            wallet.clone(),
         );
         Box::new(token)
     } else if chain_params.chain_id == 137 {
@@ -184,7 +186,7 @@ pub fn create_usdt_token(
             usdt_symbol.to_owned(),
             None,
             chain_params.free_rate,
-            wallet,
+            wallet.clone(),
         );
         Box::new(token)
     } else {
@@ -194,7 +196,7 @@ pub fn create_usdt_token(
         )));
     };
 
-    Ok(usdt_token)
+    Ok(Arc::new(usdt_token))
 }
 
 pub fn create_dexes(

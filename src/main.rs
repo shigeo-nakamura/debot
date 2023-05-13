@@ -33,6 +33,21 @@ async fn main() -> std::io::Result<()> {
     // Create dexes
     let dexes = create_dexes(&BSC_CHAIN_PARAMS).expect("Error creating DEXes");
 
+    // Create Tokens
+    let tokens = create_tokens(&BSC_CHAIN_PARAMS, wallet.clone()).expect("Error creating Ttokens");
+
+    // Create a base token
+    let usdt_token =
+        create_usdt_token(&BSC_CHAIN_PARAMS, wallet.clone()).expect("Error creating a base token");
+
+    // Create an instance of TwoTokenPairArbitrage
+    let two_token_pair_arbitrage =
+        TwoTokenPairArbitrage::new(amount, tokens.clone(), usdt_token.clone(), dexes.clone());
+    two_token_pair_arbitrage
+        .init(wallet.address())
+        .await
+        .unwrap();
+
     // Create the price history vector
     let price_history = Arc::new(RwLock::new(Vec::new()));
 
@@ -42,20 +57,6 @@ async fn main() -> std::io::Result<()> {
 
     loop {
         let start_instant = Instant::now();
-
-        // Create Tokens
-        let tokens = create_tokens(&BSC_CHAIN_PARAMS, wallet.clone()).unwrap();
-
-        // Create a base token
-        let usdt_token = create_usdt_token(&BSC_CHAIN_PARAMS, wallet.clone()).unwrap();
-
-        // Create an instance of TwoTokenPairArbitrage
-        let two_token_pair_arbitrage =
-            TwoTokenPairArbitrage::new(amount, tokens, usdt_token, dexes.clone());
-        two_token_pair_arbitrage
-            .init(wallet.address())
-            .await
-            .unwrap();
 
         // Call the find_opportunities method for all tokens
         let opportunities_future =

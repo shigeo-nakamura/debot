@@ -17,16 +17,16 @@ use tokio::task::JoinHandle;
 
 pub struct TwoTokenPairArbitrage {
     amount: f64,
-    tokens: Vec<Box<dyn Token>>,
-    base_token: Box<dyn Token>,
+    tokens: Arc<Vec<Box<dyn Token>>>,
+    base_token: Arc<Box<dyn Token>>,
     dexes: Arc<Vec<Box<dyn Dex>>>,
 }
 
 impl<'a> TwoTokenPairArbitrage {
     pub fn new(
         amount: f64,
-        tokens: Vec<Box<dyn Token>>,
-        base_token: Box<dyn Token>,
+        tokens: Arc<Vec<Box<dyn Token>>>,
+        base_token: Arc<Box<dyn Token>>,
         dexes: Arc<Vec<Box<dyn Dex>>>,
     ) -> Self {
         Self {
@@ -38,7 +38,7 @@ impl<'a> TwoTokenPairArbitrage {
     }
 
     pub async fn init(&self, owner: Address) -> Result<(), Box<dyn Error + Send + Sync>> {
-        for token in &self.tokens {
+        for token in self.tokens.iter() {
             for dex in self.dexes.iter() {
                 let spender = dex.get_router_address();
                 let allowance = token.allowance(owner, spender).await?;
@@ -69,7 +69,7 @@ impl<'a> TwoTokenPairArbitrage {
         Ok(())
     }
 
-    fn log_arbitrage_opportunity(
+    fn log_arbitrage_info(
         dex1: &Box<dyn Dex>,
         dex2: &Box<dyn Dex>,
         token: &Box<dyn Token>,
@@ -78,49 +78,26 @@ impl<'a> TwoTokenPairArbitrage {
         swap_to_token_price: f64,
         swap_to_usdt_price: f64,
         profit: f64,
+        has_opportunity: bool,
     ) {
-        log::info!(
-            "Arbitrage opportunity [{} and {}] for (USDT - {}). Profit: {} USDT",
-            dex1.get_name(),
-            dex2.get_name(),
-            token.symbol_name(),
-            profit
-        );
-        log::debug!(
-            "Dex 1: {}, USDT --> {}, Input Amount: {}, Output Amount: {}, price: {}",
-            dex1.get_name(),
-            token.symbol_name(),
-            amount,
-            token_b_amount,
-            swap_to_token_price,
-        );
-        log::debug!(
-            "Dex 2 {}, {} --> USDT, Input Amount: {}, Output Amount: {}, price: {}",
-            dex2.get_name(),
-            token.symbol_name(),
-            token_b_amount,
-            token_b_amount * swap_to_usdt_price,
-            swap_to_usdt_price
-        );
-    }
+        let opportunity_string = if has_opportunity {
+            "Arbitrage opportunity"
+        } else {
+            "No arbitrage opportunity"
+        };
 
-    fn log_no_arbitrage_opportunity(
-        dex1: &Box<dyn Dex>,
-        dex2: &Box<dyn Dex>,
-        token: &Box<dyn Token>,
-        amount: f64,
-        token_b_amount: f64,
-        swap_to_token_price: f64,
-        swap_to_usdt_price: f64,
-        profit: f64,
-    ) {
+        let profit_string = if has_opportunity { "Profit" } else { "Loss" };
+
         log::info!(
-            "No arbitrage opportunity [{} and {}] for (USDT - {}). Loss: {} USDT",
+            "{} [{} and {}] for (USDT - {}). {}: {} USDT",
+            opportunity_string,
             dex1.get_name(),
             dex2.get_name(),
             token.symbol_name(),
+            profit_string,
             profit
         );
+
         log::debug!(
             "Dex 1: {}, USDT --> {}, Input Amount: {}, Output Amount: {}, price: {}",
             dex1.get_name(),
@@ -129,6 +106,7 @@ impl<'a> TwoTokenPairArbitrage {
             token_b_amount,
             swap_to_token_price,
         );
+
         log::debug!(
             "Dex 2 {}, {} --> USDT, Input Amount: {}, Output Amount: {}, price: {}",
             dex2.get_name(),
@@ -157,7 +135,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
             let base_token = self.base_token.clone();
             let amount = self.amount;
             let dexes = self.dexes.clone();
-            let tokens_cloned = Arc::new(self.tokens.clone());
+            let tokens_cloned = self.tokens.clone();
 
             let task = tokio::spawn(async move {
                 let mut opps: Vec<ArbitrageOpportunity> = vec![];
@@ -171,7 +149,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
                         }
 
                         let swap_to_token_price = dex1
-                            .get_token_price(&*base_token, token.as_ref(), amount)
+                            .get_token_price((*base_token).as_ref(), token.as_ref(), amount)
                             .await
                             .map_err(|e| anyhow::anyhow!(e))
                             .context("Error getting token price from dex1")?;
@@ -187,7 +165,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
                             );
 
                         let swap_to_usdt_price = dex2
-                            .get_token_price(token.as_ref(), &*base_token, token_b_amount)
+                            .get_token_price(token.as_ref(), (*base_token).as_ref(), token_b_amount)
                             .await
                             .map_err(|e| anyhow::anyhow!(e))
                             .context("Error getting token price from dex2")?;
@@ -204,7 +182,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
 
                         let profit = final_usdt_amount - amount;
                         if profit > 0.0 {
-                            TwoTokenPairArbitrage::log_arbitrage_opportunity(
+                            Self::log_arbitrage_info(
                                 dex1,
                                 dex2,
                                 &token,
@@ -213,6 +191,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
                                 swap_to_token_price,
                                 swap_to_usdt_price,
                                 profit,
+                                true,
                             );
 
                             opps.push(ArbitrageOpportunity {
@@ -227,7 +206,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
                                 amount,
                             });
                         } else {
-                            TwoTokenPairArbitrage::log_no_arbitrage_opportunity(
+                            Self::log_arbitrage_info(
                                 dex1,
                                 dex2,
                                 &token,
@@ -236,6 +215,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
                                 swap_to_token_price,
                                 swap_to_usdt_price,
                                 profit,
+                                false,
                             );
                         }
 
