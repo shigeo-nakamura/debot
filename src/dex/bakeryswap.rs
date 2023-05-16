@@ -2,11 +2,10 @@
 
 use super::dex::BaseDex;
 use super::Dex;
-use crate::addresses::BSC_BAKERY_SWAP_ROUTER;
 use async_trait::async_trait;
 use ethers::{prelude::*, types::Address};
+use std::error::Error;
 use std::sync::Arc;
-use std::{error::Error, str::FromStr};
 
 #[derive(Debug, Clone)]
 pub struct BakerySwap {
@@ -17,8 +16,7 @@ static BAKERY_SWAP_ROUTER_ABI_JSON: &'static [u8] =
     include_bytes!("../../resources/BakerySwapRouterABI.json");
 
 impl BakerySwap {
-    pub fn new(provider: Arc<Provider<Http>>) -> Self {
-        let router_address = Address::from_str(BSC_BAKERY_SWAP_ROUTER).unwrap();
+    pub fn new(provider: Arc<Provider<Http>>, router_address: Address) -> Self {
         Self {
             base_dex: BaseDex {
                 router_address,

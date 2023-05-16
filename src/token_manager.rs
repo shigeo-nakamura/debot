@@ -1,9 +1,10 @@
 use crate::{
     addresses::{
-        BSC_ADA_ADDRESS, BSC_BTCB_ADDRESS, BSC_BUSD_ADDRESS, BSC_CAKE_ADDRESS, BSC_DAI_ADDRESS,
-        BSC_ETH_ADDRESS, BSC_LINK_ADDRESS, BSC_TUSD_ADDRESS, BSC_USDC_ADDRESS, BSC_USDT_ADDRESS,
-        BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS, TESTNET_BSC_BUSD_ADDRESS, TESTNET_BSC_WBNB_ADDRESS,
-        TESTNET_POLYGON_MATIC_ADDRESS,
+        BSC_ADA_ADDRESS, BSC_BI_SWAP_ROUTER, BSC_BTCB_ADDRESS, BSC_BUSD_ADDRESS, BSC_CAKE_ADDRESS,
+        BSC_DAI_ADDRESS, BSC_ETH_ADDRESS, BSC_LINK_ADDRESS, BSC_PANCAKE_SWAP_ROUTER,
+        BSC_TUSD_ADDRESS, BSC_USDC_ADDRESS, BSC_USDT_ADDRESS, BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS,
+        TESTNET_BSC_APE_SWAP_ROUTER, TESTNET_BSC_BUSD_ADDRESS, TESTNET_BSC_PANCAKE_SWAP_ROUTER,
+        TESTNET_BSC_WBNB_ADDRESS, TESTNET_POLYGON_MATIC_ADDRESS,
     },
     dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap},
     token::{
@@ -27,13 +28,12 @@ pub struct ChainParams {
     pub chain_id: u64,
     pub rpc_node_urls: &'static [&'static str],
     pub tokens: &'static [(&'static str, &'static str)],
+    pub dex_list: &'static [(&'static str, &'static str)],
     pub free_rate: f64,
     pub current_rpc_url: Arc<Mutex<usize>>,
 }
 
 lazy_static! {
-    pub static ref DEX_LIST: Vec<&'static str> = vec!["PancakeSwap", "BiSwap" /*"BakerySwap", "ApeSwap" */];
-
     pub static ref BSC_CHAIN_PARAMS: ChainParams = ChainParams {
         chain_id: 56,
         rpc_node_urls: &[
@@ -56,6 +56,10 @@ lazy_static! {
             // ("CAKE", BSC_CAKE_ADDRESS),
             // ("TUSD", BSC_TUSD_ADDRESS),
         ],
+        dex_list: &[
+            ("PancakeSwap", BSC_PANCAKE_SWAP_ROUTER),
+            ("BiSwap", BSC_BI_SWAP_ROUTER)
+        ],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
     };
@@ -69,6 +73,10 @@ lazy_static! {
             ("USD", TESTNET_BSC_BUSD_ADDRESS),
             // add other token addresses here...
         ],
+        dex_list: &[
+            ("PancakeSwap", TESTNET_BSC_PANCAKE_SWAP_ROUTER),
+            ("ApeSwap", TESTNET_BSC_APE_SWAP_ROUTER)
+        ],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
     };
@@ -77,6 +85,7 @@ lazy_static! {
         chain_id: 137,
         rpc_node_urls: &["https://rpc-mainnet.maticvigil.com/"],
         tokens: &[],
+        dex_list: &[],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
     };
@@ -89,6 +98,7 @@ lazy_static! {
             ("MATIC", TESTNET_POLYGON_MATIC_ADDRESS),
             // add other token addresses here...
         ],
+        dex_list: &[],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
     };
@@ -205,14 +215,16 @@ pub fn create_dexes(
     let provider = create_provider(chain_params)?;
 
     // Initialize DEX instances
-    let dexes: Vec<Box<dyn Dex>> = DEX_LIST
+    let dexes: Vec<Box<dyn Dex>> = chain_params
+        .dex_list
         .iter()
-        .map(|&dex_name| {
+        .map(|&(dex_name, router_address)| {
+            let dex_router_address = Address::from_str(router_address).unwrap();
             let dex: Box<dyn Dex> = match dex_name {
-                "PancakeSwap" => Box::new(PancakeSwap::new(provider.clone())),
-                "BiSwap" => Box::new(BiSwap::new(provider.clone())),
-                "BakerySwap" => Box::new(BakerySwap::new(provider.clone())),
-                "ApeSwap" => Box::new(ApeSwap::new(provider.clone())),
+                "PancakeSwap" => Box::new(PancakeSwap::new(provider.clone(), dex_router_address)),
+                "BiSwap" => Box::new(BiSwap::new(provider.clone(), dex_router_address)),
+                "BakerySwap" => Box::new(BakerySwap::new(provider.clone(), dex_router_address)),
+                "ApeSwap" => Box::new(ApeSwap::new(provider.clone(), dex_router_address)),
                 _ => panic!("Unknown DEX: {}", dex_name),
             };
             dex
