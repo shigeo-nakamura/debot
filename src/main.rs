@@ -4,7 +4,6 @@ use ethers::signers::Signer;
 use token_manager::create_dexes;
 
 use crate::arbitrage::{Arbitrage, TwoTokenPairArbitrage};
-use crate::dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap};
 use crate::token_manager::{create_tokens, create_usdt_token, create_wallet, BSC_CHAIN_PARAMS};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -12,6 +11,7 @@ use std::{env, sync::RwLock};
 
 mod addresses;
 mod arbitrage;
+mod config;
 mod dex;
 mod http;
 mod token;
@@ -21,28 +21,29 @@ mod token_manager;
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
-    let interval_str = env::var("INTERVAL").unwrap_or_else(|_| "5".to_string());
-    let interval = interval_str.parse::<u64>().unwrap();
-
-    let amount_str = env::var("AMOUNT").unwrap_or_else(|_| "100.0".to_string());
-    let amount = amount_str.parse::<f64>().unwrap();
+    let config = config::get_config_from_env().expect("Invalid configuration");
 
     // Create a wallet
     let wallet = create_wallet().unwrap();
 
     // Create dexes
-    let dexes = create_dexes(&BSC_CHAIN_PARAMS).expect("Error creating DEXes");
+    let dexes = create_dexes(config.chain_params).expect("Error creating DEXes");
 
     // Create Tokens
-    let tokens = create_tokens(&BSC_CHAIN_PARAMS, wallet.clone()).expect("Error creating Ttokens");
+    let tokens =
+        create_tokens(config.chain_params, wallet.clone()).expect("Error creating Ttokens");
 
     // Create a base token
     let usdt_token =
         create_usdt_token(&BSC_CHAIN_PARAMS, wallet.clone()).expect("Error creating a base token");
 
     // Create an instance of TwoTokenPairArbitrage
-    let two_token_pair_arbitrage =
-        TwoTokenPairArbitrage::new(amount, tokens.clone(), usdt_token.clone(), dexes.clone());
+    let two_token_pair_arbitrage = TwoTokenPairArbitrage::new(
+        config.amount,
+        tokens.clone(),
+        usdt_token.clone(),
+        dexes.clone(),
+    );
     two_token_pair_arbitrage
         .init(wallet.address())
         .await
@@ -65,7 +66,6 @@ async fn main() -> std::io::Result<()> {
 
         tokio::select! {
             result = opportunities_future => {
-                log::info!("---------------------------------------------------------------");
                 match result {
                     Ok(opportunities) => {
                         for opportunity in &opportunities {
@@ -84,8 +84,8 @@ async fn main() -> std::io::Result<()> {
         }
 
         let elapsed = start_instant.elapsed();
-        if elapsed < Duration::from_secs(interval) {
-            tokio::time::sleep(Duration::from_secs(interval) - elapsed).await;
+        if elapsed < Duration::from_secs(config.interval) {
+            tokio::time::sleep(Duration::from_secs(config.interval) - elapsed).await;
         }
     }
 }

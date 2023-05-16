@@ -64,7 +64,7 @@ lazy_static! {
         current_rpc_url: Arc::new(Mutex::new(0)),
     };
 
-    pub static ref BSC_TESTNET_CHAIN_PARAMS: ChainParams = ChainParams {
+    pub static ref TESTNET_BSC_CHAIN_PARAMS: ChainParams = ChainParams {
         chain_id: 97, // This is the chain ID for Binance Smart Chain Testnet
         rpc_node_urls: &["https://data-seed-prebsc-1-s1.binance.org:8545/"],
         tokens: &[
@@ -90,7 +90,7 @@ lazy_static! {
         current_rpc_url: Arc::new(Mutex::new(0)),
     };
 
-    pub static ref POLYGON_TESTNET_CHAIN_PARAMS: ChainParams = ChainParams {
+    pub static ref TESTNET_POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
         chain_id: 80001, // This is the chain ID for Mumbai Testnet
         rpc_node_urls: &["https://rpc-mumbai.maticvigil.com"],
         tokens: &[
