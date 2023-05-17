@@ -4,7 +4,7 @@ use ethers::signers::Signer;
 use token_manager::create_dexes;
 
 use crate::arbitrage::{Arbitrage, TwoTokenPairArbitrage};
-use crate::token_manager::{create_tokens, create_usdt_token, create_wallet, BSC_CHAIN_PARAMS};
+use crate::token_manager::{create_base_token, create_tokens, create_wallet, BSC_CHAIN_PARAMS};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{env, sync::RwLock};
@@ -35,7 +35,7 @@ async fn main() -> std::io::Result<()> {
 
     // Create a base token
     let usdt_token =
-        create_usdt_token(&BSC_CHAIN_PARAMS, wallet.clone()).expect("Error creating a base token");
+        create_base_token(&BSC_CHAIN_PARAMS, wallet.clone()).expect("Error creating a base token");
 
     // Create an instance of TwoTokenPairArbitrage
     let two_token_pair_arbitrage = TwoTokenPairArbitrage::new(

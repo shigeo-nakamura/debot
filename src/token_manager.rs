@@ -31,6 +31,7 @@ pub struct ChainParams {
     pub dex_list: &'static [(&'static str, &'static str)],
     pub free_rate: f64,
     pub current_rpc_url: Arc<Mutex<usize>>,
+    pub base_token: &'static str,
 }
 
 lazy_static! {
@@ -62,6 +63,7 @@ lazy_static! {
         ],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
+        base_token: "USDT",
     };
 
     pub static ref TESTNET_BSC_CHAIN_PARAMS: ChainParams = ChainParams {
@@ -70,7 +72,7 @@ lazy_static! {
         tokens: &[
             // Update these with the correct testnet token addresses
             ("WBNB", TESTNET_BSC_WBNB_ADDRESS),
-            ("USD", TESTNET_BSC_BUSD_ADDRESS),
+            ("BUSD", TESTNET_BSC_BUSD_ADDRESS),
             // add other token addresses here...
         ],
         dex_list: &[
@@ -79,6 +81,7 @@ lazy_static! {
         ],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
+        base_token: "BUSD",
     };
 
     pub static ref POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
@@ -88,6 +91,7 @@ lazy_static! {
         dex_list: &[],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
+        base_token: "USDT",
     };
 
     pub static ref TESTNET_POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
@@ -101,6 +105,7 @@ lazy_static! {
         dex_list: &[],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
+        base_token: "USDT",
     };
 }
 
@@ -130,7 +135,7 @@ pub fn create_tokens(
 
     for &(symbol, address) in chain_params.tokens.iter() {
         let token_address = Address::from_str(address).unwrap();
-        let token: Box<dyn Token> = if chain_params.chain_id == 56 {
+        let token: Box<dyn Token> = if chain_params.chain_id == 56 || chain_params.chain_id == 97 {
             let bsc_token = BscToken::new(
                 BlockChain::BscChain {
                     chain_id: chain_params.chain_id,
@@ -143,7 +148,7 @@ pub fn create_tokens(
                 wallet.clone(),
             );
             Box::new(bsc_token)
-        } else if chain_params.chain_id == 137 {
+        } else if chain_params.chain_id == 137 || chain_params.chain_id == 80001 {
             let polygon_token = PolygonToken::new(
                 BlockChain::PolygonChain {
                     chain_id: chain_params.chain_id,
@@ -165,35 +170,41 @@ pub fn create_tokens(
     Ok(Arc::new(tokens))
 }
 
-pub fn create_usdt_token(
+pub fn create_base_token(
     chain_params: &ChainParams,
     wallet: Arc<LocalWallet>,
 ) -> Result<Arc<Box<dyn Token>>, Box<dyn Error>> {
-    let usdt_symbol = "USDT";
-    let usdt_address = Address::from_str(BSC_USDT_ADDRESS).unwrap();
+    let base_token_symbol = chain_params.base_token;
+    let base_token_address = chain_params
+        .tokens
+        .iter()
+        .find(|(symbol, _)| *symbol == base_token_symbol)
+        .unwrap()
+        .1;
+    let base_token_address = Address::from_str(base_token_address).unwrap();
     let provider = create_provider(chain_params)?;
 
-    let usdt_token: Box<dyn Token> = if chain_params.chain_id == 56 {
+    let base_token: Box<dyn Token> = if chain_params.chain_id == 56 || chain_params.chain_id == 97 {
         let token = BscToken::new(
             BlockChain::BscChain {
                 chain_id: chain_params.chain_id,
             },
             provider.clone(),
-            usdt_address,
-            usdt_symbol.to_owned(),
+            base_token_address,
+            base_token_symbol.to_owned(),
             None,
             chain_params.free_rate,
             wallet.clone(),
         );
         Box::new(token)
-    } else if chain_params.chain_id == 137 {
+    } else if chain_params.chain_id == 137 || chain_params.chain_id == 80001 {
         let token = PolygonToken::new(
             BlockChain::PolygonChain {
                 chain_id: chain_params.chain_id,
             },
             provider.clone(),
-            usdt_address,
-            usdt_symbol.to_owned(),
+            base_token_address,
+            base_token_symbol.to_owned(),
             None,
             chain_params.free_rate,
             wallet.clone(),
@@ -206,7 +217,7 @@ pub fn create_usdt_token(
         )));
     };
 
-    Ok(Arc::new(usdt_token))
+    Ok(Arc::new(base_token))
 }
 
 pub fn create_dexes(
