@@ -12,13 +12,9 @@ use crate::{
         BscToken, PolygonToken,
     },
 };
+use ethers::providers::{Http, Provider};
 use ethers::signers::LocalWallet;
 use ethers::types::Address;
-use ethers::{
-    providers::{Http, Provider},
-    utils::hex,
-};
-use ethers_middleware::core::k256::elliptic_curve::SecretKey;
 use lazy_static::lazy_static;
 use std::{error::Error, sync::Arc};
 use std::{str::FromStr, sync::Mutex};
@@ -107,15 +103,6 @@ lazy_static! {
         current_rpc_url: Arc::new(Mutex::new(0)),
         base_token: "USDT",
     };
-}
-
-pub fn create_wallet() -> Result<Arc<LocalWallet>, Box<dyn std::error::Error>> {
-    let private_key_bytes =
-        hex::decode("dd84b3084618a0ff534b482c5e3665b53805ce97c7ed1a46e39b671b3b897047")?;
-    let secret_key = SecretKey::from_slice(&private_key_bytes)?;
-
-    let wallet = LocalWallet::from(secret_key);
-    Ok(Arc::new(wallet))
 }
 
 pub fn create_provider(chain_params: &ChainParams) -> Result<Arc<Provider<Http>>, Box<dyn Error>> {

@@ -4,10 +4,11 @@ use ethers::signers::Signer;
 use token_manager::create_dexes;
 
 use crate::arbitrage::{Arbitrage, TwoTokenPairArbitrage};
-use crate::token_manager::{create_base_token, create_tokens, create_wallet, BSC_CHAIN_PARAMS};
+use crate::token_manager::{create_base_token, create_tokens};
 use std::sync::Arc;
+use std::sync::RwLock;
 use std::time::{Duration, Instant};
-use std::{env, sync::RwLock};
+use wallet::{create_kms_wallet, create_local_wallet};
 
 mod addresses;
 mod arbitrage;
@@ -16,6 +17,7 @@ mod dex;
 mod http;
 mod token;
 mod token_manager;
+mod wallet;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -24,7 +26,7 @@ async fn main() -> std::io::Result<()> {
     let config = config::get_config_from_env().expect("Invalid configuration");
 
     // Create a wallet
-    let wallet = create_wallet().unwrap();
+    let wallet = create_local_wallet().unwrap();
 
     // Create dexes
     let dexes = create_dexes(config.chain_params).expect("Error creating DEXes");
@@ -34,8 +36,8 @@ async fn main() -> std::io::Result<()> {
         create_tokens(config.chain_params, wallet.clone()).expect("Error creating Ttokens");
 
     // Create a base token
-    let usdt_token =
-        create_base_token(&BSC_CHAIN_PARAMS, wallet.clone()).expect("Error creating a base token");
+    let usdt_token = create_base_token(config.chain_params, wallet.clone())
+        .expect("Error creating a base token");
 
     // Create an instance of TwoTokenPairArbitrage
     let two_token_pair_arbitrage = TwoTokenPairArbitrage::new(
