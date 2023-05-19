@@ -1,5 +1,10 @@
 // addresses.rs
 
+pub const BSC_MAINNET_CHAIN_ID: u64 = 56;
+pub const BSC_TESTNET_CHAIN_ID: u64 = 97;
+pub const POLYGON_MAINNET_CHAIN_ID: u64 = 137;
+pub const POLYGON_TESTNET_CHAIN_ID: u64 = 80001;
+
 // BSC tokens
 pub const BSC_WBNB_ADDRESS: &str = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
 pub const BSC_BTCB_ADDRESS: &str = "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c";

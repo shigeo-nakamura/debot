@@ -1,10 +1,11 @@
 use crate::{
     addresses::{
         BSC_ADA_ADDRESS, BSC_BI_SWAP_ROUTER, BSC_BTCB_ADDRESS, BSC_BUSD_ADDRESS, BSC_CAKE_ADDRESS,
-        BSC_DAI_ADDRESS, BSC_ETH_ADDRESS, BSC_LINK_ADDRESS, BSC_PANCAKE_SWAP_ROUTER,
-        BSC_TUSD_ADDRESS, BSC_USDC_ADDRESS, BSC_USDT_ADDRESS, BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS,
-        TESTNET_BSC_APE_SWAP_ROUTER, TESTNET_BSC_BUSD_ADDRESS, TESTNET_BSC_PANCAKE_SWAP_ROUTER,
-        TESTNET_BSC_WBNB_ADDRESS, TESTNET_POLYGON_MATIC_ADDRESS,
+        BSC_DAI_ADDRESS, BSC_ETH_ADDRESS, BSC_LINK_ADDRESS, BSC_MAINNET_CHAIN_ID,
+        BSC_PANCAKE_SWAP_ROUTER, BSC_TESTNET_CHAIN_ID, BSC_TUSD_ADDRESS, BSC_USDC_ADDRESS,
+        BSC_USDT_ADDRESS, BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS, POLYGON_MAINNET_CHAIN_ID,
+        POLYGON_TESTNET_CHAIN_ID, TESTNET_BSC_APE_SWAP_ROUTER, TESTNET_BSC_BUSD_ADDRESS,
+        TESTNET_BSC_PANCAKE_SWAP_ROUTER, TESTNET_BSC_WBNB_ADDRESS, TESTNET_POLYGON_MATIC_ADDRESS,
     },
     dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap},
     token::{
@@ -15,6 +16,7 @@ use crate::{
 use ethers::providers::{Http, Provider};
 use ethers::signers::LocalWallet;
 use ethers::types::Address;
+use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
 use lazy_static::lazy_static;
 use std::{error::Error, sync::Arc};
 use std::{str::FromStr, sync::Mutex};
@@ -105,113 +107,100 @@ lazy_static! {
     };
 }
 
-pub fn create_provider(chain_params: &ChainParams) -> Result<Arc<Provider<Http>>, Box<dyn Error>> {
-    let mut current_rpc_url = chain_params.current_rpc_url.lock().unwrap();
-    let provider = Provider::<Http>::try_from(chain_params.rpc_node_urls[*current_rpc_url])?;
-    *current_rpc_url = (*current_rpc_url + 1) % chain_params.rpc_node_urls.len();
-
-    Ok(Arc::new(provider))
+fn create_token(
+    chain_id: u64,
+    provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
+    token_address: Address,
+    symbol: String,
+    free_rate: f64,
+) -> Result<Box<dyn Token>, Box<dyn Error>> {
+    match chain_id {
+        BSC_MAINNET_CHAIN_ID | BSC_TESTNET_CHAIN_ID => Ok(Box::new(BscToken::new(
+            BlockChain::BscChain { chain_id },
+            provider.clone(),
+            token_address,
+            symbol,
+            None,
+            free_rate,
+        ))),
+        POLYGON_MAINNET_CHAIN_ID | POLYGON_TESTNET_CHAIN_ID => Ok(Box::new(PolygonToken::new(
+            BlockChain::PolygonChain { chain_id },
+            provider.clone(),
+            token_address,
+            symbol,
+            None,
+            free_rate,
+        ))),
+        _ => Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("unsupported chain id: {}", chain_id),
+        ))),
+    }
 }
 
-pub fn create_tokens(
+pub async fn create_tokens(
+    provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
     chain_params: &ChainParams,
-    wallet: Arc<LocalWallet>,
-) -> Result<Arc<Vec<Box<dyn Token>>>, Box<dyn Error>> {
-    let mut tokens = Vec::new();
-    let provider = create_provider(chain_params)?;
+) -> Result<Arc<Vec<Box<dyn Token>>>, Box<dyn Error + Send + Sync + 'static>> {
+    let tokens: Result<Vec<Box<dyn Token>>, Box<dyn Error>> = chain_params
+        .tokens
+        .iter()
+        .map(|&(symbol, address)| {
+            let token_address = Address::from_str(address)?;
+            create_token(
+                chain_params.chain_id,
+                provider.clone(),
+                token_address,
+                symbol.to_owned(),
+                chain_params.free_rate,
+            )
+        })
+        .collect();
 
-    for &(symbol, address) in chain_params.tokens.iter() {
-        let token_address = Address::from_str(address).unwrap();
-        let token: Box<dyn Token> = if chain_params.chain_id == 56 || chain_params.chain_id == 97 {
-            let bsc_token = BscToken::new(
-                BlockChain::BscChain {
-                    chain_id: chain_params.chain_id,
-                },
-                provider.clone(),
-                token_address,
-                symbol.to_owned(),
-                None,
-                chain_params.free_rate,
-                wallet.clone(),
-            );
-            Box::new(bsc_token)
-        } else if chain_params.chain_id == 137 || chain_params.chain_id == 80001 {
-            let polygon_token = PolygonToken::new(
-                BlockChain::PolygonChain {
-                    chain_id: chain_params.chain_id,
-                },
-                provider.clone(),
-                token_address,
-                symbol.to_owned(),
-                None,
-                chain_params.free_rate,
-                wallet.clone(),
-            );
-            Box::new(polygon_token)
-        } else {
-            unimplemented!("unsupported chain id: {}", chain_params.chain_id);
-        };
-        tokens.push(token);
+    let mut initialized_tokens = Vec::new();
+    for mut token in tokens.unwrap() {
+        token.initialize().await?;
+        initialized_tokens.push(token);
     }
 
-    Ok(Arc::new(tokens))
+    Ok(Arc::new(initialized_tokens))
 }
 
-pub fn create_base_token(
+pub async fn create_base_token(
+    provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
     chain_params: &ChainParams,
-    wallet: Arc<LocalWallet>,
-) -> Result<Arc<Box<dyn Token>>, Box<dyn Error>> {
+) -> Result<Arc<Box<dyn Token>>, Box<dyn Error + Send + Sync + 'static>> {
     let base_token_symbol = chain_params.base_token;
     let base_token_address = chain_params
         .tokens
         .iter()
         .find(|(symbol, _)| *symbol == base_token_symbol)
+        .ok_or_else(|| {
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Base token {} not found", base_token_symbol),
+            )) as Box<dyn Error>
+        })
         .unwrap()
         .1;
-    let base_token_address = Address::from_str(base_token_address).unwrap();
-    let provider = create_provider(chain_params)?;
 
-    let base_token: Box<dyn Token> = if chain_params.chain_id == 56 || chain_params.chain_id == 97 {
-        let token = BscToken::new(
-            BlockChain::BscChain {
-                chain_id: chain_params.chain_id,
-            },
-            provider.clone(),
-            base_token_address,
-            base_token_symbol.to_owned(),
-            None,
-            chain_params.free_rate,
-            wallet.clone(),
-        );
-        Box::new(token)
-    } else if chain_params.chain_id == 137 || chain_params.chain_id == 80001 {
-        let token = PolygonToken::new(
-            BlockChain::PolygonChain {
-                chain_id: chain_params.chain_id,
-            },
-            provider.clone(),
-            base_token_address,
-            base_token_symbol.to_owned(),
-            None,
-            chain_params.free_rate,
-            wallet.clone(),
-        );
-        Box::new(token)
-    } else {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            format!("unsupported chain id: {}", chain_params.chain_id),
-        )));
-    };
-
-    Ok(Arc::new(base_token))
+    let base_token_address = Address::from_str(base_token_address)?;
+    let mut token = create_token(
+        chain_params.chain_id,
+        provider.clone(),
+        base_token_address,
+        base_token_symbol.to_owned(),
+        chain_params.free_rate,
+    )
+    .unwrap();
+    token.initialize().await?;
+    Ok(Arc::new(token))
 }
 
-pub fn create_dexes(
+pub async fn create_dexes(
+    provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
     chain_params: &ChainParams,
-) -> Result<Arc<Vec<Box<dyn Dex>>>, Box<dyn std::error::Error>> {
-    let provider = create_provider(chain_params)?;
-
+) -> Result<Arc<Vec<Box<dyn Dex>>>, Box<dyn Error + Send + Sync>> {
     // Initialize DEX instances
     let dexes: Vec<Box<dyn Dex>> = chain_params
         .dex_list
@@ -229,5 +218,11 @@ pub fn create_dexes(
         })
         .collect();
 
-    Ok(Arc::new(dexes))
+    let mut initialized_dexes = Vec::new();
+    for mut dex in dexes {
+        dex.initialize().await?;
+        initialized_dexes.push(dex);
+    }
+
+    Ok(Arc::new(initialized_dexes))
 }

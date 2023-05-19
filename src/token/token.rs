@@ -5,6 +5,7 @@ use ethers::{
     abi::Abi, contract::Contract, middleware::SignerMiddleware, providers::Http,
     providers::Provider, signers::LocalWallet, types::Address,
 };
+use ethers_middleware::NonceManagerMiddleware;
 
 use std::error::Error;
 use std::sync::Arc;
@@ -19,24 +20,26 @@ pub enum BlockChain {
 #[derive(Clone)]
 pub struct BaseToken {
     block_chain: BlockChain,
-    provider: Arc<Provider<Http>>,
+    provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
     address: Address,
     symbol_name: String,
     decimals: Option<u8>,
     fee_rate: f64,
-    wallet: Arc<LocalWallet>,
+    abi: Abi,
+    token_contract:
+        Option<Contract<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>>,
 }
 
 impl BaseToken {
     pub fn new(
         block_chain: BlockChain,
-        provider: Arc<Provider<Http>>,
+        provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
         address: Address,
         symbol_name: String,
         decimals: Option<u8>,
         fee_rate: f64,
-        wallet: Arc<LocalWallet>,
     ) -> Self {
+        let abi = Abi::load(ERC20_TOKEN_ABI_JSON).unwrap();
         Self {
             block_chain,
             provider,
@@ -44,8 +47,20 @@ impl BaseToken {
             symbol_name,
             decimals,
             fee_rate,
-            wallet,
+            abi,
+            token_contract: None,
         }
+    }
+
+    pub async fn create_token_contract(
+        &mut self,
+    ) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+        if self.token_contract.is_none() {
+            let token_contract =
+                Contract::new(self.address, self.abi.clone(), self.provider.clone());
+            self.token_contract = Some(token_contract);
+        }
+        Ok(())
     }
 
     pub fn block_chain_id(&self) -> u64 {
@@ -63,14 +78,8 @@ impl BaseToken {
         &self.symbol_name
     }
 
-    pub async fn decimals(&self) -> Result<u8, Box<dyn Error + Send + Sync>> {
-        if let Some(decimals) = self.decimals {
-            Ok(decimals)
-        } else {
-            let mut this = self.clone();
-            this.initialize().await?;
-            Ok(this.decimals.unwrap())
-        }
+    pub fn decimals(&self) -> Option<u8> {
+        self.decimals
     }
 
     pub fn fee_rate(&self) -> f64 {
@@ -84,23 +93,26 @@ impl BaseToken {
             .call()
             .await?;
         self.decimals = Some(decimals);
+
+        self.create_token_contract().await?;
         Ok(())
     }
 
     pub fn token_contract(
         &self,
     ) -> Result<
-        Contract<SignerMiddleware<Arc<Provider<Http>>, LocalWallet>>,
+        &Contract<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
         Box<dyn Error + Send + Sync>,
     > {
-        let client = SignerMiddleware::new(self.provider.clone(), (*self.wallet).clone());
-        let token_contract = Contract::new(
-            self.address,
-            Abi::load(ERC20_TOKEN_ABI_JSON)?,
-            client.into(),
-        );
-        Ok(token_contract)
+        match &self.token_contract {
+            Some(contract) => Ok(contract),
+            None => Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Token contract not created",
+            ))),
+        }
     }
+
     pub async fn approve(
         &self,
         spender: Address,
@@ -130,12 +142,11 @@ impl BaseToken {
 pub trait Token: Send + Sync {
     fn new(
         block_chain: BlockChain,
-        provider: Arc<Provider<Http>>,
+        provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
         address: Address,
         symbol_name: String,
         decimals: Option<u8>,
         fee_rate: f64,
-        wallet: Arc<LocalWallet>,
     ) -> Self
     where
         Self: Sized;
@@ -145,7 +156,7 @@ pub trait Token: Send + Sync {
     fn block_chain_id(&self) -> u64;
     fn address(&self) -> Address;
     fn symbol_name(&self) -> &str;
-    async fn decimals(&self) -> Result<u8, Box<dyn Error + Send + Sync>>;
+    fn decimals(&self) -> Option<u8>;
     fn fee_rate(&self) -> f64;
     async fn approve(
         &self,

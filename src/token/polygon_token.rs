@@ -5,7 +5,10 @@ use ethers::{
     signers::LocalWallet,
     types::{Address, U256},
 };
-use ethers_middleware::providers::{Http, Provider};
+use ethers_middleware::{
+    providers::{Http, Provider},
+    NonceManagerMiddleware, SignerMiddleware,
+};
 use std::{error::Error, sync::Arc};
 
 #[derive(Clone)]
@@ -17,12 +20,11 @@ pub struct PolygonToken {
 impl Token for PolygonToken {
     fn new(
         block_chain: BlockChain,
-        provider: Arc<Provider<Http>>,
+        provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
         address: Address,
         symbol_name: String,
         decimals: Option<u8>,
         fee_rate: f64,
-        wallet: Arc<LocalWallet>,
     ) -> Self {
         Self {
             base_token: BaseToken::new(
@@ -32,7 +34,6 @@ impl Token for PolygonToken {
                 symbol_name,
                 decimals,
                 fee_rate,
-                wallet,
             ),
         }
     }
@@ -60,8 +61,8 @@ impl Token for PolygonToken {
         self.base_token.symbol_name()
     }
 
-    async fn decimals(&self) -> Result<u8, Box<dyn Error + Send + Sync>> {
-        self.base_token.decimals().await
+    fn decimals(&self) -> Option<u8> {
+        self.base_token.decimals()
     }
 
     fn fee_rate(&self) -> f64 {

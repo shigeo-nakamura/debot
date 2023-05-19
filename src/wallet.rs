@@ -1,13 +1,19 @@
 // wallet.rs
 
 use ethers::signers::{LocalWallet, Signer};
-use ethers::utils::hex;
 use ethers_middleware::core::k256::elliptic_curve::SecretKey;
+use ethers_middleware::providers::{Http, Provider};
+use ethers_middleware::MiddlewareBuilder;
+use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
+use hex_literal::hex;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
 use std::{error::Error, sync::Arc};
 
+use crate::token_manager::ChainParams;
+
 // Define your AWS KMS Signer
+#[derive(Clone)]
 pub struct AwsKmsSigner {
     client: Option<KmsClient>,
     key_id: String,
@@ -93,20 +99,48 @@ impl Signer for AwsKmsSigner {
     }
 }
 
-pub fn create_local_wallet(chain_id: u64) -> Result<Arc<LocalWallet>, Box<dyn Error>> {
+pub fn create_local_wallet(
+    chain_params: &ChainParams,
+) -> Result<
+    (
+        LocalWallet,
+        Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
+    ),
+    Box<dyn Error>,
+> {
     let private_key_bytes =
-        hex::decode("dd84b3084618a0ff534b482c5e3665b53805ce97c7ed1a46e39b671b3b897047")?;
+        hex!("dd84b3084618a0ff534b482c5e3665b53805ce97c7ed1a46e39b671b3b897047");
     let secret_key = SecretKey::from_slice(&private_key_bytes)?;
 
-    let wallet = LocalWallet::from(secret_key).with_chain_id(chain_id);
-    Ok(Arc::new(wallet))
+    let provider = Provider::<Http>::try_from(chain_params.rpc_node_urls[0])?;
+
+    let wallet = LocalWallet::from(secret_key).with_chain_id(chain_params.chain_id);
+    let provider = provider.with_signer(wallet.clone());
+
+    let nonce_manager = NonceManagerMiddleware::new(provider, wallet.address());
+
+    Ok((wallet, Arc::new(nonce_manager)))
 }
 
-pub fn create_kms_wallet(key_id: String) -> Result<Arc<AwsKmsSigner>, Box<dyn Error>> {
+pub fn create_kms_wallet(
+    chain_params: &ChainParams,
+    key_id: String,
+) -> Result<
+    Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, AwsKmsSigner>>>,
+    Box<dyn Error>,
+> {
     let client = KmsClient::new(Region::UsEast1); // choose your region
     let signer = AwsKmsSigner {
         client: Some(client),
         key_id,
     };
-    Ok(Arc::new(signer))
+
+    let provider = Provider::<Http>::try_from(chain_params.rpc_node_urls[0])?;
+
+    let wallet = signer.with_chain_id(chain_params.chain_id);
+    let provider = provider.with_signer(wallet.clone());
+
+    let nonce_manager = NonceManagerMiddleware::new(provider, wallet.address());
+
+    Ok(Arc::new(nonce_manager))
 }

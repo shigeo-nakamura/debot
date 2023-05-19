@@ -12,30 +12,74 @@ use std::{error::Error, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub struct BaseDex {
+    pub provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
     pub router_address: Address,
-    pub provider: Arc<Provider<Http>>,
+    router_contract:
+        Option<Contract<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>>,
 }
 
 impl BaseDex {
-    pub fn router_contract(
-        &self,
-        abi_json: &[u8],
-    ) -> Result<Contract<Provider<Http>>, Box<dyn Error + Send + Sync>> {
-        let router_abi = Abi::load(abi_json)?;
-        let router_contract = Contract::new(
-            self.router_address,
-            router_abi,
-            self.provider.clone().into(),
-        );
-        Ok(router_contract)
+    pub fn new(
+        provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
+        router_address: Address,
+    ) -> Self {
+        Self {
+            provider: provider,
+            router_address: router_address,
+            router_contract: None,
+        }
     }
 
-    pub fn get_provider(&self) -> Arc<Provider<Http>> {
+    pub async fn create_router_contract(
+        &mut self,
+        abi_json: &[u8],
+    ) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+        if self.router_contract.is_none() {
+            let router_abi = Abi::load(abi_json)?;
+            let router_contract =
+                Contract::new(self.router_address, router_abi, self.provider.clone());
+            self.router_contract = Some(router_contract);
+        }
+        Ok(())
+    }
+
+    pub fn provider(
+        &self,
+    ) -> Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>> {
         self.provider.clone()
     }
 
-    pub fn get_router_address(&self) -> Address {
+    pub fn router_address(&self) -> Address {
         self.router_address
+    }
+
+    pub fn router_contract(
+        &self,
+    ) -> Result<
+        &Contract<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
+        Box<dyn Error + Send + Sync + 'static>,
+    > {
+        match &self.router_contract {
+            Some(contract) => Ok(contract),
+            None => Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Router contract not created",
+            ))),
+        }
+    }
+}
+
+pub struct TokenPair<'a> {
+    input_token: &'a dyn Token,
+    output_token: &'a dyn Token,
+}
+
+impl<'a> TokenPair<'a> {
+    pub fn new(input_token: &'a dyn Token, output_token: &'a dyn Token) -> Self {
+        TokenPair {
+            input_token,
+            output_token,
+        }
     }
 }
 
@@ -43,22 +87,21 @@ impl BaseDex {
 pub trait Dex: Send + Sync {
     async fn get_token_price(
         &self,
-        input_token: &dyn Token,
-        output_token: &dyn Token,
+        token_pair: &TokenPair<'_>,
         amount: f64,
     ) -> Result<f64, Box<dyn std::error::Error + Send + Sync + 'static>> {
-        let input_address = input_token.address();
-        let output_address = output_token.address();
+        let input_address = token_pair.input_token.address();
+        let output_address = token_pair.output_token.address();
 
-        let input_decimals = input_token.decimals().await?;
-        let output_decimals = output_token.decimals().await?;
+        let input_decimals = token_pair.input_token.decimals().unwrap();
+        let output_decimals = token_pair.output_token.decimals().unwrap();
 
         let amount_in = U256::from_dec_str(&format!(
             "{:.0}",
             amount * 10f64.powi(input_decimals as i32)
         ))?;
 
-        let router_contract = self.router_contract(self.router_abi_json())?;
+        let router_contract = self.router_contract().unwrap();
         let amounts_out: Vec<U256> = router_contract
             .method::<_, Vec<U256>>(
                 "getAmountsOut",
@@ -72,7 +115,7 @@ pub trait Dex: Send + Sync {
             * 10f64.powi(input_decimals as i32 - output_decimals as i32);
         log::trace!(
             "Dex: {}, Input Amount: {}, Output Amount: {}, Price: {}",
-            self.get_name(),
+            self.name(),
             amount_in,
             output_amount,
             price_f64
@@ -83,22 +126,21 @@ pub trait Dex: Send + Sync {
 
     async fn swap_token(
         &self,
-        input_token: &dyn Token,
-        output_token: &dyn Token,
+        token_pair: &TokenPair<'_>,
         amount: f64,
         signer: &LocalWallet, // you need a signer to send transactions
     ) -> Result<f64, Box<dyn std::error::Error + Send + Sync + 'static>> {
-        let input_address = input_token.address();
-        let output_address = output_token.address();
+        let input_address = token_pair.input_token.address();
+        let output_address = token_pair.output_token.address();
 
-        let input_decimals = input_token.decimals().await?;
+        let input_decimals = token_pair.input_token.decimals().unwrap();
         let amount_in = U256::from_dec_str(&format!(
             "{:.0}",
             amount * 10f64.powi(input_decimals as i32)
         ))?;
 
-        let provider = self.get_provider(); // Assuming get_provider returns an Arc<Provider<Http>>
-        let router_contract = self.router_contract(self.router_abi_json())?;
+        let provider = self.provider();
+        let router_contract = self.router_contract().unwrap();
 
         let deadline = U256::from(
             std::time::SystemTime::now()
@@ -133,23 +175,24 @@ pub trait Dex: Send + Sync {
             )));
         }
 
-        let output_amount = self
-            .get_token_price(input_token, output_token, amount)
-            .await?;
+        let output_amount = self.get_token_price(token_pair, amount).await?;
 
         Ok(output_amount)
     }
 
+    async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>>;
+    fn clone_box(&self) -> Box<dyn Dex + Send + Sync>;
+    fn name(&self) -> &str;
+    fn provider(
+        &self,
+    ) -> Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>;
+    fn router_address(&self) -> Address;
     fn router_contract(
         &self,
-        abi_json: &[u8],
-    ) -> Result<Contract<Provider<Http>>, Box<dyn std::error::Error + Send + Sync + 'static>>;
-
-    fn clone_box(&self) -> Box<dyn Dex + Send + Sync>;
-    fn get_name(&self) -> &str;
-    fn router_abi_json(&self) -> &'static [u8];
-    fn get_provider(&self) -> Arc<Provider<Http>>;
-    fn get_router_address(&self) -> Address;
+    ) -> Result<
+        &Contract<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
+        Box<dyn Error + Send + Sync + 'static>,
+    >;
 }
 
 impl Clone for Box<dyn Dex> {

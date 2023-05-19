@@ -25,18 +25,22 @@ async fn main() -> std::io::Result<()> {
 
     let config = config::get_config_from_env().expect("Invalid configuration");
 
-    // Create a wallet
-    let wallet = create_local_wallet(config.chain_params.chain_id).unwrap();
+    // Create a wallet and provider
+    let (wallet, wallet_and_provider) = create_local_wallet(&config.chain_params).unwrap();
 
     // Create dexes
-    let dexes = create_dexes(config.chain_params).expect("Error creating DEXes");
+    let dexes = create_dexes(wallet_and_provider.clone(), &config.chain_params)
+        .await
+        .expect("Error creating DEXes");
 
     // Create Tokens
-    let tokens =
-        create_tokens(config.chain_params, wallet.clone()).expect("Error creating Ttokens");
+    let tokens = create_tokens(wallet_and_provider.clone(), &config.chain_params)
+        .await
+        .expect("Error creating Ttokens");
 
     // Create a base token
-    let usdt_token = create_base_token(config.chain_params, wallet.clone())
+    let usdt_token = create_base_token(wallet_and_provider.clone(), &config.chain_params)
+        .await
         .expect("Error creating a base token");
 
     // Create an instance of TwoTokenPairArbitrage
@@ -46,6 +50,7 @@ async fn main() -> std::io::Result<()> {
         usdt_token.clone(),
         dexes.clone(),
     );
+
     two_token_pair_arbitrage
         .init(wallet.address())
         .await
@@ -80,7 +85,7 @@ async fn main() -> std::io::Result<()> {
                 }
             },
             _ = ctrl_c_fut => {
-                println!("SIGINT received. Shutting down...");
+                log::info!("SIGINT received. Shutting down...");
                 break Ok(());
             }
         }

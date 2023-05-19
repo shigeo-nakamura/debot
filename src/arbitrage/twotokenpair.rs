@@ -1,6 +1,7 @@
 // twotokenpair.rs
 
 use super::{Arbitrage, ArbitrageOpportunity};
+use crate::dex::dex::TokenPair;
 use crate::dex::Dex;
 use crate::http::PriceData;
 use crate::token::Token;
@@ -40,16 +41,16 @@ impl<'a> TwoTokenPairArbitrage {
     pub async fn init(&self, owner: Address) -> Result<(), Box<dyn Error + Send + Sync>> {
         for token in self.tokens.iter() {
             for dex in self.dexes.iter() {
-                let spender = dex.get_router_address();
+                let spender = dex.router_address();
                 let allowance = token.allowance(owner, spender).await?;
                 log::info!(
                     "Allowance for token {}: {} for dex {}",
                     token.symbol_name(),
                     allowance,
-                    dex.get_name(),
+                    dex.name(),
                 );
 
-                let token_decimals = token.decimals().await?;
+                let token_decimals = token.decimals().unwrap();
                 let converted_amount = U256::from_dec_str(&format!(
                     "{:.0}",
                     self.amount * 10f64.powi(token_decimals as i32)
@@ -61,7 +62,7 @@ impl<'a> TwoTokenPairArbitrage {
                         "Approved {} {} for dex {}",
                         self.amount,
                         token.symbol_name(),
-                        dex.get_name(),
+                        dex.name(),
                     );
                 }
             }
@@ -91,8 +92,8 @@ impl<'a> TwoTokenPairArbitrage {
         log::info!(
             "{} [{} and {}] for (USDT - {}). {}: {} USDT",
             opportunity_string,
-            dex1.get_name(),
-            dex2.get_name(),
+            dex1.name(),
+            dex2.name(),
             token.symbol_name(),
             profit_string,
             profit
@@ -100,7 +101,7 @@ impl<'a> TwoTokenPairArbitrage {
 
         log::debug!(
             "Dex 1: {}, USDT --> {}, Input Amount: {}, Output Amount: {}, price: {}",
-            dex1.get_name(),
+            dex1.name(),
             token.symbol_name(),
             amount,
             token_b_amount,
@@ -109,7 +110,7 @@ impl<'a> TwoTokenPairArbitrage {
 
         log::debug!(
             "Dex 2 {}, {} --> USDT, Input Amount: {}, Output Amount: {}, price: {}",
-            dex2.get_name(),
+            dex2.name(),
             token.symbol_name(),
             token_b_amount,
             token_b_amount * swap_to_usdt_price,
@@ -149,7 +150,10 @@ impl Arbitrage for TwoTokenPairArbitrage {
                         }
 
                         let swap_to_token_price = dex1
-                            .get_token_price((*base_token).as_ref(), token.as_ref(), amount)
+                            .get_token_price(
+                                &TokenPair::new((*base_token).as_ref(), token.as_ref()),
+                                amount,
+                            )
                             .await
                             .map_err(|e| anyhow::anyhow!(e))
                             .context("Error getting token price from dex1")?;
@@ -157,7 +161,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
 
                         log::debug!(
                                 "Dex 1: {}, USDT --> {}, Input Amount: {}, Output Amount: {}, price: {}",
-                                dex1.get_name(),
+                                dex1.name(),
                                 token.symbol_name(),
                                 amount,
                                 token_b_amount,
@@ -165,7 +169,10 @@ impl Arbitrage for TwoTokenPairArbitrage {
                             );
 
                         let swap_to_usdt_price = dex2
-                            .get_token_price(token.as_ref(), (*base_token).as_ref(), token_b_amount)
+                            .get_token_price(
+                                &TokenPair::new(token.as_ref(), (*base_token).as_ref()),
+                                token_b_amount,
+                            )
                             .await
                             .map_err(|e| anyhow::anyhow!(e))
                             .context("Error getting token price from dex2")?;
@@ -173,7 +180,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
 
                         log::debug!(
                             "Dex 2 {}, {} --> USDT, Input Amount: {}, Output Amount: {}, price: {}",
-                            dex2.get_name(),
+                            dex2.name(),
                             token.symbol_name(),
                             token_b_amount,
                             final_usdt_amount,
@@ -221,7 +228,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
 
                         // Store price data in price_history
                         TwoTokenPairArbitrage::store_price_history(
-                            &[dex1.get_name(), dex2.get_name()],
+                            &[dex1.name(), dex2.name()],
                             &["USDT", token.symbol_name()],
                             &[swap_to_token_price, swap_to_usdt_price],
                             profit,
@@ -264,14 +271,13 @@ impl Arbitrage for TwoTokenPairArbitrage {
             "Starting arbitrage: {} to {} via {} and {}",
             token_a.symbol_name(),
             token_b.symbol_name(),
-            dex1.get_name(),
-            dex2.get_name(),
+            dex1.name(),
+            dex2.name(),
         );
 
         let amount_a_to_b = dex1
             .swap_token(
-                token_a.as_ref(),
-                token_b.as_ref(),
+                &TokenPair::new(token_a.as_ref(), token_b.as_ref()),
                 opportunity.amount,
                 signer,
             )
@@ -281,7 +287,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
                     "Failed to swap from {} to {} on dex {}: {}",
                     token_a.symbol_name(),
                     token_b.symbol_name(),
-                    dex1.get_name(),
+                    dex1.name(),
                     err
                 )
             })?;
@@ -292,18 +298,22 @@ impl Arbitrage for TwoTokenPairArbitrage {
             token_a.symbol_name(),
             amount_a_to_b,
             token_b.symbol_name(),
-            dex1.get_name(),
+            dex1.name(),
         );
 
         let amount_b_to_a = dex2
-            .swap_token(token_b.as_ref(), token_a.as_ref(), amount_a_to_b, signer)
+            .swap_token(
+                &TokenPair::new(token_b.as_ref(), token_a.as_ref()),
+                amount_a_to_b,
+                signer,
+            )
             .await
             .map_err(|err| {
                 format!(
                     "Failed to swap from {} to {} on dex {}: {}",
                     token_b.symbol_name(),
                     token_a.symbol_name(),
-                    dex2.get_name(),
+                    dex2.name(),
                     err
                 )
             })?;
@@ -313,7 +323,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
             token_b.symbol_name(),
             amount_b_to_a,
             token_a.symbol_name(),
-            dex2.get_name(),
+            dex2.name(),
         );
 
         if amount_b_to_a < opportunity.amount {

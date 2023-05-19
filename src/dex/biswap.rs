@@ -15,42 +15,48 @@ static BISWAP_ROUTER_ABI_JSON: &'static [u8] =
     include_bytes!("../../resources/BiSwapRouterABI.json");
 
 impl BiSwap {
-    pub fn new(provider: Arc<Provider<Http>>, router_address: Address) -> Self {
+    pub fn new(
+        provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
+        router_address: Address,
+    ) -> Self {
         Self {
-            base_dex: BaseDex {
-                router_address,
-                provider,
-            },
+            base_dex: BaseDex::new(provider, router_address),
         }
     }
 }
 
 #[async_trait]
 impl Dex for BiSwap {
+    async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.base_dex
+            .create_router_contract(BISWAP_ROUTER_ABI_JSON)
+            .await
+    }
+
     fn clone_box(&self) -> Box<dyn Dex + Send + Sync> {
         Box::new(self.clone())
     }
 
-    fn get_name(&self) -> &str {
+    fn name(&self) -> &str {
         "BiSwap"
     }
 
     fn router_contract(
         &self,
-        abi_json: &[u8],
-    ) -> Result<Contract<Provider<Http>>, Box<dyn Error + Send + Sync>> {
-        self.base_dex.router_contract(abi_json)
+    ) -> Result<
+        &Contract<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
+        Box<dyn Error + Send + Sync + 'static>,
+    > {
+        self.base_dex.router_contract()
     }
 
-    fn router_abi_json(&self) -> &'static [u8] {
-        BISWAP_ROUTER_ABI_JSON
+    fn provider(
+        &self,
+    ) -> Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>> {
+        self.base_dex.provider()
     }
 
-    fn get_provider(&self) -> Arc<Provider<Http>> {
-        self.base_dex.get_provider()
-    }
-
-    fn get_router_address(&self) -> Address {
-        self.base_dex.get_router_address()
+    fn router_address(&self) -> Address {
+        self.base_dex.router_address()
     }
 }
