@@ -26,7 +26,7 @@ async fn main() -> std::io::Result<()> {
     let config = config::get_config_from_env().expect("Invalid configuration");
 
     // Create a wallet
-    let wallet = create_local_wallet().unwrap();
+    let wallet = create_local_wallet(config.chain_params.chain_id).unwrap();
 
     // Create dexes
     let dexes = create_dexes(config.chain_params).expect("Error creating DEXes");
