@@ -46,6 +46,7 @@ async fn main() -> std::io::Result<()> {
     // Create an instance of TwoTokenPairArbitrage
     let two_token_pair_arbitrage = TwoTokenPairArbitrage::new(
         config.amount,
+        config.allowance_factor,
         tokens.clone(),
         usdt_token.clone(),
         dexes.clone(),
@@ -57,18 +58,17 @@ async fn main() -> std::io::Result<()> {
         .unwrap();
 
     // Create the price history vector
-    let price_history = Arc::new(RwLock::new(Vec::new()));
+    let transaction_result = Arc::new(RwLock::new(Vec::new()));
 
     // Start the HTTP server
-    let server = http::start_server(price_history.clone()); // Use the start_server function from the http module
+    let server = http::start_server(transaction_result.clone()); // Use the start_server function from the http module
     actix_rt::spawn(server);
 
     loop {
         let start_instant = Instant::now();
 
         // Call the find_opportunities method for all tokens
-        let opportunities_future =
-            two_token_pair_arbitrage.find_opportunities(price_history.clone());
+        let opportunities_future = two_token_pair_arbitrage.find_opportunities();
         let ctrl_c_fut = tokio::signal::ctrl_c();
 
         tokio::select! {
@@ -76,7 +76,7 @@ async fn main() -> std::io::Result<()> {
                 match result {
                     Ok(opportunities) => {
                         for opportunity in &opportunities {
-                            two_token_pair_arbitrage.execute_transactions(&opportunity, &wallet).await.unwrap();
+                            two_token_pair_arbitrage.execute_transactions(&opportunity, &wallet_and_provider, wallet.address(), config.deadline_secs, transaction_result.clone(), config.log_limit).await.unwrap();
                         }
                     },
                     Err(e) => {

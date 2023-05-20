@@ -87,6 +87,8 @@ impl BaseToken {
     }
 
     pub async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.create_token_contract().await?;
+
         let decimals: u8 = self
             .token_contract()?
             .method("decimals", ())?
@@ -94,7 +96,6 @@ impl BaseToken {
             .await?;
         self.decimals = Some(decimals);
 
-        self.create_token_contract().await?;
         Ok(())
     }
 

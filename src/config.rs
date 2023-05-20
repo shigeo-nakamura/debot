@@ -8,6 +8,9 @@ pub struct EnvConfig {
     pub chain_params: &'static ChainParams,
     pub interval: u64,
     pub amount: f64,
+    pub allowance_factor: f64,
+    pub deadline_secs: u64,
+    pub log_limit: usize,
 }
 
 pub fn get_config_from_env() -> Result<EnvConfig, &'static str> {
@@ -27,9 +30,22 @@ pub fn get_config_from_env() -> Result<EnvConfig, &'static str> {
     let amount_str = env::var("AMOUNT").unwrap_or_else(|_| "100.0".to_string());
     let amount = amount_str.parse::<f64>().unwrap();
 
+    let allowance_factor_str =
+        env::var("ALLOWANCE_FACTOR").unwrap_or_else(|_| "10000000000.0".to_string());
+    let allowance_factor = allowance_factor_str.parse::<f64>().unwrap();
+
+    let deadline_secs_str = env::var("DEADLINE_SECS").unwrap_or_else(|_| "60".to_string());
+    let deadline_secs = deadline_secs_str.parse::<u64>().unwrap();
+
+    let log_limit_str = env::var("LOG_LIMIT").unwrap_or_else(|_| "10000".to_string());
+    let log_limit = log_limit_str.parse::<usize>().unwrap();
+
     Ok(EnvConfig {
         chain_params,
         interval,
         amount,
+        allowance_factor,
+        deadline_secs,
+        log_limit,
     })
 }

@@ -5,7 +5,8 @@ use crate::{
         BSC_PANCAKE_SWAP_ROUTER, BSC_TESTNET_CHAIN_ID, BSC_TUSD_ADDRESS, BSC_USDC_ADDRESS,
         BSC_USDT_ADDRESS, BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS, POLYGON_MAINNET_CHAIN_ID,
         POLYGON_TESTNET_CHAIN_ID, TESTNET_BSC_APE_SWAP_ROUTER, TESTNET_BSC_BUSD_ADDRESS,
-        TESTNET_BSC_PANCAKE_SWAP_ROUTER, TESTNET_BSC_WBNB_ADDRESS, TESTNET_POLYGON_MATIC_ADDRESS,
+        TESTNET_BSC_CAKE_ADDRESS, TESTNET_BSC_PANCAKE_SWAP_ROUTER, TESTNET_BSC_WBNB_ADDRESS,
+        TESTNET_POLYGON_MATIC_ADDRESS,
     },
     dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap},
     token::{
@@ -68,10 +69,9 @@ lazy_static! {
         chain_id: 97, // This is the chain ID for Binance Smart Chain Testnet
         rpc_node_urls: &["https://data-seed-prebsc-1-s1.binance.org:8545/"],
         tokens: &[
-            // Update these with the correct testnet token addresses
             ("WBNB", TESTNET_BSC_WBNB_ADDRESS),
             ("BUSD", TESTNET_BSC_BUSD_ADDRESS),
-            // add other token addresses here...
+            //("CAKE", TESTNET_BSC_CAKE_ADDRESS),
         ],
         dex_list: &[
             ("PancakeSwap", TESTNET_BSC_PANCAKE_SWAP_ROUTER),

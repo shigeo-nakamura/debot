@@ -128,7 +128,11 @@ pub trait Dex: Send + Sync {
         &self,
         token_pair: &TokenPair<'_>,
         amount: f64,
-        signer: &LocalWallet, // you need a signer to send transactions
+        wallet_and_provider: Arc<
+            NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
+        >,
+        address: Address,
+        deadline_secs: u64,
     ) -> Result<f64, Box<dyn std::error::Error + Send + Sync + 'static>> {
         let input_address = token_pair.input_token.address();
         let output_address = token_pair.output_token.address();
@@ -139,20 +143,16 @@ pub trait Dex: Send + Sync {
             amount * 10f64.powi(input_decimals as i32)
         ))?;
 
-        let provider = self.provider();
         let router_contract = self.router_contract().unwrap();
 
         let deadline = U256::from(
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)?
                 .as_secs()
-                + 1200,
-        ); // Adding 20 minutes to the current Unix timestamp
+                + deadline_secs,
+        );
 
-        let signer_middleware = SignerMiddleware::new(provider.clone(), signer.clone());
-        let signer_middleware_arc = Arc::new(signer_middleware);
-
-        let connected_contract = router_contract.connect(signer_middleware_arc.clone()); // use the signer to send the transaction
+        let connected_contract = router_contract.connect(wallet_and_provider.clone());
 
         let method_call = connected_contract.method::<_, bool>(
             "swapExactTokensForTokens",
@@ -160,7 +160,7 @@ pub trait Dex: Send + Sync {
                 amount_in,
                 U256::zero(),
                 vec![input_address, output_address],
-                signer.address(),
+                address,
                 deadline,
             ),
         )?;

@@ -1,13 +1,17 @@
 // arbitrage.rs
 
-use crate::http::PriceData;
 use async_trait::async_trait;
-use ethers::prelude::LocalWallet;
+use ethers::{prelude::LocalWallet, types::Address};
+use ethers_middleware::{
+    providers::{Http, Provider},
+    NonceManagerMiddleware, SignerMiddleware,
+};
 use std::{
     error::Error,
     sync::{Arc, RwLock},
-    time::SystemTime,
 };
+
+use crate::http::TransactionResult;
 
 pub struct ArbitrageOpportunity {
     pub dex1_index: usize,
@@ -22,38 +26,31 @@ pub struct ArbitrageOpportunity {
 pub trait Arbitrage {
     async fn find_opportunities(
         &self,
-        price_history: Arc<RwLock<Vec<PriceData>>>,
     ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>>;
 
     async fn execute_transactions(
         &self,
         opportunity: &ArbitrageOpportunity,
-        signer: &LocalWallet,
+        wallet_and_provider: &Arc<
+            NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
+        >,
+        address: Address,
+        deadline_secs: u64,
+        transactino_results: Arc<RwLock<Vec<TransactionResult>>>,
+        log_limit: usize,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
-    fn store_price_history(
-        dex_names: &[&str],
-        token_symbols: &[&str],
-        prices: &[f64],
-        profit: f64,
-        price_history: Arc<RwLock<Vec<PriceData>>>,
+    fn store_transaction_result(
+        transaction_result: TransactionResult,
+        transaction_results: Arc<RwLock<Vec<TransactionResult>>>,
+        limit: usize,
     ) {
-        let mut price_history_guard = price_history.write().unwrap();
-        price_history_guard.push(PriceData {
-            timestamp: SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-            tokens: token_symbols
-                .iter()
-                .map(|symbol| String::from(*symbol))
-                .collect::<Vec<String>>(),
-            dex_prices: dex_names
-                .iter()
-                .zip(prices.iter())
-                .map(|(dex_name, price)| (String::from(*dex_name), *price))
-                .collect(),
-            profit: profit,
-        });
+        let mut transaction_results_guard = transaction_results.write().unwrap();
+        transaction_results_guard.push(transaction_result);
+
+        // If there are too many transaction results, remove the oldest ones until the limit is satisfied
+        while transaction_results_guard.len() > limit {
+            transaction_results_guard.remove(0);
+        }
     }
 }
