@@ -1,6 +1,9 @@
 // main.rs
 
+use config::EnvConfig;
 use ethers::signers::Signer;
+use http::TransactionResult;
+use rand::Rng;
 use token_manager::create_dexes;
 
 use crate::arbitrage::{Arbitrage, TwoTokenPairArbitrage};
@@ -23,8 +26,61 @@ mod wallet;
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
-    let config = config::get_config_from_env().expect("Invalid configuration");
+    // Load the configs
+    let configs = config::get_config_from_env().expect("Invalid configuration");
 
+    // Create the transaction result vector
+    let transaction_result = Arc::new(RwLock::new(Vec::new()));
+
+    // Start the HTTP server
+    setup_server(transaction_result.clone());
+
+    loop {
+        let mut found_opportunity = false;
+
+        for config in &configs {
+            let result = try_arbitrage(config, transaction_result.clone()).await;
+            match result {
+                Ok(has_opportunity) => {
+                    if has_opportunity {
+                        found_opportunity = true;
+                    }
+                }
+                Err(e) => {
+                    log::error!("Error occurred during arbitrage: {:?}", e);
+                }
+            }
+        }
+
+        if !found_opportunity {
+            let mut rng = rand::thread_rng();
+            let sleep_secs: u64 = rng.gen_range(0..configs[0].interval);
+            let sleep_fut = tokio::time::sleep(Duration::from_secs(sleep_secs));
+            let ctrl_c_fut = tokio::signal::ctrl_c();
+            tokio::select! {
+                _ = sleep_fut => {
+                    // continue to the next iteration of loop
+                },
+                _ = ctrl_c_fut => {
+                    log::info!("SIGINT received. Shutting down...");
+                    return Ok(());
+                }
+            }
+        }
+    }
+}
+
+fn setup_server(
+    transaction_result: Arc<RwLock<Vec<TransactionResult>>>,
+) -> tokio::task::JoinHandle<std::result::Result<(), std::io::Error>> {
+    let server = http::start_server(transaction_result);
+    actix_rt::spawn(server)
+}
+
+async fn try_arbitrage(
+    config: &EnvConfig,
+    transaction_result: Arc<RwLock<Vec<TransactionResult>>>,
+) -> std::io::Result<bool> {
     // Create a wallet and provider
     let (wallet, wallet_and_provider) = create_local_wallet(&config.chain_params).unwrap();
 
@@ -36,7 +92,7 @@ async fn main() -> std::io::Result<()> {
     // Create Tokens
     let tokens = create_tokens(wallet_and_provider.clone(), &config.chain_params)
         .await
-        .expect("Error creating Ttokens");
+        .expect("Error creating tokens");
 
     // Create a base token
     let usdt_token = create_base_token(wallet_and_provider.clone(), &config.chain_params)
@@ -50,6 +106,7 @@ async fn main() -> std::io::Result<()> {
         tokens.clone(),
         usdt_token.clone(),
         dexes.clone(),
+        config.skip_write,
     );
 
     two_token_pair_arbitrage
@@ -57,42 +114,33 @@ async fn main() -> std::io::Result<()> {
         .await
         .unwrap();
 
-    // Create the price history vector
-    let transaction_result = Arc::new(RwLock::new(Vec::new()));
+    // Call the find_opportunities method for all tokens
+    let opportunities_future = two_token_pair_arbitrage.find_opportunities();
+    let ctrl_c_fut = tokio::signal::ctrl_c();
 
-    // Start the HTTP server
-    let server = http::start_server(transaction_result.clone()); // Use the start_server function from the http module
-    actix_rt::spawn(server);
-
-    loop {
-        let start_instant = Instant::now();
-
-        // Call the find_opportunities method for all tokens
-        let opportunities_future = two_token_pair_arbitrage.find_opportunities();
-        let ctrl_c_fut = tokio::signal::ctrl_c();
-
-        tokio::select! {
-            result = opportunities_future => {
-                match result {
-                    Ok(opportunities) => {
-                        for opportunity in &opportunities {
-                            two_token_pair_arbitrage.execute_transactions(&opportunity, &wallet_and_provider, wallet.address(), config.deadline_secs, transaction_result.clone(), config.log_limit).await.unwrap();
-                        }
-                    },
-                    Err(e) => {
-                        log::error!("Error while finding opportunities: {}", e);
+    let opportunities = tokio::select! {
+        result = opportunities_future => {
+            match result {
+                Ok(opportunities) => {
+                    for opportunity in &opportunities {
+                        let _result = two_token_pair_arbitrage.execute_transactions(&opportunity, &wallet_and_provider, wallet.address(), config.deadline_secs, transaction_result.clone(), config.log_limit).await.unwrap_or_else(|err| {
+                            log::error!("Error occurred: {:?}", err);
+                        });
                     }
+                    opportunities
+                },
+                Err(e) => {
+                    let err_msg = format!("Error while finding opportunities: {}", e);
+                    log::error!("{}", err_msg);
+                    return Err(std::io::Error::new(std::io::ErrorKind::Other, err_msg));
                 }
-            },
-            _ = ctrl_c_fut => {
-                log::info!("SIGINT received. Shutting down...");
-                break Ok(());
             }
+        },
+        _ = ctrl_c_fut => {
+            log::info!("SIGINT received. Shutting down...");
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, "SIGINT received. Shutting down..."));
         }
+    };
 
-        let elapsed = start_instant.elapsed();
-        if elapsed < Duration::from_secs(config.interval) {
-            tokio::time::sleep(Duration::from_secs(config.interval) - elapsed).await;
-        }
-    }
+    Ok(!opportunities.is_empty())
 }

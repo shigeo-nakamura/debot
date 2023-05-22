@@ -1,5 +1,6 @@
-use actix_files::Files;
+use actix_files::{Files, NamedFile};
 use actix_web::web::Json;
+use actix_web::Result;
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use serde::Serialize;
 use std::{env, sync::Arc, sync::RwLock};
@@ -25,11 +26,16 @@ pub async fn start_server(
                 "/transaction_results",
                 web::get().to(transaction_results_handler),
             )
+            .route("/dashboard", web::get().to(index))
             .service(Files::new("/dashboard", "./static"))
     })
     .bind("0.0.0.0:".to_owned() + &port)?
     .run()
     .await
+}
+
+async fn index() -> Result<NamedFile> {
+    Ok(NamedFile::open("static/index.html")?)
 }
 
 async fn transaction_results_handler(

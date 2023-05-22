@@ -27,6 +27,7 @@ pub struct TwoTokenPairArbitrage {
     tokens: Arc<Vec<Box<dyn Token>>>,
     base_token: Arc<Box<dyn Token>>,
     dexes: Arc<Vec<Box<dyn Dex>>>,
+    skip_write: bool,
 }
 
 impl<'a> TwoTokenPairArbitrage {
@@ -36,6 +37,7 @@ impl<'a> TwoTokenPairArbitrage {
         tokens: Arc<Vec<Box<dyn Token>>>,
         base_token: Arc<Box<dyn Token>>,
         dexes: Arc<Vec<Box<dyn Dex>>>,
+        skip_write: bool,
     ) -> Self {
         Self {
             amount,
@@ -43,6 +45,7 @@ impl<'a> TwoTokenPairArbitrage {
             tokens,
             base_token,
             dexes,
+            skip_write,
         }
     }
 
@@ -63,6 +66,10 @@ impl<'a> TwoTokenPairArbitrage {
                     "{:.0}",
                     self.amount * self.allowance_factor * 10f64.powi(token_decimals as i32)
                 ))?;
+
+                if self.skip_write {
+                    return Ok(());
+                }
 
                 if allowance < converted_amount / 2 {
                     token.approve(spender, converted_amount).await?;
@@ -264,6 +271,10 @@ impl Arbitrage for TwoTokenPairArbitrage {
         transaction_results: Arc<RwLock<Vec<TransactionResult>>>,
         log_limit: usize,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        if self.skip_write {
+            return Ok(());
+        }
+
         let dex1 = &self.dexes[opportunity.dex1_index];
         let dex2 = &self.dexes[opportunity.dex2_index];
 
@@ -333,16 +344,21 @@ impl Arbitrage for TwoTokenPairArbitrage {
             dex2.name(),
         );
 
-        if amount_b_to_a < opportunity.amount {
+        let gain = amount_b_to_a - opportunity.amount;
+        if gain < 0.0 {
             return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "Arbitrage transaction resulted in a net loss",
+                format!(
+                    "Arbitrage transaction resulted in a net loss: {} {}",
+                    gain,
+                    token_a.symbol_name()
+                ),
             )));
         }
 
         log::info!(
             "Arbitrage complete. Net gain: {} {}",
-            amount_b_to_a - opportunity.amount,
+            gain,
             token_a.symbol_name(),
         );
 

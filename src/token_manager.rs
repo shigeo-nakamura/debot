@@ -1,14 +1,19 @@
 use crate::{
     addresses::{
-        BSC_ADA_ADDRESS, BSC_BI_SWAP_ROUTER, BSC_BTCB_ADDRESS, BSC_BUSD_ADDRESS, BSC_CAKE_ADDRESS,
+        BSC_ADA_ADDRESS, BSC_BISWAP_ROUTER, BSC_BTCB_ADDRESS, BSC_BUSD_ADDRESS, BSC_CAKE_ADDRESS,
         BSC_DAI_ADDRESS, BSC_ETH_ADDRESS, BSC_LINK_ADDRESS, BSC_MAINNET_CHAIN_ID,
-        BSC_PANCAKE_SWAP_ROUTER, BSC_TESTNET_CHAIN_ID, BSC_TUSD_ADDRESS, BSC_USDC_ADDRESS,
-        BSC_USDT_ADDRESS, BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS, POLYGON_MAINNET_CHAIN_ID,
-        POLYGON_TESTNET_CHAIN_ID, TESTNET_BSC_APE_SWAP_ROUTER, TESTNET_BSC_BUSD_ADDRESS,
-        TESTNET_BSC_CAKE_ADDRESS, TESTNET_BSC_PANCAKE_SWAP_ROUTER, TESTNET_BSC_WBNB_ADDRESS,
-        TESTNET_POLYGON_MATIC_ADDRESS,
+        BSC_PANCAKESWAP_ROUTER, BSC_TESTNET_CHAIN_ID, BSC_TUSD_ADDRESS, BSC_USDC_ADDRESS,
+        BSC_USDT_ADDRESS, BSC_WBNB_ADDRESS, BSC_XRP_ADDRESS, POLYGON_APESWAP_ROUTER,
+        POLYGON_DAI_ADDRESS, POLYGON_DYFN_ROUTER, POLYGON_MAINNET_CHAIN_ID,
+        POLYGON_QUICKSWAP_ROUTER, POLYGON_STMATIC_ADDRESS, POLYGON_TESTNET_CHAIN_ID,
+        POLYGON_USDC_ADDRESS, POLYGON_USDT_ADDRESS, POLYGON_WBTC_ADDRESS, POLYGON_WETH_ADDRESS,
+        POLYGON_WMATIC_ADDRESS, TESTNET_BSC_APESWAP_ROUTER, TESTNET_BSC_BUSD_ADDRESS,
+        TESTNET_BSC_CAKE_ADDRESS, TESTNET_BSC_PANCAKESWAP_ROUTER, TESTNET_BSC_WBNB_ADDRESS,
+        TESTNET_POLYGON_DAI_ADDRESS, TESTNET_POLYGON_QUICKSWAP_ROUTER,
+        TESTNET_POLYGON_SUSHISWAP_ROUTER, TESTNET_POLYGON_USDC_ADDRESS,
+        TESTNET_POLYGON_USDT_ADDRESS, TESTNET_POLYGON_WETH_ADDRESS, TESTNET_POLYGON_WMATIC_ADDRESS,
     },
-    dex::{ApeSwap, BakerySwap, BiSwap, Dex, PancakeSwap},
+    dex::{ApeSwap, BakerySwap, BiSwap, Dex, Dyfn, PancakeSwap, QuickSwap, SushiSwap},
     token::{
         token::{BlockChain, Token},
         BscToken, PolygonToken,
@@ -57,8 +62,8 @@ lazy_static! {
             // ("TUSD", BSC_TUSD_ADDRESS),
         ],
         dex_list: &[
-            ("PancakeSwap", BSC_PANCAKE_SWAP_ROUTER),
-            ("BiSwap", BSC_BI_SWAP_ROUTER)
+            ("PancakeSwap", BSC_PANCAKESWAP_ROUTER),
+            ("BiSwap", BSC_BISWAP_ROUTER)
         ],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
@@ -74,8 +79,8 @@ lazy_static! {
             //("CAKE", TESTNET_BSC_CAKE_ADDRESS),
         ],
         dex_list: &[
-            ("PancakeSwap", TESTNET_BSC_PANCAKE_SWAP_ROUTER),
-            ("ApeSwap", TESTNET_BSC_APE_SWAP_ROUTER)
+            ("PancakeSwap", TESTNET_BSC_PANCAKESWAP_ROUTER),
+            ("ApeSwap", TESTNET_BSC_APESWAP_ROUTER)
         ],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
@@ -85,25 +90,38 @@ lazy_static! {
     pub static ref POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
         chain_id: 137,
         rpc_node_urls: &["https://rpc-mainnet.maticvigil.com/"],
-        tokens: &[],
-        dex_list: &[],
+        tokens: &[
+            ("USDC", POLYGON_USDC_ADDRESS),
+            ("USDT", POLYGON_USDT_ADDRESS),
+            //("WBTC", POLYGON_WBTC_ADDRESS),
+            ("WETH", POLYGON_WETH_ADDRESS),
+            ("WMATIC", POLYGON_WMATIC_ADDRESS),
+            ("DAI", POLYGON_DAI_ADDRESS),
+        ],
+        dex_list: &[
+            ("SushiSwap", TESTNET_POLYGON_SUSHISWAP_ROUTER),
+            ("Dyfn", POLYGON_DYFN_ROUTER),
+            ("QuickSwap", POLYGON_QUICKSWAP_ROUTER),
+        ],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
-        base_token: "USDT",
+        base_token: "USDC",
     };
 
     pub static ref TESTNET_POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
         chain_id: 80001, // This is the chain ID for Mumbai Testnet
         rpc_node_urls: &["https://rpc-mumbai.maticvigil.com"],
         tokens: &[
-            // Update these with the correct testnet token addresses
-            ("MATIC", TESTNET_POLYGON_MATIC_ADDRESS),
-            // add other token addresses here...
+            ("USDC", TESTNET_POLYGON_USDC_ADDRESS),
+            ("DAI", TESTNET_POLYGON_DAI_ADDRESS),
         ],
-        dex_list: &[],
+        dex_list: &[
+            ("SushiSwap", TESTNET_POLYGON_SUSHISWAP_ROUTER),
+            ("QuickSwap", TESTNET_POLYGON_QUICKSWAP_ROUTER)
+        ],
         free_rate: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
-        base_token: "USDT",
+        base_token: "USDC",
     };
 }
 
@@ -212,6 +230,9 @@ pub async fn create_dexes(
                 "BiSwap" => Box::new(BiSwap::new(provider.clone(), dex_router_address)),
                 "BakerySwap" => Box::new(BakerySwap::new(provider.clone(), dex_router_address)),
                 "ApeSwap" => Box::new(ApeSwap::new(provider.clone(), dex_router_address)),
+                "SushiSwap" => Box::new(SushiSwap::new(provider.clone(), dex_router_address)),
+                "Dyfn" => Box::new(Dyfn::new(provider.clone(), dex_router_address)),
+                "QuickSwap" => Box::new(QuickSwap::new(provider.clone(), dex_router_address)),
                 _ => panic!("Unknown DEX: {}", dex_name),
             };
             dex

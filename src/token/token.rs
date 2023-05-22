@@ -93,7 +93,18 @@ impl BaseToken {
             .token_contract()?
             .method("decimals", ())?
             .call()
-            .await?;
+            .await
+            .map_err(|e| {
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!(
+                        "Failed to call 'decimals' method for {}: {}",
+                        self.symbol_name(),
+                        e
+                    ),
+                )) as Box<dyn Error + Send + Sync>
+            })?;
+
         self.decimals = Some(decimals);
 
         Ok(())
