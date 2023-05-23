@@ -180,6 +180,41 @@ pub trait Dex: Send + Sync {
         Ok(output_amount)
     }
 
+    async fn has_token_pair(&self, input_token: &dyn Token, output_token: &dyn Token) -> bool {
+        let input_address = input_token.address();
+        let output_address = output_token.address();
+
+        let router_contract = match self.router_contract() {
+            Ok(contract) => contract,
+            Err(_) => return false, // Return false if the router contract is not created
+        };
+
+        let connected_contract = router_contract.connect(self.provider().clone());
+
+        let method_call = connected_contract.method::<_, Vec<U256>>(
+            "getAmountsOut",
+            (U256::one(), vec![input_address, output_address]),
+        );
+
+        let amounts_out = match method_call
+            .expect("Failed to execute contract call")
+            .call()
+            .await
+        {
+            Ok(result) => result,
+            Err(err) => {
+                // Handle the error or panic with a custom message
+                panic!("Failed to execute contract call: {:?}", err);
+            }
+        };
+
+        if let Some(output_amount) = amounts_out.get(1) {
+            !output_amount.is_zero()
+        } else {
+            false
+        }
+    }
+
     async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>>;
     fn clone_box(&self) -> Box<dyn Dex + Send + Sync>;
     fn name(&self) -> &str;
