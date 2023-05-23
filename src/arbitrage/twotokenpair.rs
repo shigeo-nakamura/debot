@@ -1,6 +1,7 @@
 // twotokenpair.rs
 
-use super::{Arbitrage, ArbitrageOpportunity};
+use super::arbitrage::BaseArbitrage;
+use super::{find_index, Arbitrage, ArbitrageOpportunity};
 use crate::dex::dex::TokenPair;
 use crate::dex::Dex;
 use crate::http::TransactionResult;
@@ -9,7 +10,6 @@ use anyhow::Context;
 use async_trait::async_trait;
 use ethers::prelude::LocalWallet;
 use ethers::types::Address;
-use ethers::types::U256;
 use ethers_middleware::providers::Http;
 use ethers_middleware::providers::Provider;
 use ethers_middleware::NonceManagerMiddleware;
@@ -22,12 +22,7 @@ use std::time::SystemTime;
 use tokio::task::JoinHandle;
 
 pub struct TwoTokenPairArbitrage {
-    amount: f64,
-    allowance_factor: f64,
-    tokens: Arc<Vec<Box<dyn Token>>>,
-    base_token: Arc<Box<dyn Token>>,
-    dexes: Arc<Vec<Box<dyn Dex>>>,
-    skip_write: bool,
+    base_arbitrage: BaseArbitrage,
 }
 
 impl<'a> TwoTokenPairArbitrage {
@@ -40,101 +35,35 @@ impl<'a> TwoTokenPairArbitrage {
         skip_write: bool,
     ) -> Self {
         Self {
-            amount,
-            allowance_factor,
-            tokens,
-            base_token,
-            dexes,
-            skip_write,
+            base_arbitrage: BaseArbitrage::new(
+                amount,
+                allowance_factor,
+                tokens,
+                base_token,
+                dexes,
+                skip_write,
+            ),
         }
     }
 
-    pub async fn init(&self, owner: Address) -> Result<(), Box<dyn Error + Send + Sync>> {
-        for token in self.tokens.iter() {
-            for dex in self.dexes.iter() {
-                let spender = dex.router_address();
-                let allowance = token.allowance(owner, spender).await?;
-                log::info!(
-                    "Allowance for token {}: {} for dex {}",
-                    token.symbol_name(),
-                    allowance,
-                    dex.name(),
-                );
-
-                let token_decimals = token.decimals().unwrap();
-                let converted_amount = U256::from_dec_str(&format!(
-                    "{:.0}",
-                    self.amount * self.allowance_factor * 10f64.powi(token_decimals as i32)
-                ))?;
-
-                if self.skip_write {
-                    return Ok(());
-                }
-
-                if allowance < converted_amount / 2 {
-                    token.approve(spender, converted_amount).await?;
-                    log::info!(
-                        "Approved {} {} for dex {}",
-                        self.amount,
-                        token.symbol_name(),
-                        dex.name(),
-                    );
-                }
-            }
-        }
-        Ok(())
+    pub fn amount(&self) -> f64 {
+        self.base_arbitrage.amount()
     }
 
-    fn log_arbitrage_info(
-        base_token: &Box<dyn Token>,
-        dex1: &Box<dyn Dex>,
-        dex2: &Box<dyn Dex>,
-        token: &Box<dyn Token>,
-        amount: f64,
-        token_amount: f64,
-        final_amount: f64,
-        swap_to_token_price: f64,
-        swap_to_base_token_price: f64,
-        profit: f64,
-        has_opportunity: bool,
-    ) {
-        let opportunity_string = if has_opportunity {
-            "Arbitrage opportunity"
-        } else {
-            "No arbitrage opportunity"
-        };
+    pub fn tokens(&self) -> Arc<Vec<Box<dyn Token>>> {
+        self.base_arbitrage.tokens()
+    }
 
-        let profit_string = if has_opportunity { "Profit" } else { "Loss" };
+    pub fn base_token(&self) -> Arc<Box<dyn Token>> {
+        self.base_arbitrage.base_token()
+    }
 
-        log::info!(
-            "{} [{} and {}] for ({} - {}). {}: {} {}",
-            opportunity_string,
-            dex1.name(),
-            dex2.name(),
-            base_token.symbol_name(),
-            token.symbol_name(),
-            profit_string,
-            profit,
-            base_token.symbol_name()
-        );
+    pub fn dexes(&self) -> Arc<Vec<Box<dyn Dex>>> {
+        self.base_arbitrage.dexes()
+    }
 
-        log::debug!(
-            "{}({}) -> {}({}) -> {}({}), {}: {} {}/{}, {}: {} {}/{}",
-            base_token.symbol_name(),
-            amount,
-            token.symbol_name(),
-            token_amount,
-            base_token.symbol_name(),
-            final_amount,
-            dex1.name(),
-            swap_to_token_price,
-            token.symbol_name(),
-            base_token.symbol_name(),
-            dex2.name(),
-            swap_to_base_token_price,
-            base_token.symbol_name(),
-            token.symbol_name(),
-        );
+    pub fn skip_write(&self) -> bool {
+        self.base_arbitrage.skip_write()
     }
 }
 
@@ -145,15 +74,15 @@ impl Arbitrage for TwoTokenPairArbitrage {
     ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut tasks: Vec<JoinHandle<Result<Vec<ArbitrageOpportunity>, anyhow::Error>>> = vec![];
 
-        for token in self.tokens.iter().cloned() {
-            if token.symbol_name() == self.base_token.symbol_name() {
+        for token in self.tokens().iter().cloned() {
+            if token.symbol_name() == self.base_token().symbol_name() {
                 continue;
             }
 
-            let base_token = self.base_token.clone();
-            let amount = self.amount;
-            let dexes = self.dexes.clone();
-            let tokens_cloned = self.tokens.clone();
+            let base_token = self.base_token().clone();
+            let amount = self.amount();
+            let dexes = self.dexes().clone();
+            let tokens_cloned = self.tokens().clone();
 
             let task = tokio::spawn(async move {
                 let mut opps: Vec<ArbitrageOpportunity> = vec![];
@@ -168,7 +97,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
 
                         let swap_to_token_price = dex1
                             .get_token_price(
-                                &TokenPair::new((*base_token).as_ref(), token.as_ref()),
+                                &TokenPair::new(base_token.clone(), Arc::new(token.clone())),
                                 amount,
                             )
                             .await
@@ -181,7 +110,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
                         let token_b_amount = amount * swap_to_token_price;
                         let swap_to_usdt_price = dex2
                             .get_token_price(
-                                &TokenPair::new(token.as_ref(), (*base_token).as_ref()),
+                                &TokenPair::new(Arc::new(token.clone()), Arc::clone(&base_token)),
                                 token_b_amount,
                             )
                             .await
@@ -194,24 +123,31 @@ impl Arbitrage for TwoTokenPairArbitrage {
                         let final_amount = token_b_amount * swap_to_usdt_price;
 
                         let profit = final_amount - amount;
-                        if profit > 0.0 {
-                            Self::log_arbitrage_info(
-                                &base_token,
-                                dex1,
-                                dex2,
-                                &token,
-                                amount,
-                                token_b_amount,
-                                final_amount,
-                                swap_to_token_price,
-                                swap_to_usdt_price,
-                                profit,
-                                true,
-                            );
+                        let has_opportunity = profit > 0.0;
 
+                        TwoTokenPairArbitrage::log_arbitrage_info(
+                            dex1,
+                            dex2,
+                            None,
+                            &base_token,
+                            &token,
+                            None,
+                            amount,
+                            token_b_amount,
+                            final_amount,
+                            None,
+                            swap_to_token_price,
+                            swap_to_usdt_price,
+                            None,
+                            profit,
+                            has_opportunity,
+                        );
+
+                        if has_opportunity {
                             opps.push(ArbitrageOpportunity {
                                 dex1_index,
                                 dex2_index,
+                                dex3_index: None,
                                 token_a_index: tokens_cloned
                                     .iter()
                                     .position(|t| t.symbol_name() == base_token.symbol_name())
@@ -220,23 +156,10 @@ impl Arbitrage for TwoTokenPairArbitrage {
                                     .iter()
                                     .position(|t| t.symbol_name() == token.symbol_name())
                                     .unwrap(),
+                                token_c_index: None,
                                 profit,
                                 amount,
                             });
-                        } else {
-                            Self::log_arbitrage_info(
-                                &base_token,
-                                dex1,
-                                dex2,
-                                &token,
-                                amount,
-                                token_b_amount,
-                                final_amount,
-                                swap_to_token_price,
-                                swap_to_usdt_price,
-                                profit,
-                                false,
-                            );
                         }
                     }
                 }
@@ -271,15 +194,15 @@ impl Arbitrage for TwoTokenPairArbitrage {
         transaction_results: Arc<RwLock<Vec<TransactionResult>>>,
         log_limit: usize,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        if self.skip_write {
+        if self.skip_write() {
             return Ok(());
         }
 
-        let dex1 = &self.dexes[opportunity.dex1_index];
-        let dex2 = &self.dexes[opportunity.dex2_index];
+        let dex1 = &self.dexes()[opportunity.dex1_index];
+        let dex2 = &self.dexes()[opportunity.dex2_index];
 
-        let token_a = &self.tokens[opportunity.token_a_index];
-        let token_b = &self.tokens[opportunity.token_b_index];
+        let token_a = &self.tokens()[opportunity.token_a_index];
+        let token_b = &self.tokens()[opportunity.token_b_index];
 
         log::info!(
             "Starting arbitrage: {} to {} via {} and {}",
@@ -291,7 +214,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
 
         let amount_a_to_b = dex1
             .swap_token(
-                &TokenPair::new(token_a.as_ref(), token_b.as_ref()),
+                &TokenPair::new(Arc::new(token_a.clone()), Arc::new(token_b.clone())),
                 opportunity.amount,
                 wallet_and_provider.clone(),
                 address,
@@ -319,7 +242,7 @@ impl Arbitrage for TwoTokenPairArbitrage {
 
         let amount_b_to_a = dex2
             .swap_token(
-                &TokenPair::new(token_b.as_ref(), token_a.as_ref()),
+                &TokenPair::new(Arc::new(token_b.clone()), Arc::new(token_a.clone())),
                 amount_a_to_b,
                 wallet_and_provider.clone(),
                 address,
@@ -379,5 +302,9 @@ impl Arbitrage for TwoTokenPairArbitrage {
         Self::store_transaction_result(transaction_result, transaction_results, log_limit);
 
         Ok(())
+    }
+
+    async fn init(&self, owner: Address) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.base_arbitrage.init(owner).await
     }
 }

@@ -10,7 +10,7 @@ use crate::arbitrage::{Arbitrage, TwoTokenPairArbitrage};
 use crate::token_manager::{create_base_token, create_tokens};
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use wallet::{create_kms_wallet, create_local_wallet};
 
 mod addresses;
@@ -48,6 +48,12 @@ async fn main() -> std::io::Result<()> {
                 }
                 Err(e) => {
                     log::error!("Error occurred during arbitrage: {:?}", e);
+                    if e.to_string().contains("SIGINT received") {
+                        log::info!("SIGINT received. Attempting to shut down...");
+                        std::process::exit(0);
+                    } else {
+                        log::error!("Error message: {}", e.to_string());
+                    }
                 }
             }
         }

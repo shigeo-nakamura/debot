@@ -69,13 +69,13 @@ impl BaseDex {
     }
 }
 
-pub struct TokenPair<'a> {
-    input_token: &'a dyn Token,
-    output_token: &'a dyn Token,
+pub struct TokenPair {
+    input_token: Arc<Box<dyn Token>>,
+    output_token: Arc<Box<dyn Token>>,
 }
 
-impl<'a> TokenPair<'a> {
-    pub fn new(input_token: &'a dyn Token, output_token: &'a dyn Token) -> Self {
+impl TokenPair {
+    pub fn new(input_token: Arc<Box<dyn Token>>, output_token: Arc<Box<dyn Token>>) -> Self {
         TokenPair {
             input_token,
             output_token,
@@ -87,7 +87,7 @@ impl<'a> TokenPair<'a> {
 pub trait Dex: Send + Sync {
     async fn get_token_price(
         &self,
-        token_pair: &TokenPair<'_>,
+        token_pair: &TokenPair,
         amount: f64,
     ) -> Result<f64, Box<dyn std::error::Error + Send + Sync + 'static>> {
         let input_address = token_pair.input_token.address();
@@ -126,7 +126,7 @@ pub trait Dex: Send + Sync {
 
     async fn swap_token(
         &self,
-        token_pair: &TokenPair<'_>,
+        token_pair: &TokenPair,
         amount: f64,
         wallet_and_provider: Arc<
             NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
@@ -233,5 +233,11 @@ pub trait Dex: Send + Sync {
 impl Clone for Box<dyn Dex> {
     fn clone(&self) -> Box<dyn Dex> {
         self.clone_box()
+    }
+}
+
+impl PartialEq for Box<dyn Dex> {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.as_ref(), other.as_ref())
     }
 }
