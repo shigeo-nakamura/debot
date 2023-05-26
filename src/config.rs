@@ -3,6 +3,8 @@ use crate::token_manager::{
     TESTNET_POLYGON_CHAIN_PARAMS,
 };
 use std::env;
+use std::fmt;
+use std::num::{ParseFloatError, ParseIntError};
 
 #[derive(Debug)]
 pub struct EnvConfig {
@@ -13,9 +15,67 @@ pub struct EnvConfig {
     pub deadline_secs: u64,
     pub log_limit: usize,
     pub skip_write: bool,
+    pub num_swaps: usize,
+    pub history_period: usize,
+    pub max_history_size: usize,
+    pub loss_limit_amount: f64,
+    pub profit_limit_amount: f64,
+    pub max_position_amount: f64,
+    pub match_multiplier: f64,
+    pub mismatch_multiplier: f64,
 }
 
-pub fn get_config_from_env() -> Result<Vec<EnvConfig>, &'static str> {
+#[derive(Debug)]
+pub enum ConfigError {
+    UnsupportedChainName,
+    ParseIntError(ParseIntError),
+    ParseFloatError(ParseFloatError),
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ConfigError::UnsupportedChainName => write!(f, "Unsupported chain name"),
+            ConfigError::ParseIntError(e) => write!(f, "Parse int error: {}", e),
+            ConfigError::ParseFloatError(e) => write!(f, "Parse float error: {}", e),
+        }
+    }
+}
+
+impl From<ParseIntError> for ConfigError {
+    fn from(err: ParseIntError) -> ConfigError {
+        ConfigError::ParseIntError(err)
+    }
+}
+
+impl From<ParseFloatError> for ConfigError {
+    fn from(err: ParseFloatError) -> ConfigError {
+        ConfigError::ParseFloatError(err)
+    }
+}
+
+fn get_env_var<T: std::str::FromStr>(
+    var: &str,
+    default: &str,
+) -> Result<T, <T as std::str::FromStr>::Err> {
+    let var_str = env::var(var).unwrap_or_else(|_| default.to_string());
+    var_str.parse::<T>()
+}
+
+fn get_bool_env_var(var: &str, default: bool) -> bool {
+    match env::var(var) {
+        Ok(val) => {
+            let lower_val = val.to_lowercase();
+            lower_val != "false" && lower_val != "0"
+        }
+        Err(_e) => {
+            // Environment variable not found, use default value
+            default
+        }
+    }
+}
+
+pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
     let chain_names = env::var("CHAIN_NAME").unwrap_or_else(|_| "BSC_TESTNET".to_string());
     let chain_names: Vec<&str> = chain_names.split(',').collect();
 
@@ -30,37 +90,23 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, &'static str> {
             "BSC_TESTNET" => &TESTNET_BSC_CHAIN_PARAMS,
             "POLYGON" => &POLYGON_CHAIN_PARAMS,
             "POLYGON_TESTNET" => &TESTNET_POLYGON_CHAIN_PARAMS,
-            _ => return Err("Unsupported chain name"),
+            _ => return Err(ConfigError::UnsupportedChainName),
         };
 
-        let interval_str = env::var("INTERVAL").unwrap_or_else(|_| "10".to_string());
-        let interval = interval_str.parse::<u64>().unwrap();
-
-        let amount_str = env::var("AMOUNT").unwrap_or_else(|_| "100.0".to_string());
-        let amount = amount_str.parse::<f64>().unwrap();
-
-        let allowance_factor_str =
-            env::var("ALLOWANCE_FACTOR").unwrap_or_else(|_| "10000000000.0".to_string());
-        let allowance_factor = allowance_factor_str.parse::<f64>().unwrap();
-
-        let deadline_secs_str = env::var("DEADLINE_SECS").unwrap_or_else(|_| "60".to_string());
-        let deadline_secs = deadline_secs_str.parse::<u64>().unwrap();
-
-        let log_limit_str = env::var("LOG_LIMIT").unwrap_or_else(|_| "10000".to_string());
-        let log_limit = log_limit_str.parse::<usize>().unwrap();
-
-        let mut skip_write = true;
-        match env::var("SKIP_WRITE") {
-            Ok(val) => {
-                let lower_val = val.to_lowercase();
-                if lower_val == "false" || lower_val == "0" {
-                    skip_write = false;
-                }
-            }
-            Err(_e) => {
-                // Environment variable not found, use default value
-            }
-        }
+        let interval = get_env_var("INTERVAL", "60")?; // sec
+        let amount = get_env_var("AMOUNT", "100.0")?;
+        let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
+        let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
+        let log_limit = get_env_var("LOG_LIMIT", "10000")?;
+        let skip_write = get_bool_env_var("SKIP_WRITE", true);
+        let num_swaps = get_env_var("NUM_SWAPS", "3")?;
+        let history_period = get_env_var("HISTORY_PEREIOD", "60")?;
+        let max_history_size = get_env_var("MAX_HISTORY_SIZE", "600")?;
+        let loss_limit_amount = get_env_var("LOSS_LIMIT_AMOUNT", "5.0")?;
+        let profit_limit_amount = get_env_var("PROFIT_LIMIT_AMOUNT", "10.0")?;
+        let max_position_amount = get_env_var("MAX_POSITION_AMOUNT", "500.0")?;
+        let match_multiplier = get_env_var("MATCH_MULTIPLIER", "1.0")?;
+        let mismatch_multiplier = get_env_var("MISMATCH_MULTIPLIER", "0.5")?;
 
         let env_config = EnvConfig {
             chain_params,
@@ -70,6 +116,14 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, &'static str> {
             deadline_secs,
             log_limit,
             skip_write,
+            num_swaps,
+            history_period,
+            max_history_size,
+            loss_limit_amount,
+            profit_limit_amount,
+            max_position_amount,
+            match_multiplier,
+            mismatch_multiplier,
         };
 
         env_configs.push(env_config);

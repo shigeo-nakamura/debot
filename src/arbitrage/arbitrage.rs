@@ -10,11 +10,18 @@ use ethers_middleware::{
     NonceManagerMiddleware, SignerMiddleware,
 };
 use std::{
+    collections::HashMap,
     error::Error,
     sync::{Arc, RwLock},
 };
+use tokio::task::JoinHandle;
 
-use crate::{dex::Dex, http::TransactionResult, token::Token};
+use crate::{
+    dex::{dex::TokenPair, Dex},
+    token::Token,
+};
+
+use super::PriceHistory;
 
 pub fn find_index<T, F>(list: &[T], predicate: F) -> Option<usize>
 where
@@ -23,15 +30,50 @@ where
     list.iter().position(predicate)
 }
 
+#[derive(Debug, Clone)]
 pub struct ArbitrageOpportunity {
-    pub dex1_index: usize,
-    pub dex2_index: usize,
-    pub dex3_index: Option<usize>,
-    pub token_a_index: usize,
-    pub token_b_index: usize,
-    pub token_c_index: Option<usize>,
+    pub dex_index: Vec<usize>,
+    pub token_index: Vec<usize>,
+    pub amounts: Vec<f64>,
     pub profit: f64,
-    pub amount: f64,
+    pub gas: f64,
+}
+
+impl ArbitrageOpportunity {
+    pub fn print_info(&self, dexes: &[Box<dyn Dex>], tokens: &[Box<dyn Token>]) {
+        let num_paths = self.dex_index.len();
+
+        if self.profit > 0.0 {
+            log::info!("Profit: {}", self.profit);
+            for i in 0..num_paths {
+                let dex = &dexes[self.dex_index[i]];
+                let token = &tokens[self.token_index[i]];
+                log::info!(
+                    "  DEX: {}, Token: {}, Amount: {}",
+                    dex.name(),
+                    token.symbol_name(),
+                    self.amounts[i]
+                );
+            }
+        } else {
+            log::debug!(
+                "Loss: {} - {} = {}",
+                self.profit + self.gas,
+                self.gas,
+                self.profit
+            );
+            for i in 0..num_paths {
+                let dex = &dexes[self.dex_index[i]];
+                let token = &tokens[self.token_index[i]];
+                log::debug!(
+                    "  DEX: {}, Token: {}, Amount: {}",
+                    dex.name(),
+                    token.symbol_name(),
+                    self.amounts[i]
+                );
+            }
+        }
+    }
 }
 
 pub struct BaseArbitrage {
@@ -41,6 +83,7 @@ pub struct BaseArbitrage {
     base_token: Arc<Box<dyn Token>>,
     dexes: Arc<Vec<Box<dyn Dex>>>,
     skip_write: bool,
+    gas: f64,
 }
 
 impl BaseArbitrage {
@@ -51,6 +94,7 @@ impl BaseArbitrage {
         base_token: Arc<Box<dyn Token>>,
         dexes: Arc<Vec<Box<dyn Dex>>>,
         skip_write: bool,
+        gas: f64,
     ) -> Self {
         Self {
             amount,
@@ -59,6 +103,7 @@ impl BaseArbitrage {
             base_token,
             dexes,
             skip_write,
+            gas,
         }
     }
 
@@ -98,6 +143,85 @@ impl BaseArbitrage {
         Ok(())
     }
 
+    async fn fetch_token_prices(
+        dex: &Arc<Box<dyn Dex>>,
+        token_a: &Arc<Box<dyn Token>>,
+        token_b: &Arc<Box<dyn Token>>,
+        amount: f64,
+        reverse: bool,
+    ) -> Option<(String, String, String, f64)> {
+        let dex_name = dex.name().to_owned();
+        let token_a_name = token_a.symbol_name().to_owned();
+        let token_b_name = token_b.symbol_name().to_owned();
+
+        let token_pair = TokenPair::new(token_a.clone(), token_b.clone());
+
+        match dex.get_token_price(&token_pair, amount, reverse).await {
+            Ok(price) => Some((token_a_name, token_b_name, dex_name, price)),
+            Err(e) => {
+                log::debug!("{:?}", e);
+                log::trace!("No price: {}-{}@{}", token_a_name, token_b_name, dex_name);
+                None
+            }
+        }
+    }
+
+    // Function to get token pair prices with base token
+    pub async fn get_token_pair_prices(
+        &self,
+        dex: &Box<dyn Dex>,
+        base_token: &Box<dyn Token>,
+        tokens: &Vec<Box<dyn Token>>,
+        amount: f64,
+    ) -> Vec<JoinHandle<Result<Option<(String, String, String, f64)>, Box<dyn Error + Send + Sync>>>>
+    {
+        let mut get_price_futures = Vec::new();
+
+        for token in tokens.iter() {
+            if token.symbol_name() == base_token.symbol_name() {
+                continue;
+            }
+
+            let fut_base = tokio::spawn({
+                let dex_arc = Arc::new(dex.clone());
+                let token_arc = Arc::new(token.clone());
+                let base_token_arc = Arc::new(base_token.clone());
+                async move {
+                    let price_result = Self::fetch_token_prices(
+                        &dex_arc,
+                        &base_token_arc,
+                        &token_arc,
+                        amount,
+                        false,
+                    )
+                    .await;
+                    Ok(price_result)
+                }
+            });
+            get_price_futures.push(fut_base);
+
+            let fut_base = tokio::spawn({
+                let dex_arc = Arc::new(dex.clone());
+                let token_arc = Arc::new(token.clone());
+                let base_token_arc = Arc::new(base_token.clone());
+                async move {
+                    let price_result = Self::fetch_token_prices(
+                        &dex_arc,
+                        &token_arc,
+                        &base_token_arc,
+                        amount,
+                        true,
+                    )
+                    .await;
+                    Ok(price_result)
+                }
+            });
+            get_price_futures.push(fut_base);
+        }
+
+        get_price_futures
+    }
+
     pub fn amount(&self) -> f64 {
         self.amount
     }
@@ -117,151 +241,28 @@ impl BaseArbitrage {
     pub fn skip_write(&self) -> bool {
         self.skip_write
     }
+
+    pub fn gas(&self) -> f64 {
+        self.gas
+    }
 }
 
 #[async_trait]
 pub trait Arbitrage {
-    async fn find_opportunities(
-        &self,
-    ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>>;
-
     async fn execute_transactions(
-        &self,
-        opportunity: &ArbitrageOpportunity,
+        &mut self,
+        opportunities: &Vec<ArbitrageOpportunity>,
         wallet_and_provider: &Arc<
             NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
         >,
         address: Address,
         deadline_secs: u64,
-        transaction_results: Arc<RwLock<Vec<TransactionResult>>>,
         log_limit: usize,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
     async fn init(&self, owner: Address) -> Result<(), Box<dyn Error + Send + Sync>>;
 
-    fn store_transaction_result(
-        transaction_result: TransactionResult,
-        transaction_results: Arc<RwLock<Vec<TransactionResult>>>,
-        limit: usize,
-    ) {
-        let mut transaction_results_guard = transaction_results.write().unwrap();
-        transaction_results_guard.push(transaction_result);
-
-        // If there are too many transaction results, remove the oldest ones until the limit is satisfied
-        while transaction_results_guard.len() > limit {
-            transaction_results_guard.remove(0);
-        }
-    }
-
-    fn log_transaction_result(&self, transaction_result: &TransactionResult) {
-        log::info!(
-            "Transaction Result at timestamp: {}, DEXes: {:?}, \
-            Tokens: {:?}, Amounts: {:?}, Profit: {}",
-            transaction_result.timestamp,
-            transaction_result.dex_names,
-            transaction_result.token_symbols,
-            transaction_result.amounts,
-            transaction_result.profit,
-        );
-    }
-
-    fn log_arbitrage_info(
-        dex1: &Box<dyn Dex>,
-        dex2: &Box<dyn Dex>,
-        dex3: Option<&Box<dyn Dex>>,
-        token_a: &Box<dyn Token>,
-        token_b: &Box<dyn Token>,
-        token_c: Option<&Box<dyn Token>>,
-        amount: f64,
-        amount_a: f64,
-        amount_b: f64,
-        amount_c: Option<f64>,
-        dex1_price: f64,
-        dex2_price: f64,
-        dex3_price: Option<f64>,
-        profit: f64,
-        has_opportunity: bool,
-    ) {
-        let opportunity_string = if has_opportunity {
-            "! FOUND opportunity"
-        } else {
-            "No opportunity"
-        };
-
-        let profit_string = if has_opportunity { "Profit" } else { "Loss" };
-
-        if dex3.is_none() {
-            log::debug!(
-                "{}({}) -> {}({}) -> {}({}), {}:{} {}/{}, {}:{} {}/{}",
-                token_a.symbol_name(),
-                amount,
-                token_b.symbol_name(),
-                amount_a,
-                token_a.symbol_name(),
-                amount_b,
-                dex1.name(),
-                dex1_price,
-                token_b.symbol_name(),
-                token_a.symbol_name(),
-                dex2.name(),
-                dex2_price,
-                token_a.symbol_name(),
-                token_b.symbol_name()
-            );
-
-            log::info!(
-                "{} [{},{}] for ({}-{}). {}: {} {}",
-                opportunity_string,
-                dex1.name(),
-                dex2.name(),
-                token_a.symbol_name(),
-                token_b.symbol_name(),
-                profit_string,
-                profit,
-                token_a.symbol_name()
-            );
-        } else {
-            let token_c = token_c.unwrap();
-            let amount_c = amount_c.unwrap();
-            let dex3 = dex3.unwrap();
-            let dex3_price = dex3_price.unwrap();
-            log::debug!(
-                "{}({}) -> {}({}) -> {}({}) -> {}({}), {}:{} {}/{}, {}:{} {}/{}, {}:{} {}/{}",
-                token_a.symbol_name(),
-                amount,
-                token_b.symbol_name(),
-                amount_a,
-                token_c.symbol_name(),
-                amount_b,
-                token_a.symbol_name(),
-                amount_c,
-                dex1.name(),
-                dex1_price,
-                token_b.symbol_name(),
-                token_a.symbol_name(),
-                dex2.name(),
-                dex2_price,
-                token_c.symbol_name(),
-                token_b.symbol_name(),
-                dex3.name(),
-                dex3_price,
-                token_a.symbol_name(),
-                token_c.symbol_name()
-            );
-
-            log::info!(
-                "{} [{}, {},{}] for ({}-{}-{}). {}: {} {}",
-                opportunity_string,
-                dex1.name(),
-                dex2.name(),
-                dex3.name(),
-                token_a.symbol_name(),
-                token_b.symbol_name(),
-                token_c.symbol_name(),
-                profit_string,
-                profit,
-                token_a.symbol_name()
-            );
-        }
-    }
+    async fn get_token_pair_prices(
+        &self,
+    ) -> Result<HashMap<(String, String, String), f64>, Box<dyn Error + Send + Sync>>;
 }

@@ -24,17 +24,9 @@ impl Token for PolygonToken {
         address: Address,
         symbol_name: String,
         decimals: Option<u8>,
-        fee_rate: f64,
     ) -> Self {
         Self {
-            base_token: BaseToken::new(
-                block_chain,
-                provider,
-                address,
-                symbol_name,
-                decimals,
-                fee_rate,
-            ),
+            base_token: BaseToken::new(block_chain, provider, address, symbol_name, decimals),
         }
     }
 
@@ -63,10 +55,6 @@ impl Token for PolygonToken {
 
     fn decimals(&self) -> Option<u8> {
         self.base_token.decimals()
-    }
-
-    fn fee_rate(&self) -> f64 {
-        self.base_token.fee_rate()
     }
 
     async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {

@@ -89,6 +89,7 @@ pub trait Dex: Send + Sync {
         &self,
         token_pair: &TokenPair,
         amount: f64,
+        use_get_amounts_in: bool,
     ) -> Result<f64, Box<dyn std::error::Error + Send + Sync + 'static>> {
         let input_address = token_pair.input_token.address();
         let output_address = token_pair.output_token.address();
@@ -96,28 +97,48 @@ pub trait Dex: Send + Sync {
         let input_decimals = token_pair.input_token.decimals().unwrap();
         let output_decimals = token_pair.output_token.decimals().unwrap();
 
-        let amount_in = U256::from_dec_str(&format!(
+        let router_contract = self.router_contract().unwrap();
+
+        let mut amount_in = U256::from_dec_str(&format!(
             "{:.0}",
             amount * 10f64.powi(input_decimals as i32)
         ))?;
 
-        let router_contract = self.router_contract().unwrap();
-        let amounts_out: Vec<U256> = router_contract
-            .method::<_, Vec<U256>>(
-                "getAmountsOut",
-                (amount_in, vec![input_address, output_address]),
-            )?
-            .call()
-            .await?;
-        let output_amount: U256 = amounts_out[1];
+        let mut amount_out = U256::from_dec_str(&format!(
+            "{:.0}",
+            amount * 10f64.powi(output_decimals as i32)
+        ))?;
 
-        let price_f64 = output_amount.as_u128() as f64 / amount_in.as_u128() as f64
+        if use_get_amounts_in {
+            let amounts_in: Vec<U256> = router_contract
+                .method::<_, Vec<U256>>(
+                    "getAmountsIn",
+                    (amount_out, vec![input_address, output_address]),
+                )?
+                .call()
+                .await?;
+            amount_in = amounts_in[0];
+        } else {
+            let amounts_out: Vec<U256> = router_contract
+                .method::<_, Vec<U256>>(
+                    "getAmountsOut",
+                    (amount_in, vec![input_address, output_address]),
+                )?
+                .call()
+                .await?;
+            amount_out = amounts_out[1];
+        }
+
+        let price_f64 = amount_out.as_u128() as f64 / amount_in.as_u128() as f64
             * 10f64.powi(input_decimals as i32 - output_decimals as i32);
+
         log::trace!(
-            "Dex: {}, Input Amount: {}, Output Amount: {}, Price: {}",
+            "Dex: {}, Input Amount: {}({}), Output Amount: {}({}), Price: {}",
             self.name(),
             amount_in,
-            output_amount,
+            token_pair.input_token.symbol_name(),
+            amount_out,
+            token_pair.output_token.symbol_name(),
             price_f64
         );
 
@@ -175,7 +196,7 @@ pub trait Dex: Send + Sync {
             )));
         }
 
-        let output_amount = self.get_token_price(token_pair, amount).await?;
+        let output_amount = self.get_token_price(token_pair, amount, false).await?;
 
         Ok(output_amount)
     }

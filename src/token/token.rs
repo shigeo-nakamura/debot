@@ -24,7 +24,6 @@ pub struct BaseToken {
     address: Address,
     symbol_name: String,
     decimals: Option<u8>,
-    fee_rate: f64,
     abi: Abi,
     token_contract:
         Option<Contract<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>>,
@@ -37,7 +36,6 @@ impl BaseToken {
         address: Address,
         symbol_name: String,
         decimals: Option<u8>,
-        fee_rate: f64,
     ) -> Self {
         let abi = Abi::load(ERC20_TOKEN_ABI_JSON).unwrap();
         Self {
@@ -46,7 +44,6 @@ impl BaseToken {
             address,
             symbol_name,
             decimals,
-            fee_rate,
             abi,
             token_contract: None,
         }
@@ -80,10 +77,6 @@ impl BaseToken {
 
     pub fn decimals(&self) -> Option<u8> {
         self.decimals
-    }
-
-    pub fn fee_rate(&self) -> f64 {
-        self.fee_rate
     }
 
     pub async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -158,7 +151,6 @@ pub trait Token: Send + Sync {
         address: Address,
         symbol_name: String,
         decimals: Option<u8>,
-        fee_rate: f64,
     ) -> Self
     where
         Self: Sized;
@@ -169,7 +161,6 @@ pub trait Token: Send + Sync {
     fn address(&self) -> Address;
     fn symbol_name(&self) -> &str;
     fn decimals(&self) -> Option<u8>;
-    fn fee_rate(&self) -> f64;
     async fn approve(
         &self,
         spender: Address,

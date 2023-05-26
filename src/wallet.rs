@@ -12,6 +12,13 @@ use std::{error::Error, sync::Arc};
 
 use crate::token_manager::ChainParams;
 
+use lazy_static::lazy_static;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+lazy_static! {
+    static ref INDEX: AtomicUsize = AtomicUsize::new(0);
+}
+
 // Define your AWS KMS Signer
 #[derive(Clone)]
 pub struct AwsKmsSigner {
@@ -112,7 +119,10 @@ pub fn create_local_wallet(
         hex!("dd84b3084618a0ff534b482c5e3665b53805ce97c7ed1a46e39b671b3b897047");
     let secret_key = SecretKey::from_slice(&private_key_bytes)?;
 
-    let provider = Provider::<Http>::try_from(chain_params.rpc_node_urls[0])?;
+    let index = INDEX.fetch_add(1, Ordering::SeqCst);
+    let provider = Provider::<Http>::try_from(
+        chain_params.rpc_node_urls[index % chain_params.rpc_node_urls.len()],
+    )?;
 
     let wallet = LocalWallet::from(secret_key).with_chain_id(chain_params.chain_id);
     let provider = provider.with_signer(wallet.clone());
