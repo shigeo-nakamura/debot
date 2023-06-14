@@ -1,16 +1,13 @@
 // main.rs
 
-use arbitrage::ArbitrageOpportunity;
+use arbitrage::{ArbitrageOpportunity, PriceHistory, ReversionArbitrage};
 use config::EnvConfig;
 use ethers::signers::Signer;
-use rand::Rng;
 use token_manager::create_dexes;
 
 use crate::arbitrage::{Arbitrage, TriangleArbitrage};
 use crate::token_manager::{create_base_token, create_tokens};
-use std::cmp::Ordering;
-use std::sync::Arc;
-use std::sync::RwLock;
+use std::collections::HashMap;
 use std::time::Duration;
 use wallet::{create_kms_wallet, create_local_wallet};
 
@@ -51,39 +48,47 @@ async fn main() -> std::io::Result<()> {
             .await
             .expect("Error creating a base token");
 
-        // Create an instance of TriangleArbitrage
-        let triangle_arbitrage = TriangleArbitrage::new(
+        // Create an instance of Arbitrage
+        let arbitrage = ReversionArbitrage::new(
             config.amount,
             config.allowance_factor,
             tokens.clone(),
             usdt_token.clone(),
             dexes.clone(),
             config.skip_write,
-            config.num_swaps,
             config.chain_params.gas,
+            config.short_trade_period,
+            config.long_trade_period,
+            config.loss_limit_ratio,
+            config.profit_limit_ratio,
+            config.max_position_amount,
+            config.max_hold_period,
+            config.match_multiplier,
+            config.mismatch_multiplier,
         );
 
-        triangle_arbitrage.init(wallet.address()).await.unwrap();
+        // Create price histories
+        let histories: HashMap<String, PriceHistory> = HashMap::new();
 
-        let paths = triangle_arbitrage.find_arbitrage_paths().unwrap();
+        arbitrage.init(wallet.address()).await.unwrap();
 
-        // Push each TriangleArbitrage instance and its associated wallet_and_provider into the vector
+        // Push each Arbitrage instance and its associated wallet_and_provider into the vector
         arbitrage_instances.push((
-            triangle_arbitrage,
+            arbitrage,
             wallet_and_provider,
             wallet.address(),
             config,
-            paths,
+            histories,
         ));
     }
 
     loop {
         log::info!("### enter");
-        for (triangle_arbitrage, wallet_and_provider, wallet_address, config, paths) in
-            &arbitrage_instances
+        for (arbitrage, wallet_and_provider, wallet_address, config, histories) in
+            arbitrage_instances.iter_mut()
         {
-            let mut opportunities = triangle_arbitrage
-                .find_path_opportunities(paths)
+            let mut opportunities = arbitrage
+                .find_opportunities(histories)
                 .await
                 .unwrap_or_else(|e| {
                     log::error!("Error while finding opportunities: {}", e);
@@ -100,7 +105,7 @@ async fn main() -> std::io::Result<()> {
             });
             let mut profitable_opportunities: Vec<ArbitrageOpportunity> = vec![];
             for opportunity in opportunities {
-                opportunity.print_info(&triangle_arbitrage.dexes(), &triangle_arbitrage.tokens());
+                opportunity.print_info(&arbitrage.dexes(), &arbitrage.tokens());
                 if opportunity.profit > 0.0 {
                     profitable_opportunities.push(opportunity);
                 }
@@ -109,7 +114,7 @@ async fn main() -> std::io::Result<()> {
             if profitable_opportunities.is_empty() {
                 log::info!(".");
             } else {
-                triangle_arbitrage
+                arbitrage
                     .execute_transactions(
                         &profitable_opportunities,
                         wallet_and_provider,

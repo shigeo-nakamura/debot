@@ -16,11 +16,12 @@ pub struct EnvConfig {
     pub log_limit: usize,
     pub skip_write: bool,
     pub num_swaps: usize,
-    pub history_period: usize,
-    pub max_history_size: usize,
-    pub loss_limit_amount: f64,
-    pub profit_limit_amount: f64,
+    pub short_trade_period: usize,
+    pub long_trade_period: usize,
+    pub loss_limit_ratio: f64,
+    pub profit_limit_ratio: f64,
     pub max_position_amount: f64,
+    pub max_hold_period: usize,
     pub match_multiplier: f64,
     pub mismatch_multiplier: f64,
 }
@@ -93,19 +94,20 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             _ => return Err(ConfigError::UnsupportedChainName),
         };
 
-        let interval = get_env_var("INTERVAL", "60")?; // sec
+        let interval = get_env_var("INTERVAL", "60")?;
         let amount = get_env_var("AMOUNT", "100.0")?;
         let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
         let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
         let skip_write = get_bool_env_var("SKIP_WRITE", true);
         let num_swaps = get_env_var("NUM_SWAPS", "3")?;
-        let history_period = get_env_var("HISTORY_PEREIOD", "60")?;
-        let max_history_size = get_env_var("MAX_HISTORY_SIZE", "600")?;
-        let loss_limit_amount = get_env_var("LOSS_LIMIT_AMOUNT", "5.0")?;
-        let profit_limit_amount = get_env_var("PROFIT_LIMIT_AMOUNT", "10.0")?;
+        let short_trade_period = get_env_var("SHORT_TRADE_PEREIOD", "60")?;
+        let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "600")?;
+        let loss_limit_ratio = get_env_var("LOSS_LIMIT_RATIO", "-1.0")?;
+        let profit_limit_ratio = get_env_var("PROFIT_LIMIT_RATIO", "2.0")?;
         let max_position_amount = get_env_var("MAX_POSITION_AMOUNT", "500.0")?;
-        let match_multiplier = get_env_var("MATCH_MULTIPLIER", "1.0")?;
+        let max_hold_period = get_env_var("MAX_HOLD_PERIOD", "300")?;
+        let match_multiplier = get_env_var("MATCH_MULTIPLIER", "1.5")?;
         let mismatch_multiplier = get_env_var("MISMATCH_MULTIPLIER", "0.5")?;
 
         let env_config = EnvConfig {
@@ -117,11 +119,12 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             log_limit,
             skip_write,
             num_swaps,
-            history_period,
-            max_history_size,
-            loss_limit_amount,
-            profit_limit_amount,
+            short_trade_period,
+            long_trade_period,
+            loss_limit_ratio,
+            profit_limit_ratio,
             max_position_amount,
+            max_hold_period,
             match_multiplier,
             mismatch_multiplier,
         };

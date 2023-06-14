@@ -213,7 +213,7 @@ impl TriangleArbitrage {
         Some(profit)
     }
 
-    pub async fn find_path_opportunities(
+    pub async fn find_opportunities(
         &self,
         paths: &Vec<Vec<(Box<dyn Token>, Box<dyn Dex>)>>,
     ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>> {

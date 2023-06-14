@@ -23,15 +23,17 @@ use super::{ArbitrageOpportunity, PriceHistory};
 pub struct OpenPosition {
     averate_price: f64,
     amount: f64,
+    open_time: usize,
 }
 
 pub struct ReversionArbitrage {
     base_arbitrage: BaseArbitrage,
-    history_period: usize, // minutes
-    max_history_size: usize,
-    loss_limit_amount: f64,
-    profit_limit_amount: f64,
+    short_trade_period: usize,
+    long_trade_period: usize,
+    loss_limit_ratio: f64,
+    profit_limit_ratio: f64,
     max_position_amount: f64,
+    max_hold_period: usize,
     match_multiplier: f64,
     mismatch_multiplier: f64,
     open_positions: HashMap<String, OpenPosition>,
@@ -46,11 +48,12 @@ impl ReversionArbitrage {
         dexes: Arc<Vec<Box<dyn Dex>>>,
         skip_write: bool,
         gas: f64,
-        history_period: usize,
-        max_history_size: usize,
-        loss_limit_amount: f64,
-        profit_limit_amount: f64,
+        short_trade_period: usize,
+        long_trade_period: usize,
+        loss_limit_ratio: f64,
+        profit_limit_ratio: f64,
         max_position_amount: f64,
+        max_hold_period: usize,
         match_multiplier: f64,
         mismatch_multiplier: f64,
     ) -> Self {
@@ -64,11 +67,12 @@ impl ReversionArbitrage {
                 skip_write,
                 gas,
             ),
-            history_period,
-            max_history_size,
-            loss_limit_amount,
-            profit_limit_amount,
+            short_trade_period,
+            long_trade_period,
+            loss_limit_ratio,
+            profit_limit_ratio,
             max_position_amount,
+            max_hold_period,
             match_multiplier,
             mismatch_multiplier,
             open_positions: HashMap::new(),
@@ -93,7 +97,7 @@ impl ReversionArbitrage {
 
     fn can_open_position(&self) -> bool {
         let mut amount = 0.0;
-        for (token_name, position) in &self.open_positions {
+        for (_token_name, position) in &self.open_positions {
             amount += position.amount;
         }
         amount < self.max_position_amount
@@ -119,7 +123,7 @@ impl ReversionArbitrage {
             // Update the price history and predict next prices
             if token_a == self.base_token().symbol_name() {
                 let history = histories.entry(token_b.clone()).or_insert_with(|| {
-                    PriceHistory::new(self.history_period, self.max_history_size)
+                    PriceHistory::new(self.short_trade_period, self.long_trade_period)
                 });
                 history.add_price(chrono::Utc::now().timestamp(), *price);
             }
@@ -133,13 +137,8 @@ impl ReversionArbitrage {
         current_prices: &HashMap<(String, String, String), f64>,
         histories: &HashMap<String, PriceHistory>,
     ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>> {
-        if !self.can_open_position() {
-            log::debug!("Cannot open new position. No buy opportunities at this time.");
-            return Ok(vec![]);
-        }
-
         let mut opportunities: Vec<ArbitrageOpportunity> = vec![];
-        let next_timestamp = chrono::Utc::now().timestamp() + self.history_period as i64 * 60;
+        let next_timestamp = chrono::Utc::now().timestamp() + self.short_trade_period as i64;
 
         for ((token_a_name, token_b_name, dex_name), price) in current_prices {
             if token_a_name == self.base_token().symbol_name() {
@@ -178,7 +177,7 @@ impl ReversionArbitrage {
                             .ok_or("Dex not found")?;
                         let profit = (predicted_price - price) * self.amount();
 
-                        if profit > self.profit_limit_amount {
+                        if profit > self.profit_limit_ratio {
                             opportunities.push(ArbitrageOpportunity {
                                 dex_index: vec![dex_index],
                                 token_index: vec![token_a_index, token_b_index],
@@ -201,23 +200,27 @@ impl ReversionArbitrage {
     ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<ArbitrageOpportunity> = vec![];
 
-        for ((token_a, token_b, dex), current_price) in current_prices {
-            if token_b == self.base_token().symbol_name() {
-                if let Some(position) = self.open_positions.get(token_a) {
+        let current_time = chrono::Utc::now().timestamp() as usize;
+
+        for ((token_a_name, token_b_name, dex_name), current_price) in current_prices {
+            if token_b_name == self.base_token().symbol_name() {
+                if let Some(position) = self.open_positions.get(token_a_name) {
+                    let holding_period = current_time - position.open_time;
                     let potential_profit =
                         (current_price - position.averate_price) * position.amount;
                     let potential_loss = (position.averate_price - current_price) * position.amount;
 
-                    if potential_profit > self.profit_limit_amount
-                        || potential_loss > self.loss_limit_amount
+                    if holding_period > self.max_hold_period
+                        || potential_profit > position.amount * self.profit_limit_ratio
+                        || potential_loss < position.amount * self.loss_limit_ratio
                     {
                         let token_a_index =
-                            find_index(&self.tokens(), |token| token.symbol_name() == token_a)
+                            find_index(&self.tokens(), |token| token.symbol_name() == token_a_name)
                                 .ok_or("Token not found")?;
                         let token_b_index =
-                            find_index(&self.tokens(), |token| token.symbol_name() == token_b)
+                            find_index(&self.tokens(), |token| token.symbol_name() == token_b_name)
                                 .ok_or("Token not found")?;
-                        let dex_index = find_index(&self.dexes(), |dex| dex.name() == dex.name())
+                        let dex_index = find_index(&self.dexes(), |dex| dex.name() == dex_name)
                             .ok_or("Dex not found")?;
 
                         opportunities.push(ArbitrageOpportunity {
@@ -237,10 +240,10 @@ impl ReversionArbitrage {
 
     pub async fn find_opportunities(
         &self,
+        histories: &mut HashMap<String, PriceHistory>,
     ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>> {
-        let mut histories: HashMap<String, PriceHistory> = HashMap::new();
-        let mut current_prices: HashMap<(String, String, String), f64> =
-            self.get_current_prices(&mut histories).await?;
+        let current_prices: HashMap<(String, String, String), f64> =
+            self.get_current_prices(histories).await?;
 
         let mut results: Vec<ArbitrageOpportunity> = vec![];
 
@@ -276,33 +279,62 @@ impl Arbitrage for ReversionArbitrage {
             let dex = &self.dexes()[opportunity.dex_index[0]];
 
             // execute swap operation
-            let _ = dex
-                .swap_token(
-                    &token_pair,
-                    amount,
-                    wallet_and_provider.clone(),
-                    address,
-                    deadline_secs,
-                )
-                .await?;
+            if !self.base_arbitrage.skip_write() {
+                let _ = dex
+                    .swap_token(
+                        &token_pair,
+                        amount,
+                        wallet_and_provider.clone(),
+                        address,
+                        deadline_secs,
+                    )
+                    .await?;
+            }
+
+            // update positions
             let token_a_name = token_a.symbol_name();
             let token_b_name = token_b.symbol_name();
             let average_price = opportunity.profit / amount; // This is a simplification. You may want to compute the average price differently.
 
+            log::debug!(
+                "Processing opportunity with {} - {}",
+                token_a_name,
+                token_b_name
+            );
+
             if token_a_name == self.base_token().symbol_name() {
-                // This was a buy operation
+                // This is a buy operation
+                if !self.can_open_position() {
+                    log::debug!("Cannot open new position.");
+                    continue;
+                }
+
                 if let Some(position) = self.open_positions.get_mut(token_b_name) {
                     // if there are already open positions for this token, update them
                     position.amount += amount;
                     position.averate_price = (position.averate_price * position.amount
                         + average_price * amount)
                         / (position.amount + amount); // update the average price
+                    log::debug!(
+                        "Updated open position for token: {}, amount: {}, average price: {}",
+                        token_b_name,
+                        position.amount,
+                        position.averate_price
+                    );
                 } else {
                     // else, create a new position
                     let open_position = OpenPosition {
                         averate_price: average_price,
                         amount,
+                        open_time: chrono::Utc::now().timestamp() as usize,
                     };
+                    log::debug!(
+                        "Created new open position for token: {}, amount: {}, average price: {}, open time: {}",
+                        token_b_name,
+                        open_position.amount,
+                        open_position.averate_price,
+                        open_position.open_time,
+                    );
                     self.open_positions
                         .insert(token_b_name.to_owned(), open_position);
                 }
@@ -313,10 +345,20 @@ impl Arbitrage for ReversionArbitrage {
 
                     if position.amount <= 0.0 {
                         self.open_positions.remove(token_a_name); // If all of this token has been sold, remove it from the open positions
+                        log::debug!(
+                            "Sold all of token: {}. Removed from open positions.",
+                            token_a_name
+                        );
                     } else {
                         position.averate_price = (position.averate_price * position.amount
                             + average_price * amount)
                             / (position.amount + amount); // update the average price
+                        log::debug!(
+                            "Updated open position for token: {}, amount: {}, average price: {}",
+                            token_a_name,
+                            position.amount,
+                            position.averate_price
+                        );
                     }
                 }
             }
