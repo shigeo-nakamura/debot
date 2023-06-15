@@ -9,6 +9,7 @@ use std::num::{ParseFloatError, ParseIntError};
 #[derive(Debug)]
 pub struct EnvConfig {
     pub chain_params: &'static ChainParams,
+    pub use_kms: bool,
     pub interval: u64,
     pub amount: f64,
     pub allowance_factor: f64,
@@ -18,8 +19,9 @@ pub struct EnvConfig {
     pub num_swaps: usize,
     pub short_trade_period: usize,
     pub long_trade_period: usize,
-    pub loss_limit_ratio: f64,
-    pub profit_limit_ratio: f64,
+    pub percentage_loss_threshold: f64,
+    pub percentage_profit_threshold: f64,
+    pub percentage_drop_threshold: f64,
     pub max_position_amount: f64,
     pub max_hold_period: usize,
     pub match_multiplier: f64,
@@ -67,7 +69,7 @@ fn get_bool_env_var(var: &str, default: bool) -> bool {
     match env::var(var) {
         Ok(val) => {
             let lower_val = val.to_lowercase();
-            lower_val != "false" && lower_val != "0"
+            lower_val == "true" || lower_val == "1"
         }
         Err(_e) => {
             // Environment variable not found, use default value
@@ -94,6 +96,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             _ => return Err(ConfigError::UnsupportedChainName),
         };
 
+        let use_kms = get_bool_env_var("USE_KMS", false);
         let interval = get_env_var("INTERVAL", "60")?;
         let amount = get_env_var("AMOUNT", "100.0")?;
         let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
@@ -103,8 +106,9 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let num_swaps = get_env_var("NUM_SWAPS", "3")?;
         let short_trade_period = get_env_var("SHORT_TRADE_PEREIOD", "60")?;
         let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "600")?;
-        let loss_limit_ratio = get_env_var("LOSS_LIMIT_RATIO", "-1.0")?;
-        let profit_limit_ratio = get_env_var("PROFIT_LIMIT_RATIO", "2.0")?;
+        let percentage_loss_threshold = get_env_var("PERCENTAGE_LOSS_THRESHOLD", "-1.0")?;
+        let percentage_profit_threshold = get_env_var("PERCENTAGE_PROFIT_THRESHOLD", "1.5")?;
+        let percentage_drop_threshold = get_env_var("PERCENTAGE_DROP_THRESHOLD", "3.0")?;
         let max_position_amount = get_env_var("MAX_POSITION_AMOUNT", "500.0")?;
         let max_hold_period = get_env_var("MAX_HOLD_PERIOD", "300")?;
         let match_multiplier = get_env_var("MATCH_MULTIPLIER", "1.5")?;
@@ -112,6 +116,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
 
         let env_config = EnvConfig {
             chain_params,
+            use_kms,
             interval,
             amount,
             allowance_factor,
@@ -121,8 +126,9 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             num_swaps,
             short_trade_period,
             long_trade_period,
-            loss_limit_ratio,
-            profit_limit_ratio,
+            percentage_loss_threshold,
+            percentage_profit_threshold,
+            percentage_drop_threshold,
             max_position_amount,
             max_hold_period,
             match_multiplier,

@@ -1,25 +1,25 @@
 // main.rs
 
 use arbitrage::{ArbitrageOpportunity, PriceHistory, ReversionArbitrage};
-use config::EnvConfig;
 use ethers::signers::Signer;
 use token_manager::create_dexes;
 
-use crate::arbitrage::{Arbitrage, TriangleArbitrage};
+use crate::arbitrage::Arbitrage;
 use crate::token_manager::{create_base_token, create_tokens};
 use std::collections::HashMap;
 use std::time::Duration;
-use wallet::{create_kms_wallet, create_local_wallet};
+use wallet::create_wallet;
 
 mod addresses;
 mod arbitrage;
 mod config;
 mod dex;
+mod kws_decrypt;
 mod token;
 mod token_manager;
 mod wallet;
 
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
@@ -31,7 +31,9 @@ async fn main() -> std::io::Result<()> {
 
     for config in &configs {
         // Create a wallet and provider
-        let (wallet, wallet_and_provider) = create_local_wallet(&config.chain_params).unwrap();
+        let (wallet, wallet_and_provider) = create_wallet(&config.chain_params, config.use_kms)
+            .await
+            .unwrap();
 
         // Create dexes
         let dexes = create_dexes(wallet_and_provider.clone(), &config.chain_params)
@@ -59,8 +61,9 @@ async fn main() -> std::io::Result<()> {
             config.chain_params.gas,
             config.short_trade_period,
             config.long_trade_period,
-            config.loss_limit_ratio,
-            config.profit_limit_ratio,
+            config.percentage_loss_threshold,
+            config.percentage_profit_threshold,
+            config.percentage_drop_threshold,
             config.max_position_amount,
             config.max_hold_period,
             config.match_multiplier,

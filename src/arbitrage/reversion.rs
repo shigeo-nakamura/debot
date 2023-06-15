@@ -48,19 +48,28 @@ impl OpenPosition {
     }
 }
 
-pub struct ReversionArbitrage {
-    base_arbitrage: BaseArbitrage,
+pub struct ReversionArbitrageConfig {
     short_trade_period: usize,
     long_trade_period: usize,
-    loss_limit_ratio: f64,
-    profit_limit_ratio: f64,
+    percentage_loss_threshold: f64,
+    percentage_profit_threshold: f64,
+    percentage_drop_threshold: f64,
     max_position_amount: f64,
     max_hold_period: usize,
     match_multiplier: f64,
     mismatch_multiplier: f64,
-    open_positions: HashMap<String, OpenPosition>,
     log_limit: usize,
+}
+
+pub struct ReversionArbitrageState {
+    open_positions: HashMap<String, OpenPosition>,
     logs: Vec<ReversionArbitrageLog>,
+}
+
+pub struct ReversionArbitrage {
+    base_arbitrage: BaseArbitrage,
+    config: ReversionArbitrageConfig,
+    state: ReversionArbitrageState,
 }
 
 impl ReversionArbitrage {
@@ -74,14 +83,33 @@ impl ReversionArbitrage {
         gas: f64,
         short_trade_period: usize,
         long_trade_period: usize,
-        loss_limit_ratio: f64,
-        profit_limit_ratio: f64,
+        percentage_loss_threshold: f64,
+        percentage_profit_threshold: f64,
+        percentage_drop_threshold: f64,
         max_position_amount: f64,
         max_hold_period: usize,
         match_multiplier: f64,
         mismatch_multiplier: f64,
         log_limit: usize,
     ) -> Self {
+        let config = ReversionArbitrageConfig {
+            short_trade_period,
+            long_trade_period,
+            percentage_loss_threshold,
+            percentage_profit_threshold,
+            percentage_drop_threshold,
+            max_position_amount,
+            max_hold_period,
+            match_multiplier,
+            mismatch_multiplier,
+            log_limit,
+        };
+
+        let state = ReversionArbitrageState {
+            open_positions: HashMap::new(),
+            logs: Vec::with_capacity(log_limit),
+        };
+
         Self {
             base_arbitrage: BaseArbitrage::new(
                 amount,
@@ -92,17 +120,8 @@ impl ReversionArbitrage {
                 skip_write,
                 gas,
             ),
-            short_trade_period,
-            long_trade_period,
-            loss_limit_ratio,
-            profit_limit_ratio,
-            max_position_amount,
-            max_hold_period,
-            match_multiplier,
-            mismatch_multiplier,
-            open_positions: HashMap::new(),
-            log_limit,
-            logs: Vec::with_capacity(log_limit),
+            config,
+            state,
         }
     }
 
@@ -124,10 +143,10 @@ impl ReversionArbitrage {
 
     fn can_open_position(&self) -> bool {
         let mut amount = 0.0;
-        for (_token_name, position) in &self.open_positions {
+        for (_token_name, position) in &self.state.open_positions {
             amount += position.amount;
         }
-        amount < self.max_position_amount
+        amount < self.config.max_position_amount
     }
 
     async fn get_current_prices(
@@ -140,7 +159,7 @@ impl ReversionArbitrage {
 
         for ((token_a, token_b, dex), price) in &token_pair_prices {
             log::debug!(
-                "Token pair price: {}-{}@{}: {}",
+                "Token pair price: {}-{}@{}: {:.6}",
                 token_a,
                 token_b,
                 dex,
@@ -150,12 +169,15 @@ impl ReversionArbitrage {
             // Update the price history and predict next prices
             if token_a == self.base_token().symbol_name() {
                 let history = histories.entry(token_b.clone()).or_insert_with(|| {
-                    PriceHistory::new(self.short_trade_period, self.long_trade_period)
+                    PriceHistory::new(
+                        self.config.short_trade_period,
+                        self.config.long_trade_period,
+                        self.config.percentage_drop_threshold,
+                    )
                 });
                 history.add_price(chrono::Utc::now().timestamp(), *price);
             }
         }
-
         Ok(token_pair_prices)
     }
 
@@ -165,7 +187,7 @@ impl ReversionArbitrage {
         histories: &HashMap<String, PriceHistory>,
     ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<ArbitrageOpportunity> = vec![];
-        let next_timestamp = chrono::Utc::now().timestamp() + self.short_trade_period as i64;
+        let next_timestamp = chrono::Utc::now().timestamp() + self.config.short_trade_period as i64;
 
         for ((token_a_name, token_b_name, dex_name), price) in current_prices {
             if token_a_name == self.base_token().symbol_name() {
@@ -174,37 +196,52 @@ impl ReversionArbitrage {
                     let predicted_price_regression =
                         history.predict_next_price_regression(next_timestamp);
 
-                    log::debug!(
-                        "Current price for {}: {}, EMA Prediction: {}, Regression Prediction: {}",
-                        token_b_name,
-                        price,
-                        predicted_price_ema,
-                        predicted_price_regression
-                    );
-
                     let predicted_price = match predicted_price_ema > predicted_price_regression {
                         true => predicted_price_ema,
                         false => predicted_price_regression,
                     };
 
+                    log::debug!(
+                        "{}: diff: {:.2}%, current: {:.6}, ema {:.6}, reg: {:.6}",
+                        token_b_name,
+                        (predicted_price - price) * 100.0 / price,
+                        price,
+                        predicted_price_ema,
+                        predicted_price_regression
+                    );
+
                     let amount =
                         match predicted_price_ema > *price && predicted_price_regression > *price {
-                            true => self.amount() * self.match_multiplier,
-                            false => self.amount() * self.mismatch_multiplier,
+                            true => self.amount() * self.config.match_multiplier,
+                            false => self.amount() * self.config.mismatch_multiplier,
                         };
 
                     if predicted_price > *price {
-                        let token_a_index =
-                            find_index(&self.tokens(), |token| token.symbol_name() == token_a_name)
-                                .ok_or("Token not found")?;
-                        let token_b_index =
-                            find_index(&self.tokens(), |token| token.symbol_name() == token_b_name)
-                                .ok_or("Token not found")?;
-                        let dex_index = find_index(&self.dexes(), |dex| dex.name() == dex_name)
-                            .ok_or("Dex not found")?;
-                        let profit = (predicted_price - price) * self.amount();
+                        if history.is_flash_crash() {
+                            log::info!(
+                                "Skip this buy trade as price of {} is crashed({:.6} --> {:.6})",
+                                token_b_name,
+                                price,
+                                predicted_price_ema
+                            );
+                            continue;
+                        }
 
-                        if profit > self.profit_limit_ratio {
+                        let profit = (predicted_price - price) * amount;
+                        let percentage_profit = profit * 100.0 / amount;
+
+                        if percentage_profit > self.config.percentage_profit_threshold {
+                            let token_a_index = find_index(&self.tokens(), |token| {
+                                token.symbol_name() == token_a_name
+                            })
+                            .ok_or("Token not found")?;
+                            let token_b_index = find_index(&self.tokens(), |token| {
+                                token.symbol_name() == token_b_name
+                            })
+                            .ok_or("Token not found")?;
+                            let dex_index = find_index(&self.dexes(), |dex| dex.name() == dex_name)
+                                .ok_or("Dex not found")?;
+
                             opportunities.push(ArbitrageOpportunity {
                                 dex_index: vec![dex_index],
                                 token_index: vec![token_a_index, token_b_index],
@@ -226,41 +263,58 @@ impl ReversionArbitrage {
     fn find_sell_opportunities(
         &self,
         current_prices: &HashMap<(String, String, String), f64>,
+        histories: &HashMap<String, PriceHistory>,
     ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<ArbitrageOpportunity> = vec![];
 
         let current_time = chrono::Utc::now().timestamp() as usize;
 
-        for ((token_a_name, token_b_name, dex_name), current_price) in current_prices {
+        for ((token_a_name, token_b_name, dex_name), price) in current_prices {
             if token_b_name == self.base_token().symbol_name() {
-                if let Some(position) = self.open_positions.get(token_a_name) {
-                    let holding_period = current_time - position.open_time;
-                    let potential_profit =
-                        (current_price - position.average_price) * position.amount;
-                    let potential_loss = (position.average_price - current_price) * position.amount;
+                let token_a_index =
+                    find_index(&self.tokens(), |token| token.symbol_name() == token_a_name)
+                        .ok_or("Token not found")?;
+                let token_b_index =
+                    find_index(&self.tokens(), |token| token.symbol_name() == token_b_name)
+                        .ok_or("Token not found")?;
+                let dex_index = find_index(&self.dexes(), |dex| dex.name() == dex_name)
+                    .ok_or("Dex not found")?;
 
-                    if holding_period > self.max_hold_period
-                        || potential_profit > position.amount * self.profit_limit_ratio
-                        || potential_loss < position.amount * self.loss_limit_ratio
-                    {
-                        let token_a_index =
-                            find_index(&self.tokens(), |token| token.symbol_name() == token_a_name)
-                                .ok_or("Token not found")?;
-                        let token_b_index =
-                            find_index(&self.tokens(), |token| token.symbol_name() == token_b_name)
-                                .ok_or("Token not found")?;
-                        let dex_index = find_index(&self.dexes(), |dex| dex.name() == dex_name)
-                            .ok_or("Dex not found")?;
+                if let Some(history) = histories.get(token_b_name) {
+                    if let Some(position) = self.state.open_positions.get(token_a_name) {
+                        let mut trade_amount = 0.0;
 
-                        opportunities.push(ArbitrageOpportunity {
-                            dex_index: vec![dex_index],
-                            token_index: vec![token_b_index, token_a_index],
-                            amounts: vec![position.amount],
-                            profit: None,
-                            currect_price: Some(*current_price),
-                            predicted_price: None,
-                            gas: self.base_arbitrage.gas(),
-                        });
+                        if history.is_flash_crash() {
+                            log::info!(
+                                "Close the position of {}, as its price{:.6} is crashed.",
+                                token_b_name,
+                                price
+                            );
+                            trade_amount = position.amount;
+                        } else {
+                            let holding_period = current_time - position.open_time;
+                            let potential_profit = (price - position.average_price) * 100.0 / price;
+                            let potential_loss = (position.average_price - price) * 100.0 / price;
+
+                            if holding_period > self.config.max_hold_period {
+                                trade_amount = position.amount;
+                            } else if potential_profit > self.config.percentage_profit_threshold
+                                || potential_loss < self.config.percentage_loss_threshold
+                            {
+                                trade_amount = self.amount();
+                            }
+                        }
+                        if trade_amount > 0.0 {
+                            opportunities.push(ArbitrageOpportunity {
+                                dex_index: vec![dex_index],
+                                token_index: vec![token_b_index, token_a_index],
+                                amounts: vec![position.amount],
+                                profit: None,
+                                currect_price: Some(*price),
+                                predicted_price: None,
+                                gas: self.base_arbitrage.gas(),
+                            });
+                        }
                     }
                 }
             }
@@ -273,15 +327,17 @@ impl ReversionArbitrage {
         &self,
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>> {
+        log::trace!("get_current_prices-->");
         let current_prices: HashMap<(String, String, String), f64> =
             self.get_current_prices(histories).await?;
+        log::trace!("<--get_current_prices");
 
         let mut results: Vec<ArbitrageOpportunity> = vec![];
 
         let mut result_for_open = self.find_buy_opportunities(&current_prices, &histories)?;
         results.append(&mut result_for_open);
 
-        let mut result_for_close = self.find_sell_opportunities(&current_prices)?;
+        let mut result_for_close = self.find_sell_opportunities(&current_prices, &histories)?;
         results.append(&mut result_for_close);
 
         Ok(results)
@@ -339,14 +395,14 @@ impl Arbitrage for ReversionArbitrage {
                     continue;
                 }
 
-                if let Some(position) = self.open_positions.get_mut(token_b_name) {
+                if let Some(position) = self.state.open_positions.get_mut(token_b_name) {
                     // if there are already open positions for this token, update them
                     position.amount += amount;
                     position.average_price = (position.average_price * position.amount
                         + average_price * amount)
                         / (position.amount + amount); // update the average price
                     log::debug!(
-                        "Updated open position for token: {}, amount: {}, average price: {}",
+                        "Updated open position for token: {}, amount: {}, average price: {:.6}",
                         token_b_name,
                         position.amount,
                         position.average_price
@@ -355,22 +411,23 @@ impl Arbitrage for ReversionArbitrage {
                     // else, create a new position
                     let open_position = OpenPosition::new(average_price, 0.0, amount);
                     log::debug!(
-                        "Created new open position for token: {}, amount: {}, average price: {}, open time: {}",
+                        "Created new open position for token: {}, amount: {}, average price: {:.6}, open time: {}",
                         token_b_name,
                         open_position.amount,
                         open_position.average_price,
                         open_position.open_time,
                     );
-                    self.open_positions
+                    self.state
+                        .open_positions
                         .insert(token_b_name.to_owned(), open_position);
                 }
             } else {
                 // This was a sell operation
-                if let Some(position) = self.open_positions.get_mut(token_a_name) {
+                if let Some(position) = self.state.open_positions.get_mut(token_a_name) {
                     position.amount -= amount; // reduce the amount of the open position
 
                     if position.amount <= 0.0 {
-                        self.open_positions.remove(token_a_name); // If all of this token has been sold, remove it from the open positions
+                        self.state.open_positions.remove(token_a_name); // If all of this token has been sold, remove it from the open positions
                         log::debug!(
                             "Sold all of token: {}. Removed from open positions.",
                             token_a_name
@@ -380,7 +437,7 @@ impl Arbitrage for ReversionArbitrage {
                             + average_price * amount)
                             / (position.amount + amount); // update the average price
                         log::debug!(
-                            "Updated open position for token: {}, amount: {}, average price: {}",
+                            "Updated open position for token: {}, amount: {}, average price: {:.6}",
                             token_a_name,
                             position.amount,
                             position.average_price

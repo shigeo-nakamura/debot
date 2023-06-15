@@ -76,4 +76,8 @@ impl Token for PolygonToken {
     ) -> Result<U256, Box<dyn Error + Send + Sync>> {
         self.base_token.allowance(owner, spender).await
     }
+
+    async fn balance_of(&self, owner: Address) -> Result<U256, Box<dyn Error + Send + Sync>> {
+        self.base_token.balance_of(owner).await
+    }
 }

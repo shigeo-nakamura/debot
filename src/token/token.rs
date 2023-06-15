@@ -141,6 +141,12 @@ impl BaseToken {
             .await?;
         Ok(allowance)
     }
+
+    pub async fn balance_of(&self, owner: Address) -> Result<U256, Box<dyn Error + Send + Sync>> {
+        let contract = self.token_contract()?;
+        let balance: U256 = contract.method("balanceOf", owner)?.call().await?;
+        Ok(balance)
+    }
 }
 
 #[async_trait::async_trait]
@@ -171,6 +177,7 @@ pub trait Token: Send + Sync {
         owner: Address,
         spender: Address,
     ) -> Result<U256, Box<dyn Error + Send + Sync>>;
+    async fn balance_of(&self, owner: Address) -> Result<U256, Box<dyn Error + Send + Sync>>;
 }
 
 impl Clone for Box<dyn Token> {

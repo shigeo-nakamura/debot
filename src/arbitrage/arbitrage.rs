@@ -38,7 +38,6 @@ pub struct ArbitrageOpportunity {
 impl ArbitrageOpportunity {
     pub fn print_info(&self, dexes: &[Box<dyn Dex>], tokens: &[Box<dyn Token>]) {
         let num_paths = self.dex_index.len();
-
         if let Some(profit) = self.profit {
             if profit > 0.0 {
                 log::info!("Profit: {}", profit);
@@ -101,6 +100,13 @@ impl BaseArbitrage {
     }
 
     pub async fn init(&self, owner: Address) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let base_token_amount = self.base_token.balance_of(owner).await?;
+        log::info!(
+            "Amount of base token({}) is {:.3}",
+            self.base_token.symbol_name(),
+            base_token_amount
+        );
+
         for token in self.tokens.iter() {
             for dex in self.dexes.iter() {
                 let spender = dex.router_address();
