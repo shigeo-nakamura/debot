@@ -1,6 +1,4 @@
-use std::borrow::BorrowMut;
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
 
@@ -16,14 +14,38 @@ use ethers::providers::Http;
 use ethers::signers::LocalWallet;
 use ethers::types::Address;
 use ethers_middleware::NonceManagerMiddleware;
+use serde::{Deserialize, Serialize};
 
 use super::arbitrage::BaseArbitrage;
 use super::{ArbitrageOpportunity, PriceHistory};
 
+#[derive(Serialize, Deserialize)]
+pub struct ReversionArbitrageLog {
+    open_time: i64,
+    close_time: i64,
+    event_type: String, // "take profit", "loss cut", ""hold period over
+    token: String,      // token against the base token
+    average_price: f64,
+    position_amount: f64,
+    realized_pnl: f64, // realized profit or loss
+}
+
 pub struct OpenPosition {
-    averate_price: f64,
-    amount: f64,
     open_time: usize,
+    average_price: f64,
+    predicted_price: f64,
+    amount: f64,
+}
+
+impl OpenPosition {
+    pub fn new(average_price: f64, predicted_price: f64, amount: f64) -> Self {
+        Self {
+            open_time: chrono::Utc::now().timestamp() as usize,
+            average_price,
+            predicted_price,
+            amount,
+        }
+    }
 }
 
 pub struct ReversionArbitrage {
@@ -37,6 +59,8 @@ pub struct ReversionArbitrage {
     match_multiplier: f64,
     mismatch_multiplier: f64,
     open_positions: HashMap<String, OpenPosition>,
+    log_limit: usize,
+    logs: Vec<ReversionArbitrageLog>,
 }
 
 impl ReversionArbitrage {
@@ -56,6 +80,7 @@ impl ReversionArbitrage {
         max_hold_period: usize,
         match_multiplier: f64,
         mismatch_multiplier: f64,
+        log_limit: usize,
     ) -> Self {
         Self {
             base_arbitrage: BaseArbitrage::new(
@@ -76,6 +101,8 @@ impl ReversionArbitrage {
             match_multiplier,
             mismatch_multiplier,
             open_positions: HashMap::new(),
+            log_limit,
+            logs: Vec::with_capacity(log_limit),
         }
     }
 
@@ -182,7 +209,9 @@ impl ReversionArbitrage {
                                 dex_index: vec![dex_index],
                                 token_index: vec![token_a_index, token_b_index],
                                 amounts: vec![amount],
-                                profit,
+                                profit: Some(profit),
+                                currect_price: Some(*price),
+                                predicted_price: Some(predicted_price),
                                 gas: self.base_arbitrage.gas(),
                             });
                         }
@@ -207,8 +236,8 @@ impl ReversionArbitrage {
                 if let Some(position) = self.open_positions.get(token_a_name) {
                     let holding_period = current_time - position.open_time;
                     let potential_profit =
-                        (current_price - position.averate_price) * position.amount;
-                    let potential_loss = (position.averate_price - current_price) * position.amount;
+                        (current_price - position.average_price) * position.amount;
+                    let potential_loss = (position.average_price - current_price) * position.amount;
 
                     if holding_period > self.max_hold_period
                         || potential_profit > position.amount * self.profit_limit_ratio
@@ -227,7 +256,9 @@ impl ReversionArbitrage {
                             dex_index: vec![dex_index],
                             token_index: vec![token_b_index, token_a_index],
                             amounts: vec![position.amount],
-                            profit: potential_profit.abs(),
+                            profit: None,
+                            currect_price: Some(*current_price),
+                            predicted_price: None,
                             gas: self.base_arbitrage.gas(),
                         });
                     }
@@ -267,7 +298,6 @@ impl Arbitrage for ReversionArbitrage {
         >,
         address: Address,
         deadline_secs: u64,
-        log_limit: usize,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         for opportunity in opportunities {
             let token_a = &self.tokens()[opportunity.token_index[0]];
@@ -294,7 +324,7 @@ impl Arbitrage for ReversionArbitrage {
             // update positions
             let token_a_name = token_a.symbol_name();
             let token_b_name = token_b.symbol_name();
-            let average_price = opportunity.profit / amount; // This is a simplification. You may want to compute the average price differently.
+            let average_price = opportunity.profit.unwrap() / amount;
 
             log::debug!(
                 "Processing opportunity with {} - {}",
@@ -312,27 +342,23 @@ impl Arbitrage for ReversionArbitrage {
                 if let Some(position) = self.open_positions.get_mut(token_b_name) {
                     // if there are already open positions for this token, update them
                     position.amount += amount;
-                    position.averate_price = (position.averate_price * position.amount
+                    position.average_price = (position.average_price * position.amount
                         + average_price * amount)
                         / (position.amount + amount); // update the average price
                     log::debug!(
                         "Updated open position for token: {}, amount: {}, average price: {}",
                         token_b_name,
                         position.amount,
-                        position.averate_price
+                        position.average_price
                     );
                 } else {
                     // else, create a new position
-                    let open_position = OpenPosition {
-                        averate_price: average_price,
-                        amount,
-                        open_time: chrono::Utc::now().timestamp() as usize,
-                    };
+                    let open_position = OpenPosition::new(average_price, 0.0, amount);
                     log::debug!(
                         "Created new open position for token: {}, amount: {}, average price: {}, open time: {}",
                         token_b_name,
                         open_position.amount,
-                        open_position.averate_price,
+                        open_position.average_price,
                         open_position.open_time,
                     );
                     self.open_positions
@@ -350,14 +376,14 @@ impl Arbitrage for ReversionArbitrage {
                             token_a_name
                         );
                     } else {
-                        position.averate_price = (position.averate_price * position.amount
+                        position.average_price = (position.average_price * position.amount
                             + average_price * amount)
                             / (position.amount + amount); // update the average price
                         log::debug!(
                             "Updated open position for token: {}, amount: {}, average price: {}",
                             token_a_name,
                             position.amount,
-                            position.averate_price
+                            position.average_price
                         );
                     }
                 }

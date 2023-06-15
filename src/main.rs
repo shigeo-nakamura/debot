@@ -65,6 +65,7 @@ async fn main() -> std::io::Result<()> {
             config.max_hold_period,
             config.match_multiplier,
             config.mismatch_multiplier,
+            config.log_limit,
         );
 
         // Create price histories
@@ -106,11 +107,8 @@ async fn main() -> std::io::Result<()> {
             let mut profitable_opportunities: Vec<ArbitrageOpportunity> = vec![];
             for opportunity in opportunities {
                 opportunity.print_info(&arbitrage.dexes(), &arbitrage.tokens());
-                if opportunity.profit > 0.0 {
-                    profitable_opportunities.push(opportunity);
-                }
+                profitable_opportunities.push(opportunity);
             }
-
             if profitable_opportunities.is_empty() {
                 log::info!(".");
             } else {
@@ -120,7 +118,6 @@ async fn main() -> std::io::Result<()> {
                         wallet_and_provider,
                         *wallet_address,
                         config.deadline_secs,
-                        config.log_limit,
                     )
                     .await
                     .unwrap_or_else(|e| {

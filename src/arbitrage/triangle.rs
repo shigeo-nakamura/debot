@@ -270,7 +270,9 @@ impl TriangleArbitrage {
                 dex_index,
                 token_index,
                 amounts,
-                profit,
+                profit: Some(profit),
+                currect_price: None,
+                predicted_price: None,
                 gas,
             };
 
@@ -290,7 +292,6 @@ impl Arbitrage for TriangleArbitrage {
         >,
         _address: Address,
         _deadline_secs: u64,
-        _log_limit: usize,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         todo!("Not implemented");
     }

@@ -9,19 +9,13 @@ use ethers_middleware::{
     providers::{Http, Provider},
     NonceManagerMiddleware, SignerMiddleware,
 };
-use std::{
-    collections::HashMap,
-    error::Error,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, error::Error, sync::Arc};
 use tokio::task::JoinHandle;
 
 use crate::{
     dex::{dex::TokenPair, Dex},
     token::Token,
 };
-
-use super::PriceHistory;
 
 pub fn find_index<T, F>(list: &[T], predicate: F) -> Option<usize>
 where
@@ -35,7 +29,9 @@ pub struct ArbitrageOpportunity {
     pub dex_index: Vec<usize>,
     pub token_index: Vec<usize>,
     pub amounts: Vec<f64>,
-    pub profit: f64,
+    pub profit: Option<f64>,
+    pub currect_price: Option<f64>,
+    pub predicted_price: Option<f64>,
     pub gas: f64,
 }
 
@@ -43,34 +39,31 @@ impl ArbitrageOpportunity {
     pub fn print_info(&self, dexes: &[Box<dyn Dex>], tokens: &[Box<dyn Token>]) {
         let num_paths = self.dex_index.len();
 
-        if self.profit > 0.0 {
-            log::info!("Profit: {}", self.profit);
-            for i in 0..num_paths {
-                let dex = &dexes[self.dex_index[i]];
-                let token = &tokens[self.token_index[i]];
-                log::info!(
-                    "  DEX: {}, Token: {}, Amount: {}",
-                    dex.name(),
-                    token.symbol_name(),
-                    self.amounts[i]
-                );
-            }
-        } else {
-            log::debug!(
-                "Loss: {} - {} = {}",
-                self.profit + self.gas,
-                self.gas,
-                self.profit
-            );
-            for i in 0..num_paths {
-                let dex = &dexes[self.dex_index[i]];
-                let token = &tokens[self.token_index[i]];
-                log::debug!(
-                    "  DEX: {}, Token: {}, Amount: {}",
-                    dex.name(),
-                    token.symbol_name(),
-                    self.amounts[i]
-                );
+        if let Some(profit) = self.profit {
+            if profit > 0.0 {
+                log::info!("Profit: {}", profit);
+                for i in 0..num_paths {
+                    let dex = &dexes[self.dex_index[i]];
+                    let token = &tokens[self.token_index[i]];
+                    log::info!(
+                        "  DEX: {}, Token: {}, Amount: {}",
+                        dex.name(),
+                        token.symbol_name(),
+                        self.amounts[i]
+                    );
+                }
+            } else {
+                log::debug!("Loss: {} - {} = {}", profit + self.gas, self.gas, profit);
+                for i in 0..num_paths {
+                    let dex = &dexes[self.dex_index[i]];
+                    let token = &tokens[self.token_index[i]];
+                    log::debug!(
+                        "  DEX: {}, Token: {}, Amount: {}",
+                        dex.name(),
+                        token.symbol_name(),
+                        self.amounts[i]
+                    );
+                }
             }
         }
     }
@@ -257,7 +250,6 @@ pub trait Arbitrage {
         >,
         address: Address,
         deadline_secs: u64,
-        log_limit: usize,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
     async fn init(&self, owner: Address) -> Result<(), Box<dyn Error + Send + Sync>>;
