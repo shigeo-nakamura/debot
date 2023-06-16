@@ -1,6 +1,7 @@
 // main.rs
 
 use arbitrage::{ArbitrageOpportunity, PriceHistory, ReversionArbitrage};
+use error_manager::ErrorManager;
 use ethers::signers::Signer;
 use token_manager::create_dexes;
 
@@ -14,6 +15,7 @@ mod addresses;
 mod arbitrage;
 mod config;
 mod dex;
+mod error_manager;
 mod kws_decrypt;
 mod token;
 mod token_manager;
@@ -50,6 +52,9 @@ async fn main() -> std::io::Result<()> {
             .await
             .expect("Error creating a base token");
 
+        // Create price histories
+        let histories: HashMap<String, PriceHistory> = HashMap::new();
+
         // Create an instance of Arbitrage
         let arbitrage = ReversionArbitrage::new(
             config.amount,
@@ -60,6 +65,7 @@ async fn main() -> std::io::Result<()> {
             config.skip_write,
             config.chain_params.gas,
             config.short_trade_period,
+            config.medium_trade_period,
             config.long_trade_period,
             config.percentage_loss_threshold,
             config.percentage_profit_threshold,
@@ -71,10 +77,14 @@ async fn main() -> std::io::Result<()> {
             config.log_limit,
         );
 
-        // Create price histories
-        let histories: HashMap<String, PriceHistory> = HashMap::new();
+        // Create an error manager
+        let error_manager = ErrorManager::new();
 
-        arbitrage.init(wallet.address()).await.unwrap();
+        // Do some initialization
+        arbitrage
+            .init(wallet.address(), config.min_initial_amount)
+            .await
+            .unwrap();
 
         // Push each Arbitrage instance and its associated wallet_and_provider into the vector
         arbitrage_instances.push((
@@ -83,19 +93,27 @@ async fn main() -> std::io::Result<()> {
             wallet.address(),
             config,
             histories,
+            error_manager,
         ));
     }
 
     loop {
+        let mut skip_sleep = false;
         log::info!("### enter");
-        for (arbitrage, wallet_and_provider, wallet_address, config, histories) in
+        for (arbitrage, wallet_and_provider, wallet_address, config, histories, error_maanger) in
             arbitrage_instances.iter_mut()
         {
+            if error_maanger.get_error_count() >= config.max_error_count {
+                log::error!("Error count reached the limit");
+                arbitrage.close_all_positions();
+            }
+
             let mut opportunities = arbitrage
                 .find_opportunities(histories)
                 .await
                 .unwrap_or_else(|e| {
                     log::error!("Error while finding opportunities: {}", e);
+                    error_maanger.increment_error_count();
                     Vec::new()
                 });
             if opportunities.is_empty() {
@@ -103,42 +121,39 @@ async fn main() -> std::io::Result<()> {
             }
 
             opportunities.sort_by(|a, b| {
-                a.profit
-                    .partial_cmp(&b.profit)
+                a.predicted_profit
+                    .partial_cmp(&b.predicted_profit)
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
-            let mut profitable_opportunities: Vec<ArbitrageOpportunity> = vec![];
-            for opportunity in opportunities {
-                opportunity.print_info(&arbitrage.dexes(), &arbitrage.tokens());
-                profitable_opportunities.push(opportunity);
-            }
-            if profitable_opportunities.is_empty() {
-                log::info!(".");
-            } else {
-                arbitrage
-                    .execute_transactions(
-                        &profitable_opportunities,
-                        wallet_and_provider,
-                        *wallet_address,
-                        config.deadline_secs,
-                    )
-                    .await
-                    .unwrap_or_else(|e| {
-                        log::error!("Error while executing transactions: {}", e);
-                    });
+            arbitrage
+                .execute_transactions(
+                    &opportunities,
+                    wallet_and_provider,
+                    *wallet_address,
+                    config.deadline_secs,
+                )
+                .await
+                .unwrap_or_else(|e| {
+                    log::error!("Error while executing transactions: {}", e);
+                    error_maanger.increment_error_count();
+                });
+            if arbitrage.is_close_all_positions() {
+                skip_sleep = true;
             }
         }
         log::info!("### leave");
 
-        let sleep_fut = tokio::time::sleep(Duration::from_secs(configs[0].interval));
-        let ctrl_c_fut = tokio::signal::ctrl_c();
-        tokio::select! {
-            _ = sleep_fut => {
-                // continue to the next iteration of loop
-            },
-            _ = ctrl_c_fut => {
-                log::info!("SIGINT received. Shutting down...");
-                return Ok(());
+        if !skip_sleep {
+            let sleep_fut = tokio::time::sleep(Duration::from_secs(configs[0].interval));
+            let ctrl_c_fut = tokio::signal::ctrl_c();
+            tokio::select! {
+                _ = sleep_fut => {
+                    // continue to the next iteration of loop
+                },
+                _ = ctrl_c_fut => {
+                    log::info!("SIGINT received. Shutting down...");
+                    return Ok(());
+                }
             }
         }
     }

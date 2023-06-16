@@ -270,7 +270,7 @@ impl TriangleArbitrage {
                 dex_index,
                 token_index,
                 amounts,
-                profit: Some(profit),
+                predicted_profit: Some(profit),
                 currect_price: None,
                 predicted_price: None,
                 gas,
@@ -296,8 +296,12 @@ impl Arbitrage for TriangleArbitrage {
         todo!("Not implemented");
     }
 
-    async fn init(&self, owner: Address) -> Result<(), Box<dyn Error + Send + Sync>> {
-        self.base_arbitrage.init(owner).await
+    async fn init(
+        &self,
+        owner: Address,
+        min_amount: f64,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.base_arbitrage.init(owner, min_amount).await
     }
 
     async fn get_token_pair_prices(
@@ -314,7 +318,7 @@ impl Arbitrage for TriangleArbitrage {
         for dex in dexes.iter() {
             let mut dex_get_price_futures = self
                 .base_arbitrage
-                .get_token_pair_prices(dex, base_token, tokens, amount)
+                .get_token_pair_prices(dex, base_token, tokens, amount, false)
                 .await;
             get_price_futures.append(&mut dex_get_price_futures);
         }

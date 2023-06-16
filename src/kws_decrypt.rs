@@ -1,6 +1,6 @@
 use base64::{decode_config, STANDARD};
 use openssl::symm::{decrypt, Cipher};
-use rusoto_core::{Region, RusotoError};
+use rusoto_core::Region;
 use rusoto_kms::{DecryptRequest, Kms, KmsClient};
 use std::{env, str::FromStr};
 

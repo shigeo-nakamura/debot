@@ -9,5 +9,6 @@ pub use arbitrage::find_index;
 pub use arbitrage::Arbitrage;
 pub use arbitrage::ArbitrageOpportunity;
 pub use price_history::PriceHistory;
+pub use price_history::TradingStrategy;
 pub use reversion::ReversionArbitrage;
 pub use triangle::TriangleArbitrage;

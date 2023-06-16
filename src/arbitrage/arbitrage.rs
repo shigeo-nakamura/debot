@@ -29,7 +29,7 @@ pub struct ArbitrageOpportunity {
     pub dex_index: Vec<usize>,
     pub token_index: Vec<usize>,
     pub amounts: Vec<f64>,
-    pub profit: Option<f64>,
+    pub predicted_profit: Option<f64>,
     pub currect_price: Option<f64>,
     pub predicted_price: Option<f64>,
     pub gas: f64,
@@ -38,7 +38,7 @@ pub struct ArbitrageOpportunity {
 impl ArbitrageOpportunity {
     pub fn print_info(&self, dexes: &[Box<dyn Dex>], tokens: &[Box<dyn Token>]) {
         let num_paths = self.dex_index.len();
-        if let Some(profit) = self.profit {
+        if let Some(profit) = self.predicted_profit {
             if profit > 0.0 {
                 log::info!("Profit: {}", profit);
                 for i in 0..num_paths {
@@ -99,14 +99,11 @@ impl BaseArbitrage {
         }
     }
 
-    pub async fn init(&self, owner: Address) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let base_token_amount = self.base_token.balance_of(owner).await?;
-        log::info!(
-            "Amount of base token({}) is {:.3}",
-            self.base_token.symbol_name(),
-            base_token_amount
-        );
-
+    pub async fn init(
+        &self,
+        owner: Address,
+        min_amount: f64,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         for token in self.tokens.iter() {
             for dex in self.dexes.iter() {
                 let spender = dex.router_address();
@@ -126,6 +123,15 @@ impl BaseArbitrage {
 
                 if self.skip_write {
                     return Ok(());
+                }
+
+                if token.symbol_name() == self.base_token.symbol_name() {
+                    let base_token_amount = self.base_token.balance_of(owner).await?;
+                    let base_token_amount =
+                        base_token_amount.as_u128() as f64 / 10f64.powi(token_decimals as i32);
+                    if base_token_amount < min_amount {
+                        panic!("Not enougha amount of base token");
+                    }
                 }
 
                 if allowance < converted_amount / 2 {
@@ -172,12 +178,34 @@ impl BaseArbitrage {
         base_token: &Box<dyn Token>,
         tokens: &Vec<Box<dyn Token>>,
         amount: f64,
+        sell_price_only: bool,
     ) -> Vec<JoinHandle<Result<Option<(String, String, String, f64)>, Box<dyn Error + Send + Sync>>>>
     {
         let mut get_price_futures = Vec::new();
 
         for token in tokens.iter() {
             if token.symbol_name() == base_token.symbol_name() {
+                continue;
+            }
+            let fut_base = tokio::spawn({
+                let dex_arc = Arc::new(dex.clone());
+                let token_arc = Arc::new(token.clone());
+                let base_token_arc = Arc::new(base_token.clone());
+                async move {
+                    let price_result = Self::fetch_token_prices(
+                        &dex_arc,
+                        &token_arc,
+                        &base_token_arc,
+                        amount,
+                        true,
+                    )
+                    .await;
+                    Ok(price_result)
+                }
+            });
+            get_price_futures.push(fut_base);
+
+            if sell_price_only {
                 continue;
             }
 
@@ -192,24 +220,6 @@ impl BaseArbitrage {
                         &token_arc,
                         amount,
                         false,
-                    )
-                    .await;
-                    Ok(price_result)
-                }
-            });
-            get_price_futures.push(fut_base);
-
-            let fut_base = tokio::spawn({
-                let dex_arc = Arc::new(dex.clone());
-                let token_arc = Arc::new(token.clone());
-                let base_token_arc = Arc::new(base_token.clone());
-                async move {
-                    let price_result = Self::fetch_token_prices(
-                        &dex_arc,
-                        &token_arc,
-                        &base_token_arc,
-                        amount,
-                        true,
                     )
                     .await;
                     Ok(price_result)
@@ -258,7 +268,11 @@ pub trait Arbitrage {
         deadline_secs: u64,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
-    async fn init(&self, owner: Address) -> Result<(), Box<dyn Error + Send + Sync>>;
+    async fn init(
+        &self,
+        owner: Address,
+        min_amount: f64,
+    ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
     async fn get_token_pair_prices(
         &self,

@@ -35,7 +35,6 @@ pub async fn create_wallet(
     } else {
         env::var("PRIVATE_KEY").expect("No private key given")
     };
-    log::trace!("Private key hex string: {}", private_key_hex_string);
 
     let private_key_bytes = hex::decode(&private_key_hex_string)?;
     let secret_key = SecretKey::from_slice(&private_key_bytes)?;
