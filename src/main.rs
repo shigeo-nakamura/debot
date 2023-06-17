@@ -1,6 +1,6 @@
 // main.rs
 
-use arbitrage::{ArbitrageOpportunity, PriceHistory, ReversionArbitrage};
+use arbitrage::{ArbitrageOpportunity, DirectionalTrade, PriceHistory};
 use error_manager::ErrorManager;
 use ethers::signers::Signer;
 use token_manager::create_dexes;
@@ -56,7 +56,7 @@ async fn main() -> std::io::Result<()> {
         let histories: HashMap<String, PriceHistory> = HashMap::new();
 
         // Create an instance of Arbitrage
-        let arbitrage = ReversionArbitrage::new(
+        let arbitrage = DirectionalTrade::new(
             config.amount,
             config.allowance_factor,
             tokens.clone(),

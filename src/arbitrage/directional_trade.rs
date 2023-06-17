@@ -21,7 +21,7 @@ use super::arbitrage::BaseArbitrage;
 use super::{ArbitrageOpportunity, PriceHistory};
 
 #[derive(Serialize, Deserialize)]
-pub struct ReversionArbitrageLog {
+pub struct DirectionalTradeLog {
     open_time: i64,
     close_time: i64,
     event_type: String, // "take profit", "loss cut", ""hold period over
@@ -59,7 +59,7 @@ impl OpenPosition {
     }
 }
 
-pub struct ReversionArbitrageConfig {
+pub struct DirectionalTradeConfig {
     short_trade_period: usize,
     medium_trade_period: usize,
     long_trade_period: usize,
@@ -73,19 +73,19 @@ pub struct ReversionArbitrageConfig {
     log_limit: usize,
 }
 
-pub struct ReversionArbitrageState {
+pub struct DirectionalTradeState {
     open_positions: HashMap<String, OpenPosition>,
-    logs: Vec<ReversionArbitrageLog>,
+    logs: Vec<DirectionalTradeLog>,
     close_all_position: bool,
 }
 
-pub struct ReversionArbitrage {
+pub struct DirectionalTrade {
     base_arbitrage: BaseArbitrage,
-    config: ReversionArbitrageConfig,
-    state: ReversionArbitrageState,
+    config: DirectionalTradeConfig,
+    state: DirectionalTradeState,
 }
 
-impl ReversionArbitrage {
+impl DirectionalTrade {
     pub fn new(
         amount: f64,
         allowance_factor: f64,
@@ -106,7 +106,7 @@ impl ReversionArbitrage {
         mismatch_multiplier: f64,
         log_limit: usize,
     ) -> Self {
-        let config = ReversionArbitrageConfig {
+        let config = DirectionalTradeConfig {
             short_trade_period,
             medium_trade_period,
             long_trade_period,
@@ -120,7 +120,7 @@ impl ReversionArbitrage {
             log_limit,
         };
 
-        let state = ReversionArbitrageState {
+        let state = DirectionalTradeState {
             open_positions: HashMap::new(),
             logs: Vec::with_capacity(log_limit),
             close_all_position: false,
@@ -376,7 +376,7 @@ impl ReversionArbitrage {
 }
 
 #[async_trait]
-impl Arbitrage for ReversionArbitrage {
+impl Arbitrage for DirectionalTrade {
     async fn execute_transactions(
         &mut self,
         opportunities: &Vec<ArbitrageOpportunity>,
