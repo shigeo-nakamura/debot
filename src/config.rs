@@ -11,7 +11,7 @@ pub struct EnvConfig {
     pub chain_params: &'static ChainParams,
     pub use_kms: bool,
     pub interval: u64,
-    pub amount: f64,
+    pub leverage: f64,
     pub min_initial_amount: f64,
     pub max_position_amount: f64,
     pub allowance_factor: f64,
@@ -101,7 +101,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
 
         let use_kms = get_bool_env_var("USE_KMS", false);
         let interval = get_env_var("INTERVAL", "10")?;
-        let amount = get_env_var("AMOUNT", "100.0")?;
+        let leverage = get_env_var("LEVERAGE", "0.25")?;
         let min_initial_amount = get_env_var("MIN_INITIAL_AMOUNT", "500.0")?;
         let max_position_amount = get_env_var("MAX_POSITION_AMOUNT", "500.0")?;
         let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
@@ -124,7 +124,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             chain_params,
             use_kms,
             interval,
-            amount,
+            leverage,
             min_initial_amount,
             max_position_amount,
             allowance_factor,

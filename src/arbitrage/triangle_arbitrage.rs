@@ -46,8 +46,12 @@ impl TriangleArbitrage {
         }
     }
 
-    pub fn amount(&self) -> f64 {
-        self.base_arbitrage.amount()
+    pub fn leverage(&self) -> f64 {
+        self.base_arbitrage.leverage()
+    }
+
+    pub fn initial_amount(&self) -> f64 {
+        self.base_arbitrage.initial_amount()
     }
 
     pub fn tokens(&self) -> Arc<Vec<Box<dyn Token>>> {
@@ -238,7 +242,7 @@ impl TriangleArbitrage {
 
             let profit = TriangleArbitrage::calculate_arbitrage_profit(
                 path,
-                self.amount(),
+                self.initial_amount() * self.leverage(),
                 &token_pair_prices,
                 &self.base_arbitrage.base_token(),
                 &mut amounts,
@@ -297,7 +301,7 @@ impl Arbitrage for TriangleArbitrage {
     }
 
     async fn init(
-        &self,
+        &mut self,
         owner: Address,
         min_amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -312,13 +316,13 @@ impl Arbitrage for TriangleArbitrage {
         let base_token = &self.base_token();
         let dexes = &self.dexes();
         let tokens = &self.tokens();
-        let amount = self.amount();
+        let amount = self.initial_amount() * self.leverage();
 
         // Get prices with base token / each token and each token / base token
         for dex in dexes.iter() {
             let mut dex_get_price_futures = self
                 .base_arbitrage
-                .get_token_pair_prices(dex, base_token, tokens, amount, false)
+                .get_token_pair_prices(dex, base_token, tokens, amount)
                 .await;
             get_price_futures.append(&mut dex_get_price_futures);
         }

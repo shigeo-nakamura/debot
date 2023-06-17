@@ -82,8 +82,8 @@ impl PriceHistory {
 
     pub fn predict_next_price_macd(&self, period: usize) -> f64 {
         let compute_macd = |short_period, long_period| {
-            if self.prices.len() < long_period {
-                return self.prices[self.prices.len() - 1];
+            if self.prices.len() < period + 1 {
+                return *self.prices.last().unwrap();
             }
 
             let short_ema = self.calculate_ema(self.prices.len(), short_period);

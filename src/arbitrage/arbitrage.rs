@@ -69,7 +69,8 @@ impl ArbitrageOpportunity {
 }
 
 pub struct BaseArbitrage {
-    amount: f64,
+    leverage: f64,
+    initial_amount: f64,
     allowance_factor: f64,
     tokens: Arc<Vec<Box<dyn Token>>>,
     base_token: Arc<Box<dyn Token>>,
@@ -80,7 +81,7 @@ pub struct BaseArbitrage {
 
 impl BaseArbitrage {
     pub fn new(
-        amount: f64,
+        leverage: f64,
         allowance_factor: f64,
         tokens: Arc<Vec<Box<dyn Token>>>,
         base_token: Arc<Box<dyn Token>>,
@@ -89,7 +90,8 @@ impl BaseArbitrage {
         gas: f64,
     ) -> Self {
         Self {
-            amount,
+            leverage,
+            initial_amount: 0.0,
             allowance_factor,
             tokens,
             base_token,
@@ -100,12 +102,15 @@ impl BaseArbitrage {
     }
 
     pub async fn init(
-        &self,
+        &mut self,
         owner: Address,
         min_amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        // todo: check gas token
+
         for token in self.tokens.iter() {
             for dex in self.dexes.iter() {
+                // Check the allowed amount
                 let spender = dex.router_address();
                 let allowance = token.allowance(owner, spender).await?;
                 log::debug!(
@@ -118,11 +123,23 @@ impl BaseArbitrage {
                 let token_decimals = token.decimals().unwrap();
                 let converted_amount = U256::from_dec_str(&format!(
                     "{:.0}",
-                    self.amount * self.allowance_factor * 10f64.powi(token_decimals as i32)
+                    min_amount * self.allowance_factor * 10f64.powi(token_decimals as i32)
                 ))?;
 
                 if self.skip_write {
+                    // just for testing
+                    self.initial_amount = 1000.0;
                     return Ok(());
+                }
+
+                if allowance < converted_amount / 2 {
+                    token.approve(spender, converted_amount).await?;
+                    log::info!(
+                        "Approved {} {} for dex {}",
+                        min_amount * self.allowance_factor,
+                        token.symbol_name(),
+                        dex.name(),
+                    );
                 }
 
                 if token.symbol_name() == self.base_token.symbol_name() {
@@ -130,18 +147,9 @@ impl BaseArbitrage {
                     let base_token_amount =
                         base_token_amount.as_u128() as f64 / 10f64.powi(token_decimals as i32);
                     if base_token_amount < min_amount {
-                        panic!("Not enougha amount of base token");
+                        panic!("Not enough amount of base token");
                     }
-                }
-
-                if allowance < converted_amount / 2 {
-                    token.approve(spender, converted_amount).await?;
-                    log::info!(
-                        "Approved {} {} for dex {}",
-                        self.amount,
-                        token.symbol_name(),
-                        dex.name(),
-                    );
+                    self.initial_amount = base_token_amount;
                 }
             }
         }
@@ -178,7 +186,6 @@ impl BaseArbitrage {
         base_token: &Box<dyn Token>,
         tokens: &Vec<Box<dyn Token>>,
         amount: f64,
-        sell_price_only: bool,
     ) -> Vec<JoinHandle<Result<Option<(String, String, String, f64)>, Box<dyn Error + Send + Sync>>>>
     {
         let mut get_price_futures = Vec::new();
@@ -187,28 +194,8 @@ impl BaseArbitrage {
             if token.symbol_name() == base_token.symbol_name() {
                 continue;
             }
-            let fut_base = tokio::spawn({
-                let dex_arc = Arc::new(dex.clone());
-                let token_arc = Arc::new(token.clone());
-                let base_token_arc = Arc::new(base_token.clone());
-                async move {
-                    let price_result = Self::fetch_token_prices(
-                        &dex_arc,
-                        &token_arc,
-                        &base_token_arc,
-                        amount,
-                        true,
-                    )
-                    .await;
-                    Ok(price_result)
-                }
-            });
-            get_price_futures.push(fut_base);
 
-            if sell_price_only {
-                continue;
-            }
-
+            // buy price
             let fut_base = tokio::spawn({
                 let dex_arc = Arc::new(dex.clone());
                 let token_arc = Arc::new(token.clone());
@@ -226,13 +213,36 @@ impl BaseArbitrage {
                 }
             });
             get_price_futures.push(fut_base);
+
+            // sell price
+            let fut_base = tokio::spawn({
+                let dex_arc = Arc::new(dex.clone());
+                let token_arc = Arc::new(token.clone());
+                let base_token_arc = Arc::new(base_token.clone());
+                async move {
+                    let price_result = Self::fetch_token_prices(
+                        &dex_arc,
+                        &token_arc,
+                        &base_token_arc,
+                        amount,
+                        true,
+                    )
+                    .await;
+                    Ok(price_result)
+                }
+            });
+            get_price_futures.push(fut_base);
         }
 
         get_price_futures
     }
 
-    pub fn amount(&self) -> f64 {
-        self.amount
+    pub fn leverage(&self) -> f64 {
+        self.leverage
+    }
+
+    pub fn initial_amount(&self) -> f64 {
+        self.initial_amount
     }
 
     pub fn tokens(&self) -> Arc<Vec<Box<dyn Token>>> {
@@ -269,7 +279,7 @@ pub trait Arbitrage {
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
     async fn init(
-        &self,
+        &mut self,
         owner: Address,
         min_amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;

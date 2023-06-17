@@ -141,8 +141,12 @@ impl DirectionalTrade {
         }
     }
 
-    pub fn amount(&self) -> f64 {
-        self.base_arbitrage.amount()
+    pub fn leverage(&self) -> f64 {
+        self.base_arbitrage.leverage()
+    }
+
+    pub fn initial_amount(&self) -> f64 {
+        self.base_arbitrage.initial_amount()
     }
 
     pub fn tokens(&self) -> Arc<Vec<Box<dyn Token>>> {
@@ -173,18 +177,18 @@ impl DirectionalTrade {
         let token_pair_prices: HashMap<(String, String, String), f64> =
             self.get_token_pair_prices().await?;
 
-        for ((token_a, token_b, dex), price) in &token_pair_prices {
+        for ((token_a_name, token_b_name, dex), price) in &token_pair_prices {
             log::debug!(
                 "Token pair price: {:<6}-{:<6}@{:<6}: {:12.6}",
-                token_a,
-                token_b,
+                token_a_name,
+                token_b_name,
                 dex,
                 price
             );
 
             // Update the price history and predict next prices
-            if token_b == self.base_token().symbol_name() {
-                let history = histories.entry(token_a.clone()).or_insert_with(|| {
+            if token_a_name == self.base_token().symbol_name() {
+                let history = histories.entry(token_b_name.clone()).or_insert_with(|| {
                     PriceHistory::new(
                         self.config.short_trade_period,
                         self.config.medium_trade_period,
@@ -193,9 +197,11 @@ impl DirectionalTrade {
                         self.config.percentage_drop_threshold,
                     )
                 });
-                history.add_price(chrono::Utc::now().timestamp(), *price);
+                let buy_price = 1.0 / price;
+                history.add_price(chrono::Utc::now().timestamp(), buy_price);
             }
         }
+
         Ok(token_pair_prices)
     }
 
@@ -210,8 +216,13 @@ impl DirectionalTrade {
             return Ok(opportunities);
         }
 
-        for ((token_a_name, base_token_name, dex_name), price) in current_prices {
-            if let Some(history) = histories.get(token_a_name) {
+        for ((base_token_name, token_b_name, dex_name), buy_price) in current_prices {
+            if base_token_name != self.base_token().symbol_name() {
+                continue;
+            }
+
+            if let Some(history) = histories.get(token_b_name) {
+                let price = 1.0 / buy_price; // sell price
                 let predicted_price = history.majority_vote_predictions(
                     self.config.short_trade_period,
                     TradingStrategy::Contrarian,
@@ -220,19 +231,19 @@ impl DirectionalTrade {
 
                 log::debug!(
                     "{:<6}: {:6.3}%, current: {:6.3}, predict: {:6.3}",
-                    token_a_name,
+                    token_b_name,
                     percentage_price_diff,
                     price,
                     predicted_price,
                 );
 
-                let amount = self.amount();
+                let amount = self.initial_amount() * self.leverage();
 
-                if predicted_price > *price {
+                if predicted_price > price {
                     if history.is_flash_crash() {
                         log::info!(
                             "Skip this buy trade as price of {} is crashed({:6.3} --> {:6.3})",
-                            token_a_name,
+                            token_b_name,
                             price,
                             predicted_price
                         );
@@ -243,7 +254,7 @@ impl DirectionalTrade {
 
                     if percentage_price_diff > self.config.percentage_profit_threshold {
                         let token_a_index =
-                            find_index(&self.tokens(), |token| token.symbol_name() == token_a_name)
+                            find_index(&self.tokens(), |token| token.symbol_name() == token_b_name)
                                 .ok_or("Token not found")?;
                         let token_b_index = find_index(&self.tokens(), |token| {
                             token.symbol_name() == base_token_name
@@ -257,7 +268,7 @@ impl DirectionalTrade {
                             token_index: vec![token_b_index, token_a_index],
                             amounts: vec![amount],
                             predicted_profit: Some(profit),
-                            currect_price: Some(*price),
+                            currect_price: Some(price),
                             predicted_price: Some(predicted_price),
                             gas: self.base_arbitrage.gas(),
                         });
@@ -279,6 +290,10 @@ impl DirectionalTrade {
         let current_time = chrono::Utc::now().timestamp() as usize;
 
         for ((token_a_name, base_token_name, dex_name), price) in current_prices {
+            if base_token_name != self.base_token().symbol_name() {
+                continue;
+            }
+
             let token_a_index =
                 find_index(&self.tokens(), |token| token.symbol_name() == token_a_name)
                     .ok_or("Token not found")?;
@@ -314,7 +329,7 @@ impl DirectionalTrade {
                             > self.config.percentage_profit_threshold
                             || percentage_ppotential_loss < self.config.percentage_loss_threshold
                         {
-                            trade_amount = self.amount() / *price;
+                            trade_amount = self.initial_amount() * self.leverage() / *price;
                         }
                     }
 
@@ -505,7 +520,7 @@ impl Arbitrage for DirectionalTrade {
     }
 
     async fn init(
-        &self,
+        &mut self,
         owner: Address,
         min_amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -520,13 +535,13 @@ impl Arbitrage for DirectionalTrade {
         let base_token = &self.base_token();
         let dexes = &self.dexes();
         let tokens = &self.tokens();
-        let amount = self.amount();
+        let amount = self.initial_amount() * self.leverage();
 
         // Get prices with base token / each token and each token / base token
         for dex in dexes.iter() {
             let mut dex_get_price_futures = self
                 .base_arbitrage
-                .get_token_pair_prices(dex, base_token, tokens, amount, true)
+                .get_token_pair_prices(dex, base_token, tokens, amount)
                 .await;
             get_price_futures.append(&mut dex_get_price_futures);
         }

@@ -56,8 +56,8 @@ async fn main() -> std::io::Result<()> {
         let histories: HashMap<String, PriceHistory> = HashMap::new();
 
         // Create an instance of Arbitrage
-        let arbitrage = DirectionalTrade::new(
-            config.amount,
+        let mut arbitrage = DirectionalTrade::new(
+            config.leverage,
             config.allowance_factor,
             tokens.clone(),
             usdt_token.clone(),
