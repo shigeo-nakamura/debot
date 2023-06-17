@@ -3,12 +3,43 @@
 use crate::token::Token;
 use async_trait::async_trait;
 use ethers::prelude::LocalWallet;
+use ethers::utils::parse_units;
 use ethers::{
     abi::Abi,
     prelude::*,
     types::{Address, U256},
 };
 use std::{error::Error, sync::Arc};
+
+use ethers::core::types::Log;
+
+use anyhow::Error as AnyhowError;
+
+fn parse_swap_log(log: &Log) -> Result<(f64, f64, f64, f64), AnyhowError> {
+    // Check if this log has the correct number of topics and the data
+    if log.topics.len() < 2 || log.data.is_empty() {
+        return Err(AnyhowError::msg(
+            "Log does not have enough topics/data for parsing swap",
+        ));
+    }
+
+    // Convert topics to U256
+    let amount0_in = U256::from(log.topics[0].as_fixed_bytes());
+    let amount1_in = U256::from(log.topics[1].as_fixed_bytes());
+
+    // Convert log.data to byte slice and then slice it
+    let data = log.data.as_ref();
+    let amount0_out = U256::from_big_endian(&data[0..32]);
+    let amount1_out = U256::from_big_endian(&data[32..64]);
+
+    // Convert U256 amounts to f64
+    let amount0_in = amount0_in.low_u64() as f64;
+    let amount1_in = amount1_in.low_u64() as f64;
+    let amount0_out = amount0_out.low_u64() as f64;
+    let amount1_out = amount1_out.low_u64() as f64;
+
+    Ok((amount0_in, amount1_in, amount0_out, amount1_out))
+}
 
 #[derive(Debug, Clone)]
 pub struct BaseDex {
@@ -189,16 +220,49 @@ pub trait Dex: Send + Sync {
         let swap_transaction = method_call.send().await?;
 
         let transaction_receipt = swap_transaction.confirmations(1).await?; // wait for 1 confirmation
-        if transaction_receipt.unwrap().status != Some(1.into()) {
+
+        let transaction_receipt = match transaction_receipt {
+            Some(receipt) => receipt,
+            None => {
+                return Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Transaction receipt is none",
+                )))
+            }
+        };
+
+        if transaction_receipt.status != Some(1.into()) {
             return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Token swap transaction failed",
             )));
         }
 
-        let output_amount = self.get_token_price(token_pair, amount, false).await?;
+        // Parse the Swap event logs to get the output amount
+        let logs = transaction_receipt.logs;
 
-        Ok(output_amount)
+        let mut output_amount: Option<U256> = None;
+
+        for log in &logs {
+            if log.address == output_address {
+                let (amount0_in, amount1_in, amount0_out, amount1_out) = parse_swap_log(&log)?;
+                output_amount = Some(parse_units(&(amount0_out + amount1_out), 18)?.into());
+                break;
+            }
+        }
+
+        let output_amount = output_amount.ok_or_else(|| {
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Output amount not found in transaction logs",
+            ))
+        })?;
+
+        let output_decimals = token_pair.output_token.decimals().unwrap();
+        let output_amount_in_token =
+            output_amount.low_u64() as f64 / 10f64.powi(output_decimals as i32);
+
+        Ok(output_amount_in_token)
     }
 
     async fn has_token_pair(&self, input_token: &dyn Token, output_token: &dyn Token) -> bool {

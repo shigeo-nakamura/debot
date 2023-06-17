@@ -1,6 +1,9 @@
 // price_history.rs
 
-#[derive(Debug)]
+const SIGNAL_PERIOD: usize = 9;
+const MACD_THRESHOLD: f64 = 0.1;
+
+#[derive(Debug, Clone)]
 pub struct PriceHistory {
     prices: Vec<f64>,
     timestamps: Vec<i64>,
@@ -12,9 +15,10 @@ pub struct PriceHistory {
     medium_period: usize,
     long_period: usize,
     max_size: usize,
-    percentage_drop_threshold: f64,
+    flash_crash_threshold: f64,
 }
 
+#[derive(Clone, Copy)]
 pub enum TradingStrategy {
     TrendFollowing,
     MeanReversion,
@@ -27,12 +31,8 @@ impl PriceHistory {
         medium_period: usize,
         long_period: usize,
         max_size: usize,
-        percentage_drop_threshold: f64,
+        flash_crash_threshold: f64,
     ) -> PriceHistory {
-        let input_size = 1; // Assuming you're using only the current price as input
-        let hidden_size = 16; // Number of nodes in the hidden layer
-        let output_size = 3; // Predicting the next prices for short, medium, and long periods
-
         PriceHistory {
             prices: Vec::with_capacity(max_size),
             timestamps: Vec::with_capacity(max_size),
@@ -44,7 +44,7 @@ impl PriceHistory {
             medium_period,
             long_period,
             max_size: max_size,
-            percentage_drop_threshold,
+            flash_crash_threshold,
         }
     }
 
@@ -80,31 +80,42 @@ impl PriceHistory {
         self.calculate_sma(period)
     }
 
-    pub fn predict_next_price_macd(&self, period: usize) -> f64 {
+    pub fn predict_next_price_macd(&self) -> f64 {
+        if self.prices.len() < self.short_period + 1 {
+            log::trace!("Not enough data for MACD prediction, returning last known price.");
+            return *self.prices.last().unwrap();
+        }
+
         let compute_macd = |short_period, long_period| {
-            if self.prices.len() < period + 1 {
-                return *self.prices.last().unwrap();
-            }
+            let short_ema = self.calculate_ema(self.prices.len() - 1, short_period);
+            log::trace!("Short EMA: {}", short_ema);
 
-            let short_ema = self.calculate_ema(self.prices.len(), short_period);
-            let long_ema = self.calculate_ema(self.prices.len(), long_period);
-            let macd_line = short_ema - long_ema;
-            let signal_line = self.calculate_ema(self.prices.len(), short_period);
+            let long_ema = self.calculate_ema(self.prices.len() - 1, long_period);
+            log::trace!("Long EMA: {}", long_ema);
+
+            let macd_line = short_ema - long_ema + 1e-8; // Added small constant to prevent exact zero
+            log::trace!("MACD Line: {}", macd_line);
+
+            let macd_lines = self.calculate_macd_lines(short_period, long_period, SIGNAL_PERIOD);
+            let signal_line = self.calculate_ema(macd_lines.len() - 1, SIGNAL_PERIOD);
+            log::trace!("Signal Line: {}", signal_line);
+
             let histogram = macd_line - signal_line;
-            let predicted_price = self.prices[self.prices.len() - 1] + histogram;
+            log::trace!("Histogram: {}", histogram);
 
+            let predicted_price = self.prices[self.prices.len() - 1] + histogram;
+            log::trace!("Predicted Price: {}", predicted_price);
             predicted_price
         };
 
-        let predicted_price_short = compute_macd(self.short_period, self.medium_period);
-        let predicted_price_medium = compute_macd(self.medium_period, self.long_period);
-        let predicted_price_long = compute_macd(self.short_period, self.long_period * 2);
+        let predicted_price = compute_macd(self.short_period, self.long_period * 2);
 
-        match period {
-            x if x == self.short_period => predicted_price_short,
-            x if x == self.medium_period => predicted_price_medium,
-            x if x == self.long_period => predicted_price_long,
-            _ => panic!("Invalid period"),
+        let last_price = *self.prices.last().unwrap();
+
+        if (predicted_price - last_price).abs() > MACD_THRESHOLD {
+            last_price
+        } else {
+            predicted_price
         }
     }
 
@@ -120,7 +131,11 @@ impl PriceHistory {
             denominator += (self.timestamps[i] as f64 - x_mean).powi(2);
         }
 
-        let slope: f64 = numerator / denominator;
+        let slope: f64 = if denominator != 0.0 {
+            numerator / denominator
+        } else {
+            0.0
+        };
         let intercept: f64 = y_mean - slope * x_mean;
 
         return slope * next_timestamp as f64 + intercept;
@@ -171,7 +186,7 @@ impl PriceHistory {
     }
 
     pub fn is_flash_crash(&self) -> bool {
-        if self.last_price < self.ema_short * (1.0 - self.percentage_drop_threshold / 100.0) {
+        if self.last_price < (self.ema_short * self.flash_crash_threshold) {
             return true;
         }
         false
@@ -198,12 +213,45 @@ impl PriceHistory {
     }
 
     fn calculate_ema(&self, current_index: usize, period: usize) -> f64 {
-        let mut ema = self.prices[current_index - period];
-        let multiplier = 2.0 / (period as f64 + 1.0);
-        for i in (current_index - period + 1)..current_index {
-            ema = (self.prices[i] - ema) * multiplier + ema;
+        if current_index < period {
+            // When there are fewer data points than the period, return SMA
+            let sum: f64 = self.prices.iter().take(current_index).sum();
+            return sum / current_index as f64;
         }
+        // Calculate SMA for the period as the seed of EMA
+        let sma: f64 = self
+            .prices
+            .iter()
+            .skip(current_index - period)
+            .take(period)
+            .sum::<f64>()
+            / period as f64;
+        let multiplier = 2.0 / (period as f64 + 1.0);
+
+        let ema = self
+            .prices
+            .iter()
+            .enumerate()
+            .skip(current_index - period + 1)
+            .take(period)
+            .fold(sma, |ema, (i, &price)| (price - ema) * multiplier + ema);
+
         ema
+    }
+
+    fn calculate_macd_lines(&self, short_period: usize, long_period: usize, n: usize) -> Vec<f64> {
+        let start_index = self.prices.len().saturating_sub(n);
+        let end_index = self.prices.len();
+        let mut macd_lines = Vec::new();
+
+        for i in start_index..end_index {
+            let short_ema = self.calculate_ema(i, short_period);
+            let long_ema = self.calculate_ema(i, long_period);
+            let macd_line = short_ema - long_ema + 1e-8; // Add a small constant to prevent exact zero
+            macd_lines.push(macd_line);
+        }
+
+        macd_lines
     }
 
     fn calculate_sma(&self, period: usize) -> f64 {
@@ -231,7 +279,7 @@ impl PriceHistory {
         let mut gains = 0.0;
         let mut losses = 0.0;
 
-        for i in (self.prices.len() - period + 1)..self.prices.len() {
+        for i in (self.prices.len() - period)..self.prices.len() {
             let change = self.prices[i] - self.prices[i - 1];
             if change >= 0.0 {
                 gains += change;
@@ -281,7 +329,7 @@ impl PriceHistory {
                 predictions.push(sma);
                 predictions.push(ema);
                 predictions.push(regression_prediction);
-                log::trace!(
+                log::debug!(
                     "SMA: {:6.3}, EMA: {:6.3}, REG: {:6.3}",
                     sma,
                     ema,
@@ -293,18 +341,18 @@ impl PriceHistory {
                 let fibonacci_prediction = self.predict_next_price_fibonacci();
                 predictions.push(bollinger_prediction);
                 predictions.push(fibonacci_prediction);
-                log::trace!(
+                log::debug!(
                     "BOLLINGER: {:6.3}, FIBONACCI: {:6.3}",
                     bollinger_prediction,
                     fibonacci_prediction
                 );
             }
             TradingStrategy::Contrarian => {
-                let macd = self.predict_next_price_macd(period);
+                let macd = self.predict_next_price_macd();
                 let rsi_prediction = self.predict_next_price_rsi(period);
                 predictions.push(macd);
                 predictions.push(rsi_prediction);
-                log::trace!("MACD: {:6.3}, RSI: {:6.3}", macd, rsi_prediction);
+                log::debug!("MACD: {:6.3}, RSI: {:6.3}", macd, rsi_prediction);
             }
         }
 
@@ -324,9 +372,17 @@ impl PriceHistory {
         }
 
         if up_votes > down_votes {
-            up_sum / up_votes as f64
+            if up_votes != 0 {
+                up_sum / up_votes as f64
+            } else {
+                0.0
+            }
         } else {
-            down_sum / down_votes as f64
+            if down_votes != 0 {
+                down_sum / down_votes as f64
+            } else {
+                0.0
+            }
         }
     }
 }

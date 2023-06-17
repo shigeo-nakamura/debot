@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct ErrorManager {
     error_count: u32,
 }

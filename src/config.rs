@@ -1,10 +1,13 @@
-use crate::token_manager::{
+use ethers::abi::Address;
+
+use crate::blockchain_factory::{
     ChainParams, BSC_CHAIN_PARAMS, POLYGON_CHAIN_PARAMS, TESTNET_BSC_CHAIN_PARAMS,
     TESTNET_POLYGON_CHAIN_PARAMS,
 };
 use std::env;
 use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct EnvConfig {
@@ -12,8 +15,8 @@ pub struct EnvConfig {
     pub use_kms: bool,
     pub interval: u64,
     pub leverage: f64,
-    pub min_initial_amount: f64,
-    pub max_position_amount: f64,
+    pub min_managed_amount: f64,
+    pub max_managed_amount: f64,
     pub allowance_factor: f64,
     pub deadline_secs: u64,
     pub log_limit: usize,
@@ -22,13 +25,16 @@ pub struct EnvConfig {
     pub short_trade_period: usize,
     pub medium_trade_period: usize,
     pub long_trade_period: usize,
-    pub max_hold_period: usize,
-    pub percentage_loss_threshold: f64,
-    pub percentage_profit_threshold: f64,
-    pub percentage_drop_threshold: f64,
+    pub max_hold_interval: u64,
+    pub position_creation_inteval_period: u64,
+    pub take_profit_threshold: f64,
+    pub cut_loss_threshold: f64,
+    pub flash_crash_threshold: f64,
     pub max_error_count: u32,
-    pub match_multiplier: f64,
-    pub mismatch_multiplier: f64,
+    pub reward_multiplier: f64,
+    pub penalty_multiplier: f64,
+    pub treasury: Address,
+    pub initial_score: f64,
 }
 
 #[derive(Debug)]
@@ -100,33 +106,39 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         };
 
         let use_kms = get_bool_env_var("USE_KMS", false);
-        let interval = get_env_var("INTERVAL", "10")?;
+        let interval = get_env_var("INTERVAL", "10")?; // sec
         let leverage = get_env_var("LEVERAGE", "0.25")?;
-        let min_initial_amount = get_env_var("MIN_INITIAL_AMOUNT", "500.0")?;
-        let max_position_amount = get_env_var("MAX_POSITION_AMOUNT", "500.0")?;
+        let min_managed_amount = get_env_var("min_managed_amount", "500.0")?;
+        let max_managed_amount = get_env_var("max_managed_amount", "1000.0")?;
         let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
         let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
         let skip_write = get_bool_env_var("SKIP_WRITE", true);
         let num_swaps = get_env_var("NUM_SWAPS", "3")?;
-        let short_trade_period = get_env_var("SHORT_TRADE_PEREIOD", "100")?;
-        let medium_trade_period = get_env_var("MEDIUM_TRADE_PEREIOD", "1000")?;
-        let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "10000")?;
-        let max_hold_period = get_env_var("MAX_HOLD_PERIOD", "300")?;
-        let percentage_loss_threshold = get_env_var("PERCENTAGE_LOSS_THRESHOLD", "-1.0")?;
-        let percentage_profit_threshold = get_env_var("PERCENTAGE_PROFIT_THRESHOLD", "1.0")?;
-        let percentage_drop_threshold = get_env_var("PERCENTAGE_DROP_THRESHOLD", "3.0")?;
+        let short_trade_period = get_env_var("SHORT_TRADE_PEREIOD", "7")?;
+        let medium_trade_period = get_env_var("MEDIUM_TRADE_PEREIOD", "14")?;
+        let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "21")?;
+        let max_hold_interval = get_env_var("MAX_HOLD_INTERVAL", "86400")?; // sec
+        let position_creation_inteval_period =
+            get_env_var("POSITION_CREATION_INVERVAL_PERIOD", "10")?;
+        let take_profit_threshold = get_env_var("TAKE_PROFIT_THRESHOLD", "1.02")?;
+        let cut_loss_threshold = get_env_var("CUT_LOSS_THRESHOLD", "0.98")?;
+        let flash_crash_threshold = get_env_var("FLASH_CRASH_THRESHOLD", "0.95")?;
         let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;
-        let match_multiplier = get_env_var("MATCH_MULTIPLIER", "1.2")?;
-        let mismatch_multiplier = get_env_var("MISMATCH_MULTIPLIER", "0.5")?;
+        let reward_multiplier = get_env_var("reward_multiplier", "1.5")?;
+        let penalty_multiplier = get_env_var("penalty_multiplier", "0.9")?;
+        let initial_score = get_env_var("INITIAL_SCORE", "10.0")?;
+
+        let treasury_str = env::var("TREASURY").expect("TREASURY must be set");
+        let treasury = Address::from_str(&treasury_str).expect("TREASURY is not a valid address");
 
         let env_config = EnvConfig {
             chain_params,
             use_kms,
             interval,
             leverage,
-            min_initial_amount,
-            max_position_amount,
+            min_managed_amount,
+            max_managed_amount,
             allowance_factor,
             deadline_secs,
             log_limit,
@@ -135,13 +147,16 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             short_trade_period,
             medium_trade_period,
             long_trade_period,
-            max_hold_period,
-            percentage_loss_threshold,
-            percentage_profit_threshold,
-            percentage_drop_threshold,
+            max_hold_interval,
+            position_creation_inteval_period,
+            take_profit_threshold,
+            cut_loss_threshold,
+            flash_crash_threshold,
             max_error_count,
-            match_multiplier,
-            mismatch_multiplier,
+            reward_multiplier,
+            penalty_multiplier,
+            treasury,
+            initial_score,
         };
 
         env_configs.push(env_config);

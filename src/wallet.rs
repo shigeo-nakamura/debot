@@ -9,8 +9,8 @@ use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
 use std::env;
 use std::{error::Error, sync::Arc};
 
+use crate::blockchain_factory::ChainParams;
 use crate::kws_decrypt::decrypt_data_with_kms;
-use crate::token_manager::ChainParams;
 
 use lazy_static::lazy_static;
 use std::sync::atomic::{AtomicUsize, Ordering};

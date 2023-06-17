@@ -1,11 +1,12 @@
+// arbitrage_trader.rs
+
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::Arc;
 
-use crate::arbitrage::find_index;
-use crate::arbitrage::Arbitrage;
 use crate::dex::Dex;
 use crate::token::Token;
+use crate::trade::find_index;
 
 use async_trait::async_trait;
 use ethers::prelude::{Provider, SignerMiddleware};
@@ -14,16 +15,17 @@ use ethers::signers::LocalWallet;
 use ethers::types::Address;
 use ethers_middleware::NonceManagerMiddleware;
 
-use super::arbitrage::BaseArbitrage;
-use super::{ArbitrageOpportunity, PriceHistory};
-pub struct TriangleArbitrage {
-    base_arbitrage: BaseArbitrage,
+use super::abstract_trader::BaseTrader;
+use super::{AbstractTrader, TradeOpportunity};
+pub struct ArbitrageTrader {
+    base_trader: BaseTrader,
     num_swaps: usize,
 }
 
-impl TriangleArbitrage {
+impl ArbitrageTrader {
     pub fn new(
-        amount: f64,
+        leverage: f64,
+        initial_amount: f64,
         allowance_factor: f64,
         tokens: Arc<Vec<Box<dyn Token>>>,
         base_token: Arc<Box<dyn Token>>,
@@ -33,8 +35,10 @@ impl TriangleArbitrage {
         gas: f64,
     ) -> Self {
         Self {
-            base_arbitrage: BaseArbitrage::new(
-                amount,
+            base_trader: BaseTrader::new(
+                "Arbitrager".to_string(),
+                leverage,
+                initial_amount,
                 allowance_factor,
                 tokens,
                 base_token,
@@ -44,26 +48,6 @@ impl TriangleArbitrage {
             ),
             num_swaps,
         }
-    }
-
-    pub fn leverage(&self) -> f64 {
-        self.base_arbitrage.leverage()
-    }
-
-    pub fn initial_amount(&self) -> f64 {
-        self.base_arbitrage.initial_amount()
-    }
-
-    pub fn tokens(&self) -> Arc<Vec<Box<dyn Token>>> {
-        self.base_arbitrage.tokens()
-    }
-
-    pub fn base_token(&self) -> Arc<Box<dyn Token>> {
-        self.base_arbitrage.base_token()
-    }
-
-    pub fn dexes(&self) -> Arc<Vec<Box<dyn Dex>>> {
-        self.base_arbitrage.dexes()
     }
 
     fn find_arbitrage_paths_recursive(
@@ -158,7 +142,7 @@ impl TriangleArbitrage {
             if token.symbol_name() != self.base_token().symbol_name() {
                 let mut visited_pairs: HashSet<(String, String)> = HashSet::new();
                 let mut path: Vec<(Box<dyn Token>, Box<dyn Dex>)> = Vec::new();
-                TriangleArbitrage::find_arbitrage_paths_recursive(
+                ArbitrageTrader::find_arbitrage_paths_recursive(
                     &self.tokens(),
                     &self.dexes(),
                     &mut paths,
@@ -220,7 +204,7 @@ impl TriangleArbitrage {
     pub async fn find_opportunities(
         &self,
         paths: &Vec<Vec<(Box<dyn Token>, Box<dyn Dex>)>>,
-    ) -> Result<Vec<ArbitrageOpportunity>, Box<dyn Error + Send + Sync>> {
+    ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         // Get the prices of all token pairs
         let token_pair_prices = self.get_token_pair_prices().await?;
 
@@ -235,16 +219,16 @@ impl TriangleArbitrage {
         }
 
         // Calculate arbitrage profits for each path
-        let mut results: Vec<ArbitrageOpportunity> = vec![];
+        let mut results: Vec<TradeOpportunity> = vec![];
 
         for path in paths {
             let mut amounts = vec![];
 
-            let profit = TriangleArbitrage::calculate_arbitrage_profit(
+            let profit = ArbitrageTrader::calculate_arbitrage_profit(
                 path,
                 self.initial_amount() * self.leverage(),
                 &token_pair_prices,
-                &self.base_arbitrage.base_token(),
+                &self.base_trader.base_token(),
                 &mut amounts,
             );
             if profit.is_none() {
@@ -267,17 +251,17 @@ impl TriangleArbitrage {
                 token_index.push(token_idx);
             }
 
-            let gas = self.base_arbitrage.gas() * (path.len() as f64);
+            let gas = self.base_trader.gas() * (path.len() as f64);
             let profit = profit.unwrap() - gas;
 
-            let opportunity = ArbitrageOpportunity {
+            let opportunity = TradeOpportunity {
                 dex_index,
                 token_index,
                 amounts,
                 predicted_profit: Some(profit),
                 currect_price: None,
                 predicted_price: None,
-                gas,
+                trader_name: self.name().to_owned(),
             };
 
             results.push(opportunity);
@@ -287,10 +271,10 @@ impl TriangleArbitrage {
 }
 
 #[async_trait]
-impl Arbitrage for TriangleArbitrage {
+impl AbstractTrader for ArbitrageTrader {
     async fn execute_transactions(
         &mut self,
-        _opportunities: &Vec<ArbitrageOpportunity>,
+        _opportunities: &Vec<TradeOpportunity>,
         _wallet_and_provider: &Arc<
             NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
         >,
@@ -298,14 +282,6 @@ impl Arbitrage for TriangleArbitrage {
         _deadline_secs: u64,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         todo!("Not implemented");
-    }
-
-    async fn init(
-        &mut self,
-        owner: Address,
-        min_amount: f64,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        self.base_arbitrage.init(owner, min_amount).await
     }
 
     async fn get_token_pair_prices(
@@ -321,7 +297,7 @@ impl Arbitrage for TriangleArbitrage {
         // Get prices with base token / each token and each token / base token
         for dex in dexes.iter() {
             let mut dex_get_price_futures = self
-                .base_arbitrage
+                .base_trader
                 .get_token_pair_prices(dex, base_token, tokens, amount)
                 .await;
             get_price_futures.append(&mut dex_get_price_futures);
@@ -393,6 +369,57 @@ impl Arbitrage for TriangleArbitrage {
         }
 
         Ok(token_pair_prices)
+    }
+
+    fn leverage(&self) -> f64 {
+        self.base_trader.leverage()
+    }
+
+    fn initial_amount(&self) -> f64 {
+        self.base_trader.initial_amount()
+    }
+
+    fn tokens(&self) -> Arc<Vec<Box<dyn Token>>> {
+        self.base_trader.tokens()
+    }
+
+    fn base_token(&self) -> Arc<Box<dyn Token>> {
+        self.base_trader.base_token()
+    }
+
+    fn dexes(&self) -> Arc<Vec<Box<dyn Dex>>> {
+        self.base_trader.dexes()
+    }
+
+    fn name(&self) -> &str {
+        self.base_trader.name()
+    }
+
+    async fn init(
+        &mut self,
+        owner: Address,
+        min_managed_amount: f64,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.base_trader.init(owner, min_managed_amount).await
+    }
+
+    async fn get_amount_of_token(
+        &self,
+        owner: Address,
+        token: &Box<dyn Token>,
+    ) -> Result<f64, Box<dyn Error + Send + Sync>> {
+        self.base_trader.get_amount_of_token(owner, token).await
+    }
+
+    async fn transfer_token(
+        &self,
+        recipient: Address,
+        token: &Box<dyn Token>,
+        amount: f64,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.base_trader
+            .transfer_token(recipient, token, amount)
+            .await
     }
 }
 

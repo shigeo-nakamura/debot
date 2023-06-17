@@ -1,4 +1,4 @@
-// arbitrage.rs
+// abstract_trader.rs
 
 use async_trait::async_trait;
 use ethers::{
@@ -25,22 +25,22 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct ArbitrageOpportunity {
+pub struct TradeOpportunity {
+    pub trader_name: String,
     pub dex_index: Vec<usize>,
     pub token_index: Vec<usize>,
     pub amounts: Vec<f64>,
     pub predicted_profit: Option<f64>,
     pub currect_price: Option<f64>,
     pub predicted_price: Option<f64>,
-    pub gas: f64,
 }
 
-impl ArbitrageOpportunity {
+impl TradeOpportunity {
     pub fn print_info(&self, dexes: &[Box<dyn Dex>], tokens: &[Box<dyn Token>]) {
         let num_paths = self.dex_index.len();
         if let Some(profit) = self.predicted_profit {
             if profit > 0.0 {
-                log::info!("Profit: {}", profit);
+                log::info!("{} profit: {}", self.trader_name, profit);
                 for i in 0..num_paths {
                     let dex = &dexes[self.dex_index[i]];
                     let token = &tokens[self.token_index[i]];
@@ -52,7 +52,7 @@ impl ArbitrageOpportunity {
                     );
                 }
             } else {
-                log::debug!("Loss: {} - {} = {}", profit + self.gas, self.gas, profit);
+                log::debug!("{} loss: {}", self.trader_name, profit);
                 for i in 0..num_paths {
                     let dex = &dexes[self.dex_index[i]];
                     let token = &tokens[self.token_index[i]];
@@ -68,7 +68,8 @@ impl ArbitrageOpportunity {
     }
 }
 
-pub struct BaseArbitrage {
+pub struct BaseTrader {
+    name: String,
     leverage: f64,
     initial_amount: f64,
     allowance_factor: f64,
@@ -79,9 +80,11 @@ pub struct BaseArbitrage {
     gas: f64,
 }
 
-impl BaseArbitrage {
+impl BaseTrader {
     pub fn new(
+        name: String,
         leverage: f64,
+        initial_amount: f64,
         allowance_factor: f64,
         tokens: Arc<Vec<Box<dyn Token>>>,
         base_token: Arc<Box<dyn Token>>,
@@ -90,8 +93,9 @@ impl BaseArbitrage {
         gas: f64,
     ) -> Self {
         Self {
+            name,
             leverage,
-            initial_amount: 0.0,
+            initial_amount,
             allowance_factor,
             tokens,
             base_token,
@@ -101,10 +105,36 @@ impl BaseArbitrage {
         }
     }
 
+    pub async fn get_amount_of_token(
+        &self,
+        owner: Address,
+        token: &Box<dyn Token>,
+    ) -> Result<f64, Box<dyn Error + Send + Sync>> {
+        let token_decimals = token.decimals().unwrap();
+        let token_amount = token.balance_of(owner).await?;
+        let token_amount = token_amount.as_u128() as f64 / 10f64.powi(token_decimals as i32);
+        Ok(token_amount)
+    }
+
+    pub async fn transfer_token(
+        &self,
+        recipient: Address,
+        token: &Box<dyn Token>,
+        amount: f64,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let token_decimals = token.decimals().unwrap();
+        let converted_amount = U256::from_dec_str(&format!(
+            "{:.0}",
+            amount * 10f64.powi(token_decimals as i32)
+        ))?;
+        token.transfer(recipient, converted_amount).await?;
+        Ok(())
+    }
+
     pub async fn init(
         &mut self,
         owner: Address,
-        min_amount: f64,
+        min_managed_amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         // todo: check gas token
 
@@ -123,7 +153,7 @@ impl BaseArbitrage {
                 let token_decimals = token.decimals().unwrap();
                 let converted_amount = U256::from_dec_str(&format!(
                     "{:.0}",
-                    min_amount * self.allowance_factor * 10f64.powi(token_decimals as i32)
+                    min_managed_amount * self.allowance_factor * 10f64.powi(token_decimals as i32)
                 ))?;
 
                 if self.skip_write {
@@ -136,20 +166,18 @@ impl BaseArbitrage {
                     token.approve(spender, converted_amount).await?;
                     log::info!(
                         "Approved {} {} for dex {}",
-                        min_amount * self.allowance_factor,
+                        min_managed_amount * self.allowance_factor,
                         token.symbol_name(),
                         dex.name(),
                     );
                 }
 
                 if token.symbol_name() == self.base_token.symbol_name() {
-                    let base_token_amount = self.base_token.balance_of(owner).await?;
-                    let base_token_amount =
-                        base_token_amount.as_u128() as f64 / 10f64.powi(token_decimals as i32);
-                    if base_token_amount < min_amount {
+                    let base_token_amount = self.get_amount_of_token(owner, token).await?;
+                    if base_token_amount < min_managed_amount {
                         panic!("Not enough amount of base token");
                     }
-                    self.initial_amount = base_token_amount;
+                    self.initial_amount = min_managed_amount;
                 }
             }
         }
@@ -264,13 +292,17 @@ impl BaseArbitrage {
     pub fn gas(&self) -> f64 {
         self.gas
     }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 #[async_trait]
-pub trait Arbitrage {
+pub trait AbstractTrader {
     async fn execute_transactions(
         &mut self,
-        opportunities: &Vec<ArbitrageOpportunity>,
+        opportunities: &Vec<TradeOpportunity>,
         wallet_and_provider: &Arc<
             NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
         >,
@@ -278,13 +310,33 @@ pub trait Arbitrage {
         deadline_secs: u64,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
+    fn leverage(&self) -> f64;
+    fn initial_amount(&self) -> f64;
+    fn tokens(&self) -> Arc<Vec<Box<dyn Token>>>;
+    fn base_token(&self) -> Arc<Box<dyn Token>>;
+    fn dexes(&self) -> Arc<Vec<Box<dyn Dex>>>;
+    fn name(&self) -> &str;
+
     async fn init(
         &mut self,
         owner: Address,
-        min_amount: f64,
+        min_managed_amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
     async fn get_token_pair_prices(
         &self,
     ) -> Result<HashMap<(String, String, String), f64>, Box<dyn Error + Send + Sync>>;
+
+    async fn get_amount_of_token(
+        &self,
+        owner: Address,
+        token: &Box<dyn Token>,
+    ) -> Result<f64, Box<dyn Error + Send + Sync>>;
+
+    async fn transfer_token(
+        &self,
+        recipient: Address,
+        token: &Box<dyn Token>,
+        amount: f64,
+    ) -> Result<(), Box<dyn Error + Send + Sync>>;
 }
