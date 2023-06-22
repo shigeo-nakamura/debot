@@ -7,18 +7,22 @@ use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Address;
 use ethers_middleware::providers::{Http, Provider};
 use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
-use trade::{ForcastTrader, PriceHistory, TradingStrategy};
+use mongodb::options::{ClientOptions, Tls, TlsOptions};
+use shared_mongodb::ClientHolder;
+use trade::transaction_log::{self, get_last_transaction_id};
+use trade::{ForcastTrader, PriceHistory, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
 use crate::trade::AbstractTrader;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use wallet::create_wallet;
+use wallet::{create_wallet, get_balance_of_native_token};
 
 mod addresses;
 mod blockchain_factory;
 mod config;
+mod db;
 mod dex;
 mod error_manager;
 mod kws_decrypt;
@@ -35,14 +39,36 @@ async fn main() -> std::io::Result<()> {
     // Load the configs
     let configs = config::get_config_from_env().expect("Invalid configuration");
 
+    // Set up the DB client holder
+    let mut client_options = match ClientOptions::parse(&configs[0].mongodb_uri).await {
+        Ok(client_options) => client_options,
+        Err(e) => {
+            panic!("{:?}", e);
+        }
+    };
+    let tls_options = TlsOptions::builder().build();
+    client_options.tls = Some(Tls::Enabled(tls_options));
+    let client_holder = Arc::new(Mutex::new(ClientHolder::new(client_options)));
+
+    // Set up the transaction log
+    let db_name = &configs[0].db_name;
+    let db = shared_mongodb::database::get(&client_holder, &db_name)
+        .await
+        .unwrap();
+    let last_transaction_id = get_last_transaction_id(&db).await;
+    let transaction_log = TransactionLog::new(configs[0].log_limit, last_transaction_id, &db_name);
+
     // Initialize an empty vector to hold trader instances
-    let mut trader_instances = prepare_trader_instances(&configs).await;
+    let mut trader_instances =
+        prepare_trader_instances(&configs, client_holder, Arc::new(transaction_log)).await;
 
     main_loop(&mut trader_instances, &configs).await
 }
 
 async fn prepare_trader_instances(
     configs: &[EnvConfig],
+    client_holder: Arc<Mutex<ClientHolder>>,
+    transaction_log: Arc<TransactionLog>,
 ) -> Vec<(
     ForcastTrader,
     WalletAndProvider,
@@ -54,7 +80,12 @@ async fn prepare_trader_instances(
     let mut trader_instances = Vec::new();
 
     for config in configs {
-        let trader_instance = prepare_algorithm_trader_instance(config).await;
+        let trader_instance = prepare_algorithm_trader_instance(
+            config,
+            client_holder.clone(),
+            transaction_log.clone(),
+        )
+        .await;
         trader_instances.push(trader_instance);
     }
 
@@ -63,6 +94,8 @@ async fn prepare_trader_instances(
 
 async fn prepare_algorithm_trader_instance(
     config: &EnvConfig,
+    client_holder: Arc<Mutex<ClientHolder>>,
+    transaction_log: Arc<TransactionLog>,
 ) -> (
     ForcastTrader,
     WalletAndProvider,
@@ -71,15 +104,19 @@ async fn prepare_algorithm_trader_instance(
     HashMap<String, PriceHistory>,
     ErrorManager,
 ) {
-    let strategies = vec![
-        TradingStrategy::TrendFollowing,
-        TradingStrategy::MeanReversion,
-        TradingStrategy::Contrarian,
-    ];
-
+    // Create a wallet and provider
     let (wallet, wallet_and_provider) = create_wallet(&config.chain_params, config.use_kms)
         .await
         .unwrap();
+
+    // Check the native token amount
+    let gas_token_amount = get_balance_of_native_token(&config.chain_params, wallet.address())
+        .await
+        .unwrap();
+    log::info!("gas token amount: {:3.3}", gas_token_amount);
+    if !config.skip_write && gas_token_amount < config.chain_params.min_gas_token_amount {
+        panic!("No enough gas token: {:3.3}", gas_token_amount);
+    }
 
     // Create dexes
     let dexes = create_dexes(wallet_and_provider.clone(), &config.chain_params)
@@ -114,15 +151,12 @@ async fn prepare_algorithm_trader_instance(
         config.short_trade_period,
         config.medium_trade_period,
         config.long_trade_period,
-        config.take_profit_threshold,
-        config.cut_loss_threshold,
         config.flash_crash_threshold,
-        config.max_hold_interval,
         config.position_creation_inteval_period * config.interval,
         config.reward_multiplier,
         config.penalty_multiplier,
-        config.log_limit,
-        config.initial_score,
+        client_holder.clone(),
+        transaction_log,
     );
 
     // Do some initialization
@@ -163,7 +197,7 @@ async fn main_loop(
                 trader.close_all_positions();
             }
 
-            manage_token_amount(trader, wallet_address, config).await?;
+            manage_token_amount(trader, &wallet_address, config).await?;
 
             let mut opportunities =
                 trader
@@ -207,26 +241,31 @@ async fn manage_token_amount<T: AbstractTrader>(
     wallet_address: &Address,
     config: &EnvConfig,
 ) -> std::io::Result<()> {
+    if config.skip_write {
+        return Ok(());
+    }
+
     let current_amount = match trader
         .get_amount_of_token(*wallet_address, &trader.base_token())
         .await
     {
         Ok(amount) => amount,
         Err(e) => {
-            log::error!("{:?}", e);
+            log::error!("manage_token_amount get: {:?}", e);
             return Ok(());
         }
     };
 
-    if current_amount > config.max_managed_amount {
+    if config.treasury.is_some() && current_amount > config.max_managed_amount {
+        let treasury = config.treasury.unwrap();
         let amount = current_amount - config.min_managed_amount;
         match trader
-            .transfer_token(*wallet_address, &trader.base_token(), amount)
+            .transfer_token(treasury, &trader.base_token(), amount)
             .await
         {
             Ok(()) => {}
             Err(e) => {
-                log::error!("{:?}", e);
+                log::error!("manage_token_amount transfer: {:?}", e);
                 return Ok(());
             }
         }

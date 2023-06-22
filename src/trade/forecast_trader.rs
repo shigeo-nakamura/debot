@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::dex::dex::TokenPair;
 use crate::dex::Dex;
@@ -17,33 +18,22 @@ use ethers::providers::Http;
 use ethers::signers::LocalWallet;
 use ethers::types::Address;
 use ethers_middleware::NonceManagerMiddleware;
-use serde::{Deserialize, Serialize};
+use shared_mongodb::ClientHolder;
 use tokio::time::{timeout, Duration};
 
 use super::abstract_trader::BaseTrader;
 use super::FundManager;
+use super::Operation;
+use super::TransactionLog;
 use super::{PriceHistory, TradeOpportunity};
-
-#[derive(Serialize, Deserialize)]
-pub struct ForcastTraderLog {
-    open_time: i64,
-    close_time: i64,
-    event_type: String, // "take profit", "loss cut", ""hold period over
-    token: String,      // token against the base token
-    average_price: f64,
-    position_amount: f64,
-    realized_pnl: f64, // realized profit or loss
-}
 
 pub struct ForcastTraderConfig {
     short_trade_period: usize,
     medium_trade_period: usize,
     long_trade_period: usize,
     flash_crash_threshold: f64,
-    max_hold_interval: u64,
     reward_multiplier: f64,
     penalty_multiplier: f64,
-    log_limit: usize,
 }
 
 pub struct ForcastTraderState {
@@ -55,7 +45,6 @@ pub struct ForcastTrader {
     base_trader: BaseTrader,
     config: ForcastTraderConfig,
     state: ForcastTraderState,
-    logs: Vec<ForcastTraderLog>,
 }
 
 impl ForcastTrader {
@@ -71,25 +60,20 @@ impl ForcastTrader {
         short_trade_period: usize,
         medium_trade_period: usize,
         long_trade_period: usize,
-        take_profit_threshold: f64,
-        cut_loss_threshold: f64,
         flash_crash_threshold: f64,
-        max_hold_interval: u64,
         position_creation_inteval: u64,
         reward_multiplier: f64,
         penalty_multiplier: f64,
-        log_limit: usize,
-        initial_score: f64,
+        db_client: Arc<Mutex<ClientHolder>>,
+        transaction_log: Arc<TransactionLog>,
     ) -> Self {
         let config = ForcastTraderConfig {
             short_trade_period,
             medium_trade_period,
             long_trade_period,
             flash_crash_threshold,
-            max_hold_interval,
             reward_multiplier,
             penalty_multiplier,
-            log_limit,
         };
 
         let mut state = ForcastTraderState {
@@ -104,10 +88,38 @@ impl ForcastTrader {
                 short_trade_period,
                 leverage,
                 initial_amount,
-                initial_score,
+                10.0, // initial score
                 position_creation_inteval,
-                take_profit_threshold,
-                cut_loss_threshold,
+                1.006,
+                0.99,
+                1.0, // 1 day
+                transaction_log.clone(),
+            ),
+            FundManager::new(
+                "mean-reverse-short",
+                TradingStrategy::MeanReversion,
+                short_trade_period,
+                leverage,
+                initial_amount,
+                10.0, // initial score
+                position_creation_inteval,
+                1.006,
+                0.99,
+                1.0, // 1 day
+                transaction_log.clone(),
+            ),
+            FundManager::new(
+                "constrarian-short",
+                TradingStrategy::Contrarian,
+                short_trade_period,
+                leverage,
+                initial_amount,
+                10.0, // initial score
+                position_creation_inteval,
+                1.006,
+                0.99,
+                1.0, // 1 day
+                transaction_log.clone(),
             ),
             // FundManager::new(
             //     "trend-follow-medium",
@@ -115,65 +127,23 @@ impl ForcastTrader {
             //     medium_trade_period,
             //     leverage,
             //     initial_amount,
-            //     initial_score,
+            //     10.0, // initial score
             //     position_creation_inteval,
-            //     take_profit_threshold,
-            //     cut_loss_threshold,
+            //     1.05,
+            //     0.97,
+            //     7.0, // 7 day
             // ),
             // FundManager::new(
-            //     "trend-follow-long",
-            //     TradingStrategy::TrendFollowing,
-            //     long_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     initial_score,
-            //     position_creation_inteval,
-            //     take_profit_threshold,
-            //     cut_loss_threshold,
-            // ),
-            // FundManager::new(
-            //     "mean-reversion-short",
-            //     TradingStrategy::MeanReversion,
-            //     short_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     initial_score,
-            //     position_creation_inteval,
-            //     take_profit_threshold,
-            //     cut_loss_threshold,
-            // ),
-            // FundManager::new(
-            //     "mean-reversion-medium",
+            //     "mean-reverse-medium",
             //     TradingStrategy::MeanReversion,
             //     medium_trade_period,
             //     leverage,
             //     initial_amount,
-            //     initial_score,
+            //     10.0, // initial score
             //     position_creation_inteval,
-            //     take_profit_threshold,
-            //     cut_loss_threshold,
-            // ),
-            // FundManager::new(
-            //     "mean-reversion-long",
-            //     TradingStrategy::MeanReversion,
-            //     long_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     initial_score,
-            //     position_creation_inteval,
-            //     take_profit_threshold,
-            //     cut_loss_threshold,
-            // ),
-            // FundManager::new(
-            //     "constrarian-short",
-            //     TradingStrategy::Contrarian,
-            //     short_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     initial_score,
-            //     position_creation_inteval,
-            //     take_profit_threshold,
-            //     cut_loss_threshold,
+            //     1.05,
+            //     0.97,
+            //     7.0, // 7 day
             // ),
             // FundManager::new(
             //     "constrarian-medium",
@@ -181,10 +151,35 @@ impl ForcastTrader {
             //     medium_trade_period,
             //     leverage,
             //     initial_amount,
-            //     initial_score,
+            //     10.0, // initial score
             //     position_creation_inteval,
-            //     take_profit_threshold,
-            //     cut_loss_threshold,
+            //     1.05,
+            //     0.97,
+            //     7.0, // 7 day
+            // ),
+            // FundManager::new(
+            //     "trend-follow-long",
+            //     TradingStrategy::TrendFollowing,
+            //     long_trade_period,
+            //     leverage,
+            //     initial_amount,
+            //     10.0, // initial score
+            //     position_creation_inteval,
+            //     1.1,
+            //     0.95,
+            //     28.0, // 28 day
+            // ),
+            // FundManager::new(
+            //     "mean-reverse-long",
+            //     TradingStrategy::MeanReversion,
+            //     long_trade_period,
+            //     leverage,
+            //     initial_amount,
+            //     10.0, // initial score
+            //     position_creation_inteval,
+            //     1.1,
+            //     0.95,
+            //     28.0, // 28 day
             // ),
             // FundManager::new(
             //     "constrarian-long",
@@ -192,10 +187,11 @@ impl ForcastTrader {
             //     long_trade_period,
             //     leverage,
             //     initial_amount,
-            //     initial_score,
+            //     10.0, // initial score
             //     position_creation_inteval,
-            //     take_profit_threshold,
-            //     cut_loss_threshold,
+            //     1.1,
+            //     0.95,
+            //     28.0, // 28 day
             // ),
         ];
 
@@ -216,10 +212,10 @@ impl ForcastTrader {
                 dexes,
                 skip_write,
                 gas,
+                db_client,
             ),
             config,
             state,
-            logs: Vec::with_capacity(log_limit),
         }
     }
 
@@ -262,11 +258,11 @@ impl ForcastTrader {
     fn find_buy_opportunities(
         &self,
         current_prices: &HashMap<(String, String, String), f64>,
-        histories: &HashMap<String, PriceHistory>,
+        histories: &mut HashMap<String, PriceHistory>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
-
         if self.state.close_all_position {
+            log::info!("close_all_position is asserted");
             return Ok(opportunities);
         }
 
@@ -285,10 +281,6 @@ impl ForcastTrader {
                 find_index(&self.dexes(), |dex| dex.name() == dex_name).ok_or("Dex not found")?;
 
             for fund_manager in self.state.fund_manager_map.values() {
-                if !fund_manager.can_create_new_position() {
-                    continue;
-                }
-
                 let proposal = fund_manager.find_buy_opportunities(token_a_name, *price, histories);
 
                 if let Some(opportunity) = proposal {
@@ -296,6 +288,7 @@ impl ForcastTrader {
                         dex_index: vec![dex_index],
                         token_index: vec![token_b_index, token_a_index],
                         amounts: vec![opportunity.amount],
+                        operation: Operation::Buy,
                         predicted_profit: Some(opportunity.profit),
                         currect_price: Some(opportunity.price),
                         predicted_price: Some(opportunity.predicted_price),
@@ -330,18 +323,15 @@ impl ForcastTrader {
                 find_index(&self.dexes(), |dex| dex.name() == dex_name).ok_or("Dex not found")?;
 
             for fund_manager in self.state.fund_manager_map.values() {
-                let proposal = fund_manager.find_sell_opportunities(
-                    token_a_name,
-                    *price,
-                    histories,
-                    self.config.max_hold_interval,
-                );
+                let proposal =
+                    fund_manager.find_sell_opportunities(token_a_name, *price, histories);
 
                 if let Some(opportunity) = proposal {
                     opportunities.push(TradeOpportunity {
                         dex_index: vec![dex_index],
                         token_index: vec![token_a_index, token_b_index],
                         amounts: vec![opportunity.amount],
+                        operation: Operation::Sell,
                         predicted_profit: Some(opportunity.profit),
                         currect_price: Some(opportunity.price),
                         predicted_price: None,
@@ -364,16 +354,16 @@ impl ForcastTrader {
 
         let mut results: Vec<TradeOpportunity> = vec![];
 
-        let mut result_for_open = self.find_buy_opportunities(&current_prices, &histories)?;
+        let mut result_for_open = self.find_buy_opportunities(&current_prices, histories)?;
         results.append(&mut result_for_open);
 
-        let mut result_for_close = self.find_sell_opportunities(&current_prices, &histories)?;
+        let mut result_for_close = self.find_sell_opportunities(&current_prices, histories)?;
         results.append(&mut result_for_close);
 
         Ok(results)
     }
 
-    pub fn close_all_positions(&mut self) -> () {
+    pub fn close_all_positions(&mut self) {
         self.state.close_all_position = true;
 
         for fund_manager in self.state.fund_manager_map.values_mut() {
@@ -385,8 +375,35 @@ impl ForcastTrader {
         self.state.close_all_position
     }
 
-    pub fn rebalance(&self) -> () {
+    pub async fn rebalance(&mut self, owner: Address) {
         log::debug!("rebalance");
+
+        let base_token_amount = match self.get_amount_of_token(owner, &self.base_token()).await {
+            Ok(amount) => amount,
+            Err(e) => {
+                log::error!("rebalance failed: {:?}", e);
+                return;
+            }
+        };
+
+        let mut total_score = 0.0;
+        let mut scores: Vec<f64> = vec![];
+
+        for fund_manager in self.state.fund_manager_map.values() {
+            let score = fund_manager.score();
+            total_score += score;
+            scores.push(score);
+        }
+
+        log::info!("Scores: {:?}", scores);
+
+        let amount_per_score = base_token_amount / total_score;
+
+        for fund_manager in self.state.fund_manager_map.values_mut() {
+            let amount = fund_manager.score() * amount_per_score
+                + fund_manager.amount_of_positinos_in_base_token();
+            fund_manager.set_amount(amount);
+        }
     }
 }
 
@@ -401,37 +418,113 @@ impl AbstractTrader for ForcastTrader {
         address: Address,
         deadline_secs: u64,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        // todo: make concurrent
+        if opportunities.is_empty() {
+            return Ok(());
+        }
+
+        // Group opportunities by token and dex
+        let mut opportunity_groups: HashMap<(usize, [usize; 2]), Vec<TradeOpportunity>> =
+            HashMap::new();
+
         for opportunity in opportunities {
-            let token_a = &self.tokens()[opportunity.token_index[0]];
-            let token_b = &self.tokens()[opportunity.token_index[1]];
+            let mut sorted_token_index = opportunity.token_index.clone();
+            sorted_token_index.sort_unstable();
+
+            // dex_index should have exactly one element
+            let dex_index = opportunity.dex_index[0];
+
+            // sorted_token_index should have exactly two elements
+            let token_index = [sorted_token_index[0], sorted_token_index[1]];
+
+            let key = (dex_index, token_index);
+
+            opportunity_groups
+                .entry(key)
+                .or_default()
+                .push(opportunity.clone());
+        }
+
+        // Process each group as a single transaction
+        let mut swap_token_futures = vec![];
+        for ((dex_index, token_index), opportunities) in opportunity_groups {
+            let token_a = &self.tokens()[token_index[0]].clone();
+            let token_b = &self.tokens()[token_index[1]].clone();
             let token_pair = TokenPair::new(Arc::new(token_a.clone()), Arc::new(token_b.clone()));
+            let dex = &self.dexes()[dex_index];
 
-            let amount_in = opportunity.amounts[0];
-            let dex = &self.dexes()[opportunity.dex_index[0]];
-
-            let mut amount_out = None;
+            // calculate total amount for the group
+            let (total_buy_amount, total_sell_amount): (f64, f64) =
+                opportunities
+                    .iter()
+                    .fold((0.0, 0.0), |acc, o| match o.operation {
+                        Operation::Buy => (acc.0 + o.amounts[0], acc.1),
+                        Operation::Sell => (acc.0, acc.1 + o.amounts[0]),
+                    });
+            // calculate net amount
+            let net_amount = total_buy_amount - total_sell_amount;
 
             // execute swap operation
             if !self.base_trader.skip_write() {
-                amount_out = Some(
-                    dex.swap_token(
-                        &token_pair,
-                        amount_in,
-                        wallet_and_provider.clone(),
-                        address,
-                        deadline_secs,
-                    )
-                    .await?,
-                );
+                let new_token_pair = match net_amount > 0.0 {
+                    true => token_pair,
+                    false => token_pair.swap(),
+                };
+                let dex_clone = dex.clone();
+                let future = async move {
+                    dex_clone
+                        .swap_token(
+                            &new_token_pair,
+                            net_amount.abs(),
+                            wallet_and_provider.clone(),
+                            address,
+                            deadline_secs,
+                        )
+                        .await
+                };
+                swap_token_futures.push(future);
             }
+        }
 
-            // update positions
+        // Wait for all token price futures to finish with a timeout
+        let timeout_duration = Duration::from_secs(10);
+        let swap_token_results = timeout(
+            timeout_duration,
+            futures::future::join_all(swap_token_futures),
+        )
+        .await;
+
+        match swap_token_results {
+            Ok(values) => {
+                for value in values.into_iter() {
+                    match value {
+                        Ok(amount_out) => {
+                            log::trace!("swap_token result = {:6.3}", amount_out);
+                        }
+                        Err(e) => {
+                            log::error!("swap_token result: {:?}", e);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                // Handle the join error case
+                return Err(Box::new(e) as Box<dyn Error + Send + Sync>);
+            }
+        }
+
+        // update the position of each fund managers
+        let db_client = self.db_client().clone();
+
+        for opportunity in opportunities {
+            let token_a = &self.tokens()[opportunity.token_index[0]];
+            let token_b = &self.tokens()[opportunity.token_index[1]];
+            let amount_in = opportunity.amounts[0];
+
             let token_a_name = token_a.symbol_name();
             let token_b_name = token_b.symbol_name();
             let current_price = opportunity.currect_price.unwrap();
 
-            let buy_trade = token_a_name == self.base_token().symbol_name();
+            let buy_trade = opportunity.operation == Operation::Buy;
 
             let fund_manager = self
                 .state
@@ -440,34 +533,35 @@ impl AbstractTrader for ForcastTrader {
                 .unwrap();
 
             if buy_trade {
-                let amount_out = match amount_out {
-                    Some(amount) => amount,
-                    None => amount_in / current_price,
-                };
-
-                fund_manager.update_position(buy_trade, token_b_name, amount_in, amount_out);
+                let amount_out = amount_in / current_price;
+                fund_manager.update_position(
+                    buy_trade,
+                    token_b_name,
+                    amount_in,
+                    amount_out,
+                    &db_client,
+                );
             } else {
-                let amount_out = match amount_out {
-                    Some(amount) => amount,
-                    None => {
-                        let out = amount_in * current_price;
-                        out
-                    }
-                };
+                let amount_out = amount_in * current_price;
+                fund_manager.update_position(
+                    buy_trade,
+                    token_a_name,
+                    amount_in,
+                    amount_out,
+                    &db_client,
+                );
 
-                fund_manager.update_position(buy_trade, token_a_name, amount_in, amount_out);
-            }
-
-            if opportunity.predicted_price.is_some() {
-                let multiplier = match opportunity.predicted_profit > Some(0.0) {
-                    true => self.config.reward_multiplier,
-                    false => self.config.penalty_multiplier,
-                };
-                fund_manager.apply_reward_or_penalty(multiplier);
+                if opportunity.predicted_profit.is_some() {
+                    let multiplier = match opportunity.predicted_profit > Some(0.0) {
+                        true => self.config.reward_multiplier,
+                        false => self.config.penalty_multiplier,
+                    };
+                    fund_manager.apply_reward_or_penalty(multiplier);
+                }
             }
         }
 
-        self.rebalance();
+        self.rebalance(address).await;
 
         Ok(())
     }
@@ -476,13 +570,13 @@ impl AbstractTrader for ForcastTrader {
         &self,
     ) -> Result<HashMap<(String, String, String), f64>, Box<dyn Error + Send + Sync>> {
         // Get the prices of all token pairs
-        let mut get_price_futures = Vec::new();
         let base_token = &self.base_token();
         let dexes = &self.dexes();
         let tokens = &self.tokens();
         let amount = self.initial_amount() * self.leverage();
 
         // Get prices with base token / each token and each token / base token
+        let mut get_price_futures = Vec::new();
         for dex in dexes.iter() {
             let mut dex_get_price_futures = self
                 .base_trader
@@ -492,7 +586,6 @@ impl AbstractTrader for ForcastTrader {
         }
 
         // Wait for all token price futures to finish with a timeout
-        log::debug!("call join_all");
         let timeout_duration = Duration::from_secs(10);
         let prices_results = timeout(
             timeout_duration,
@@ -505,7 +598,6 @@ impl AbstractTrader for ForcastTrader {
             Ok(results) => results, // On success, get the results
             Err(_) => return Err("Timeout occurred".into()), // On timeout, return an error
         };
-        log::debug!("join_all done");
 
         let mut token_pair_prices = HashMap::new();
 
@@ -554,6 +646,10 @@ impl AbstractTrader for ForcastTrader {
 
     fn name(&self) -> &str {
         self.base_trader.name()
+    }
+
+    fn db_client(&self) -> &Arc<Mutex<ClientHolder>> {
+        self.base_trader.db_client()
     }
 
     async fn init(

@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::dex::Dex;
 use crate::token::Token;
@@ -14,9 +14,10 @@ use ethers::providers::Http;
 use ethers::signers::LocalWallet;
 use ethers::types::Address;
 use ethers_middleware::NonceManagerMiddleware;
+use shared_mongodb::ClientHolder;
 
 use super::abstract_trader::BaseTrader;
-use super::{AbstractTrader, TradeOpportunity};
+use super::{AbstractTrader, Operation, TradeOpportunity};
 pub struct ArbitrageTrader {
     base_trader: BaseTrader,
     num_swaps: usize,
@@ -33,6 +34,7 @@ impl ArbitrageTrader {
         skip_write: bool,
         num_swaps: usize,
         gas: f64,
+        db_client: Arc<Mutex<ClientHolder>>,
     ) -> Self {
         Self {
             base_trader: BaseTrader::new(
@@ -45,6 +47,7 @@ impl ArbitrageTrader {
                 dexes,
                 skip_write,
                 gas,
+                db_client,
             ),
             num_swaps,
         }
@@ -258,6 +261,7 @@ impl ArbitrageTrader {
                 dex_index,
                 token_index,
                 amounts,
+                operation: Operation::Buy,
                 predicted_profit: Some(profit),
                 currect_price: None,
                 predicted_price: None,
@@ -393,6 +397,10 @@ impl AbstractTrader for ArbitrageTrader {
 
     fn name(&self) -> &str {
         self.base_trader.name()
+    }
+
+    fn db_client(&self) -> &Arc<Mutex<ClientHolder>> {
+        self.base_trader.db_client()
     }
 
     async fn init(

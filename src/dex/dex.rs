@@ -100,6 +100,7 @@ impl BaseDex {
     }
 }
 
+#[derive(Clone)]
 pub struct TokenPair {
     input_token: Arc<Box<dyn Token>>,
     output_token: Arc<Box<dyn Token>>,
@@ -110,6 +111,13 @@ impl TokenPair {
         TokenPair {
             input_token,
             output_token,
+        }
+    }
+
+    pub fn swap(self) -> Self {
+        TokenPair {
+            input_token: self.input_token,
+            output_token: self.output_token,
         }
     }
 }

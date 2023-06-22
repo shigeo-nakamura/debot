@@ -1,15 +1,24 @@
 // fund_manager.rs
 
-use super::{OpenPosition, PriceHistory, TradingStrategy};
+use shared_mongodb::{database, ClientHolder};
+
+use super::{OpenPosition, PriceHistory, TradingStrategy, TransactionLog};
+use crate::db::{self, update_item, TransactionLogItem};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
+
+const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
+const MOVING_AVERAGE_WINDOW_SIZE: usize = 5;
 
 pub struct FundManagerState {
     amount: f64,
     open_positions: HashMap<String, OpenPosition>,
     close_all_position: bool,
     score: f64,
-    last_position_creation_time: SystemTime,
+    past_scores: Vec<f64>,
+    last_position_creation_time: Option<SystemTime>,
+    transaction_log: Arc<TransactionLog>,
 }
 
 pub struct FundManagerConfig {
@@ -20,6 +29,7 @@ pub struct FundManagerConfig {
     position_creation_inteval: u64,
     take_profit_threshold: f64,
     cut_loss_threshold: f64,
+    max_hold_interval_in_secs: u64,
 }
 
 pub struct FundManager {
@@ -46,6 +56,8 @@ impl FundManager {
         position_creation_inteval: u64,
         take_profit_threshold: f64,
         cut_loss_threshold: f64,
+        max_hold_interval_in_days: f64,
+        transaction_log: Arc<TransactionLog>,
     ) -> Self {
         let config = FundManagerConfig {
             fund_name: fund_name.to_owned(),
@@ -55,6 +67,8 @@ impl FundManager {
             position_creation_inteval,
             take_profit_threshold,
             cut_loss_threshold,
+            max_hold_interval_in_secs: (max_hold_interval_in_days * (SECONDS_PER_DAY as f64))
+                as u64,
         };
 
         let state = FundManagerState {
@@ -62,7 +76,9 @@ impl FundManager {
             open_positions: HashMap::new(),
             close_all_position: false,
             score: initial_score,
-            last_position_creation_time: SystemTime::now(),
+            past_scores: vec![],
+            last_position_creation_time: None,
+            transaction_log,
         };
 
         Self { config, state }
@@ -72,7 +88,28 @@ impl FundManager {
         &self.config.fund_name
     }
 
-    pub fn close_all_positions(&mut self) -> () {
+    pub fn score(&self) -> f64 {
+        self.state.score
+    }
+
+    pub fn amount(&self) -> f64 {
+        self.state.amount
+    }
+
+    pub fn set_amount(&mut self, amount: f64) {
+        log::trace!("{}'s new amount = {:6.5}", self.fund_name(), amount);
+        self.state.amount = amount;
+    }
+
+    pub fn amount_of_positinos_in_base_token(&self) -> f64 {
+        let mut amount = 0.0;
+        for position in self.state.open_positions.values() {
+            amount += position.amount_in_base_token;
+        }
+        amount
+    }
+
+    pub fn close_all_positions(&mut self) {
         self.state.close_all_position = true;
     }
 
@@ -80,35 +117,47 @@ impl FundManager {
         &self,
         token_name: &str,
         price: f64,
-        histories: &HashMap<String, PriceHistory>,
+        histories: &mut HashMap<String, PriceHistory>,
     ) -> Option<TradeProposal> {
-        if let Some(history) = histories.get(token_name) {
+        if let Some(history) = histories.get_mut(token_name) {
             let predicted_price =
                 history.majority_vote_predictions(self.config.trade_period, self.config.strategy);
-            let profit_ratio = (predicted_price - price) / price;
+            let profit_ratio = (predicted_price - price) * 100.0 / price;
 
+            let color = match profit_ratio {
+                x if x > 0.0 => "\x1b[0;32m",
+                x if x < 0.0 => "\x1b[0;31m",
+                _ => "\x1b[0;90m",
+            };
             log::debug!(
-                "{:<6}: #{:6.3}%, current: {:6.3}, predict: {:6.3}",
-                token_name,
+                "{} {:3.3}%\x1b[0m {} \x1b[0;34m{:<6}\x1b[0m current: {:6.5}, predict: {:6.5}",
+                color,
                 profit_ratio,
+                self.fund_name(),
+                token_name,
                 price,
                 predicted_price,
             );
+
+            if !self.can_create_new_position() {
+                log::debug!("{} can't create a new position", self.fund_name());
+                return None;
+            }
 
             let amount = self.state.amount * self.config.leverage;
 
             if self.state.amount < amount {
                 log::debug!(
-                    "No enough found left: {:6.3} < {:6.3}",
+                    "No enough found left: {:6.5} < {:6.5}",
                     self.state.amount,
                     amount
                 )
             }
 
-            if profit_ratio > self.config.take_profit_threshold {
+            if profit_ratio >= self.config.take_profit_threshold {
                 if history.is_flash_crash() {
                     log::info!(
-                        "Skip this buy trade as price of {} is crashed({:6.3} --> {:6.3})",
+                        "Skip this buy trade as price of {} is crashed({:6.5} --> {:6.5})",
                         token_name,
                         price,
                         predicted_price
@@ -135,7 +184,6 @@ impl FundManager {
         token_name: &str,
         sell_price: f64,
         histories: &HashMap<String, PriceHistory>,
-        max_hold_interval: u64,
     ) -> Option<TradeProposal> {
         if let Some(history) = histories.get(token_name) {
             if let Some(position) = self.state.open_positions.get(token_name) {
@@ -154,7 +202,8 @@ impl FundManager {
                     let current_time = chrono::Utc::now().timestamp();
                     let holding_interval = current_time - position.open_time;
 
-                    if holding_interval > max_hold_interval.try_into().unwrap() {
+                    if holding_interval > self.config.max_hold_interval_in_secs.try_into().unwrap()
+                    {
                         log::info!("Close the position as it reaches the limit of hold period");
                         amount = position.amount;
                     } else if position.do_take_profit() || position.do_cut_loss() {
@@ -177,10 +226,13 @@ impl FundManager {
         None
     }
 
-    pub fn can_create_new_position(&self) -> bool {
+    fn can_create_new_position(&self) -> bool {
+        if self.state.last_position_creation_time.is_none() {
+            return true;
+        }
         let current_time = SystemTime::now();
         let time_since_last_creation = current_time
-            .duration_since(self.state.last_position_creation_time)
+            .duration_since(self.state.last_position_creation_time.unwrap())
             .unwrap();
 
         time_since_last_creation < Duration::from_secs(self.config.position_creation_inteval)
@@ -192,9 +244,10 @@ impl FundManager {
         token_name: &str,
         amount_in: f64,
         amount_out: f64,
+        db_client: &Arc<Mutex<ClientHolder>>,
     ) -> Option<f64> {
         // Update the last position creation time to the current time
-        self.state.last_position_creation_time = SystemTime::now();
+        self.state.last_position_creation_time = Some(SystemTime::now());
 
         if is_buy_trade {
             self.state.amount -= amount_in;
@@ -205,25 +258,31 @@ impl FundManager {
 
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
                 // if there are already open positions for this token, update them
-                position.update(
+                position.add(
                     token_name,
                     average_price,
                     take_profit_price,
                     cut_loss_price,
                     amount_out,
                 );
+
+                let position_cloned = position.clone();
+                self.update_transaction_log(db_client, &position_cloned);
             } else {
                 // else, create a new position
-                let open_position = OpenPosition::new(
+                let position = OpenPosition::new(
+                    0, // todo
                     token_name,
                     average_price,
                     take_profit_price,
                     cut_loss_price,
                     amount_out,
+                    amount_in,
                 );
+                self.update_transaction_log(db_client, &position);
                 self.state
                     .open_positions
-                    .insert(token_name.to_owned(), open_position);
+                    .insert(token_name.to_owned(), position);
             }
         } else {
             self.state.amount += amount_out;
@@ -235,18 +294,17 @@ impl FundManager {
                 let pnl = (average_price - position.average_price) * amount_in;
                 log::info!("PNL = {:6.2}", pnl);
 
-                if position.amount <= 0.0 {
+                position.del(token_name, average_price, amount_in);
+
+                let position_cloned = position.clone();
+                let amount = position.amount;
+                self.update_transaction_log(db_client, &position_cloned);
+
+                if amount <= 0.0 {
                     self.state.open_positions.remove(token_name); // If all of this token has been sold, remove it from the open positions
                     log::debug!(
                         "Sold all of token: {}. Removed from open positions.",
                         token_name
-                    );
-                } else {
-                    log::debug!(
-                        "Updated open position for token: {}, amount: {}, average price: {:.6}",
-                        token_name,
-                        position.amount,
-                        position.average_price
                     );
                 }
                 return Some(pnl);
@@ -255,12 +313,47 @@ impl FundManager {
         None
     }
 
-    pub fn apply_reward_or_penalty(&mut self, multiplier: f64) -> () {
+    async fn update_transaction_log(
+        &self,
+        db_client: &Arc<Mutex<ClientHolder>>,
+        position: &OpenPosition,
+    ) {
+        log::debug!("update_transaction_log");
+
+        let mut item = TransactionLogItem::default();
+        item.id = self.state.transaction_log.increment_counter();
+
+        let db = match database::get(db_client, self.state.transaction_log.db_name()).await {
+            Ok(db) => db,
+            Err(e) => {
+                log::info!("{:?}", e);
+                return;
+            }
+        };
+
+        if let Err(e) = TransactionLog::update(&db, &item).await {
+            log::info!("{:?}", e);
+        }
+    }
+
+    fn calculate_moving_average_score(&self, window: usize) -> f64 {
+        let n = self.state.past_scores.len();
+        if n < window {
+            return self.state.score; // not enough data to calculate the moving average
+        }
+        let sum: f64 = self.state.past_scores[n - window..].iter().sum();
+        sum / window as f64
+    }
+
+    pub fn apply_reward_or_penalty(&mut self, multiplier: f64) {
         self.state.score *= multiplier;
+        self.state.past_scores.push(self.state.score);
+        let moving_average_score = self.calculate_moving_average_score(MOVING_AVERAGE_WINDOW_SIZE);
         log::trace!(
-            "{}'s new score = {:6.2}",
+            "{}'s new score = {:6.2}, moving average score = {:6.2}",
             self.config.fund_name,
-            self.state.score
+            self.state.score,
+            moving_average_score
         );
     }
 }

@@ -12,6 +12,8 @@ use std::str::FromStr;
 #[derive(Debug)]
 pub struct EnvConfig {
     pub chain_params: &'static ChainParams,
+    pub mongodb_uri: String,
+    pub db_name: String,
     pub use_kms: bool,
     pub interval: u64,
     pub leverage: f64,
@@ -19,22 +21,18 @@ pub struct EnvConfig {
     pub max_managed_amount: f64,
     pub allowance_factor: f64,
     pub deadline_secs: u64,
-    pub log_limit: usize,
+    pub log_limit: u32,
     pub skip_write: bool,
     pub num_swaps: usize,
     pub short_trade_period: usize,
     pub medium_trade_period: usize,
     pub long_trade_period: usize,
-    pub max_hold_interval: u64,
     pub position_creation_inteval_period: u64,
-    pub take_profit_threshold: f64,
-    pub cut_loss_threshold: f64,
     pub flash_crash_threshold: f64,
     pub max_error_count: u32,
     pub reward_multiplier: f64,
     pub penalty_multiplier: f64,
-    pub treasury: Address,
-    pub initial_score: f64,
+    pub treasury: Option<Address>,
 }
 
 #[derive(Debug)]
@@ -88,12 +86,10 @@ fn get_bool_env_var(var: &str, default: bool) -> bool {
 }
 
 pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
-    let chain_names = env::var("CHAIN_NAME").unwrap_or_else(|_| "BSC_TESTNET".to_string());
+    let chain_names = env::var("CHAIN_NAME").unwrap_or_else(|_| "POLYGON".to_string());
     let chain_names: Vec<&str> = chain_names.split(',').collect();
-
-    log::debug!("{:?}", chain_names);
-
     let mut env_configs = vec![];
+
     for chain_name in chain_names {
         let chain_name = chain_name.trim(); // To handle spaces after the comma
 
@@ -105,35 +101,35 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             _ => return Err(ConfigError::UnsupportedChainName),
         };
 
+        let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
+        let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
         let use_kms = get_bool_env_var("USE_KMS", false);
         let interval = get_env_var("INTERVAL", "10")?; // sec
         let leverage = get_env_var("LEVERAGE", "0.25")?;
         let min_managed_amount = get_env_var("min_managed_amount", "500.0")?;
-        let max_managed_amount = get_env_var("max_managed_amount", "1000.0")?;
+        let max_managed_amount = get_env_var("max_managed_amount", "2000.0")?;
         let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
         let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
         let skip_write = get_bool_env_var("SKIP_WRITE", true);
         let num_swaps = get_env_var("NUM_SWAPS", "3")?;
-        let short_trade_period = get_env_var("SHORT_TRADE_PEREIOD", "7")?;
-        let medium_trade_period = get_env_var("MEDIUM_TRADE_PEREIOD", "14")?;
-        let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "21")?;
-        let max_hold_interval = get_env_var("MAX_HOLD_INTERVAL", "86400")?; // sec
+        let short_trade_period = get_env_var("SHORT_TRADE_PEREIOD", "60")?; // 600sec = 10min
+        let medium_trade_period = get_env_var("MEDIUM_TRADE_PEREIOD", "420")?; // 4200sec = 70min
+        let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "1260")?; // 12600sec = 210min
         let position_creation_inteval_period =
             get_env_var("POSITION_CREATION_INVERVAL_PERIOD", "10")?;
-        let take_profit_threshold = get_env_var("TAKE_PROFIT_THRESHOLD", "1.02")?;
-        let cut_loss_threshold = get_env_var("CUT_LOSS_THRESHOLD", "0.98")?;
         let flash_crash_threshold = get_env_var("FLASH_CRASH_THRESHOLD", "0.95")?;
         let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;
         let reward_multiplier = get_env_var("reward_multiplier", "1.5")?;
         let penalty_multiplier = get_env_var("penalty_multiplier", "0.9")?;
-        let initial_score = get_env_var("INITIAL_SCORE", "10.0")?;
 
-        let treasury_str = env::var("TREASURY").expect("TREASURY must be set");
-        let treasury = Address::from_str(&treasury_str).expect("TREASURY is not a valid address");
+        let treasury_str = env::var("TREASURY").unwrap_or_default();
+        let treasury: Option<Address> = Some(Address::from_str(&treasury_str).unwrap_or_default());
 
         let env_config = EnvConfig {
             chain_params,
+            mongodb_uri,
+            db_name,
             use_kms,
             interval,
             leverage,
@@ -147,16 +143,12 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             short_trade_period,
             medium_trade_period,
             long_trade_period,
-            max_hold_interval,
             position_creation_inteval_period,
-            take_profit_threshold,
-            cut_loss_threshold,
             flash_crash_threshold,
             max_error_count,
             reward_multiplier,
             penalty_multiplier,
             treasury,
-            initial_score,
         };
 
         env_configs.push(env_config);

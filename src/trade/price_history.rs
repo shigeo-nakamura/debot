@@ -152,7 +152,8 @@ impl PriceHistory {
         }
     }
 
-    pub fn predict_next_price_bollinger(&self, period: usize) -> f64 {
+    pub fn predict_next_price_bollinger(&mut self, period: usize) -> f64 {
+        self.update_ema(*self.prices.last().unwrap());
         let (lower_band, _, upper_band) = self.calculate_bollinger_bands(period);
         let last_price = *self.prices.last().unwrap();
         if last_price > upper_band {
@@ -164,7 +165,8 @@ impl PriceHistory {
         }
     }
 
-    pub fn predict_next_price_fibonacci(&self) -> f64 {
+    pub fn predict_next_price_fibonacci(&mut self) -> f64 {
+        self.update_ema(*self.prices.last().unwrap());
         let (level1, level2, level3, low) = self.calculate_fibonacci_retracement();
         let last_price = *self.prices.last().unwrap();
         if last_price < level1 {
@@ -177,7 +179,6 @@ impl PriceHistory {
             level3 // price might retreat to level3
         }
     }
-
     pub fn calculate_std_dev(&self) -> f64 {
         let mean = self.prices.iter().sum::<f64>() / self.prices.len() as f64;
         let variance =
@@ -316,8 +317,7 @@ impl PriceHistory {
         (level1, level2, level3, low)
     }
 
-    pub fn majority_vote_predictions(&self, period: usize, strategy: TradingStrategy) -> f64 {
-        let last_price = self.prices.last().unwrap();
+    pub fn majority_vote_predictions(&mut self, period: usize, strategy: TradingStrategy) -> f64 {
         let mut predictions = vec![];
 
         match strategy {
@@ -329,7 +329,7 @@ impl PriceHistory {
                 predictions.push(sma);
                 predictions.push(ema);
                 predictions.push(regression_prediction);
-                log::debug!(
+                log::trace!(
                     "SMA: {:6.3}, EMA: {:6.3}, REG: {:6.3}",
                     sma,
                     ema,
@@ -341,7 +341,7 @@ impl PriceHistory {
                 let fibonacci_prediction = self.predict_next_price_fibonacci();
                 predictions.push(bollinger_prediction);
                 predictions.push(fibonacci_prediction);
-                log::debug!(
+                log::trace!(
                     "BOLLINGER: {:6.3}, FIBONACCI: {:6.3}",
                     bollinger_prediction,
                     fibonacci_prediction
@@ -352,9 +352,11 @@ impl PriceHistory {
                 let rsi_prediction = self.predict_next_price_rsi(period);
                 predictions.push(macd);
                 predictions.push(rsi_prediction);
-                log::debug!("MACD: {:6.3}, RSI: {:6.3}", macd, rsi_prediction);
+                log::trace!("MACD: {:6.3}, RSI: {:6.3}", macd, rsi_prediction);
             }
         }
+
+        let last_price = self.prices.last().unwrap();
 
         let mut up_votes = 0;
         let mut down_votes = 0;

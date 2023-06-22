@@ -9,7 +9,12 @@ use ethers_middleware::{
     providers::{Http, Provider},
     NonceManagerMiddleware, SignerMiddleware,
 };
-use std::{collections::HashMap, error::Error, sync::Arc};
+use shared_mongodb::ClientHolder;
+use std::{
+    collections::HashMap,
+    error::Error,
+    sync::{Arc, Mutex},
+};
 use tokio::task::JoinHandle;
 
 use crate::{
@@ -24,12 +29,19 @@ where
     list.iter().position(predicate)
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Operation {
+    Buy,
+    Sell,
+}
+
 #[derive(Debug, Clone)]
 pub struct TradeOpportunity {
     pub trader_name: String,
     pub dex_index: Vec<usize>,
     pub token_index: Vec<usize>,
     pub amounts: Vec<f64>,
+    pub operation: Operation,
     pub predicted_profit: Option<f64>,
     pub currect_price: Option<f64>,
     pub predicted_price: Option<f64>,
@@ -78,6 +90,7 @@ pub struct BaseTrader {
     dexes: Arc<Vec<Box<dyn Dex>>>,
     skip_write: bool,
     gas: f64,
+    client_holder: Arc<Mutex<ClientHolder>>,
 }
 
 impl BaseTrader {
@@ -91,6 +104,7 @@ impl BaseTrader {
         dexes: Arc<Vec<Box<dyn Dex>>>,
         skip_write: bool,
         gas: f64,
+        client_holder: Arc<Mutex<ClientHolder>>,
     ) -> Self {
         Self {
             name,
@@ -102,6 +116,7 @@ impl BaseTrader {
             dexes,
             skip_write,
             gas,
+            client_holder,
         }
     }
 
@@ -136,8 +151,6 @@ impl BaseTrader {
         owner: Address,
         min_managed_amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        // todo: check gas token
-
         for token in self.tokens.iter() {
             for dex in self.dexes.iter() {
                 // Check the allowed amount
@@ -156,28 +169,33 @@ impl BaseTrader {
                     min_managed_amount * self.allowance_factor * 10f64.powi(token_decimals as i32)
                 ))?;
 
-                if self.skip_write {
-                    // just for testing
-                    self.initial_amount = 1000.0;
-                    return Ok(());
-                }
-
-                if allowance < converted_amount / 2 {
-                    token.approve(spender, converted_amount).await?;
-                    log::info!(
-                        "Approved {} {} for dex {}",
-                        min_managed_amount * self.allowance_factor,
-                        token.symbol_name(),
-                        dex.name(),
-                    );
-                }
-
                 if token.symbol_name() == self.base_token.symbol_name() {
                     let base_token_amount = self.get_amount_of_token(owner, token).await?;
                     if base_token_amount < min_managed_amount {
-                        panic!("Not enough amount of base token");
+                        if !self.skip_write {
+                            panic!("Not enough amount of base token");
+                        }
                     }
+                    log::info!("basek_token_amount = {:6.3}", base_token_amount);
                     self.initial_amount = min_managed_amount;
+                }
+
+                if self.skip_write {
+                    continue;
+                }
+
+                if allowance < converted_amount {
+                    // Convert f64 to U256
+                    let allowance_factor_u256 =
+                        U256::from_dec_str(&(self.allowance_factor.to_string())).unwrap();
+                    let allowed_amount: U256 = converted_amount * allowance_factor_u256;
+                    token.approve(spender, allowed_amount).await?;
+                    log::info!(
+                        "Approved {} {} for dex {}",
+                        allowed_amount,
+                        token.symbol_name(),
+                        dex.name(),
+                    );
                 }
             }
         }
@@ -296,6 +314,10 @@ impl BaseTrader {
     pub fn name(&self) -> &str {
         &self.name
     }
+
+    pub fn db_client(&self) -> &Arc<Mutex<ClientHolder>> {
+        &self.client_holder
+    }
 }
 
 #[async_trait]
@@ -316,6 +338,7 @@ pub trait AbstractTrader {
     fn base_token(&self) -> Arc<Box<dyn Token>>;
     fn dexes(&self) -> Arc<Vec<Box<dyn Dex>>>;
     fn name(&self) -> &str;
+    fn db_client(&self) -> &Arc<Mutex<ClientHolder>>;
 
     async fn init(
         &mut self,

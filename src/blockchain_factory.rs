@@ -46,6 +46,7 @@ pub struct ChainParams {
     pub gas: f64,
     pub current_rpc_url: Arc<Mutex<usize>>,
     pub base_token: &'static str,
+    pub min_gas_token_amount: f64,
 }
 
 lazy_static! {
@@ -89,6 +90,7 @@ lazy_static! {
         gas: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
         base_token: "USDT",
+        min_gas_token_amount: 10.0,
     };
 
     pub static ref TESTNET_BSC_CHAIN_PARAMS: ChainParams = ChainParams {
@@ -106,6 +108,7 @@ lazy_static! {
         gas: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
         base_token: "BUSD",
+        min_gas_token_amount: 10.0,
     };
 
     pub static ref POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
@@ -140,6 +143,7 @@ lazy_static! {
         gas: 0.03,
         current_rpc_url: Arc::new(Mutex::new(0)),
         base_token: "USDC",
+        min_gas_token_amount: 1.0,
     };
 
     pub static ref TESTNET_POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
@@ -156,6 +160,7 @@ lazy_static! {
         gas: 0.03,
         current_rpc_url: Arc::new(Mutex::new(0)),
         base_token: "USDC",
+        min_gas_token_amount: 1.0,
     };
 }
 
