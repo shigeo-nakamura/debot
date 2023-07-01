@@ -15,6 +15,8 @@ use trade::{ForcastTrader, PriceHistory, TransactionLog};
 use crate::blockchain_factory::{create_base_token, create_tokens};
 use crate::trade::AbstractTrader;
 use std::collections::HashMap;
+use std::env;
+use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use wallet::{create_wallet, get_balance_of_native_token};
@@ -35,6 +37,10 @@ type WalletAndProvider = Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Ht
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
+
+    // Just to satisfy Heroku
+    let port = env::var("PORT").expect("PORT is not set");
+    let _listener = TcpListener::bind(("0.0.0.0", port.parse().unwrap())).unwrap();
 
     // Load the configs
     let configs = config::get_config_from_env().expect("Invalid configuration");
