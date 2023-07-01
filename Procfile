@@ -1,1 +1,1 @@
-web: ./target/release/app
+web: ./target/release/debot
