@@ -3,10 +3,10 @@
 use shared_mongodb::{database, ClientHolder};
 
 use super::{OpenPosition, PriceHistory, TradingStrategy, TransactionLog};
-use crate::db::{self, update_item, TransactionLogItem};
+use crate::db::TransactionLogItem;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
 const MOVING_AVERAGE_WINDOW_SIZE: usize = 5;
@@ -237,7 +237,7 @@ impl FundManager {
         true
     }
 
-    pub fn update_position(
+    pub async fn update_position(
         &mut self,
         is_buy_trade: bool,
         token_name: &str,
@@ -263,7 +263,8 @@ impl FundManager {
                 );
 
                 let position_cloned = position.clone();
-                self.update_transaction_log(db_client, &position_cloned);
+                self.update_transaction_log(db_client, &position_cloned)
+                    .await;
             } else {
                 // else, create a new position
                 let position = OpenPosition::new(
@@ -275,7 +276,7 @@ impl FundManager {
                     amount_out,
                     amount_in,
                 );
-                self.update_transaction_log(db_client, &position);
+                self.update_transaction_log(db_client, &position).await;
                 self.state
                     .open_positions
                     .insert(token_name.to_owned(), position);
@@ -294,7 +295,8 @@ impl FundManager {
 
                 let position_cloned = position.clone();
                 let amount = position.amount;
-                self.update_transaction_log(db_client, &position_cloned);
+                self.update_transaction_log(db_client, &position_cloned)
+                    .await;
 
                 if amount <= 0.0 {
                     self.state.open_positions.remove(token_name); // If all of this token has been sold, remove it from the open positions

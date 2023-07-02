@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 use crate::dex::dex::TokenPair;
 use crate::dex::Dex;
@@ -534,22 +534,14 @@ impl AbstractTrader for ForcastTrader {
 
             if buy_trade {
                 let amount_out = amount_in / current_price;
-                fund_manager.update_position(
-                    buy_trade,
-                    token_b_name,
-                    amount_in,
-                    amount_out,
-                    &db_client,
-                );
+                fund_manager
+                    .update_position(buy_trade, token_b_name, amount_in, amount_out, &db_client)
+                    .await;
             } else {
                 let amount_out = amount_in * current_price;
-                fund_manager.update_position(
-                    buy_trade,
-                    token_a_name,
-                    amount_in,
-                    amount_out,
-                    &db_client,
-                );
+                fund_manager
+                    .update_position(buy_trade, token_a_name, amount_in, amount_out, &db_client)
+                    .await;
 
                 if opportunity.predicted_profit.is_some() {
                     let multiplier = match opportunity.predicted_profit > Some(0.0) {

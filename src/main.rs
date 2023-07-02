@@ -9,7 +9,8 @@ use ethers_middleware::providers::{Http, Provider};
 use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
-use trade::transaction_log::{self, get_last_transaction_id};
+use tokio::sync::Mutex;
+use trade::transaction_log::get_last_transaction_id;
 use trade::{ForcastTrader, PriceHistory, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
@@ -17,7 +18,7 @@ use crate::trade::AbstractTrader;
 use std::collections::HashMap;
 use std::env;
 use std::net::TcpListener;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use wallet::{create_wallet, get_balance_of_native_token};
 

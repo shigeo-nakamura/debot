@@ -2,7 +2,8 @@
 
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::dex::Dex;
 use crate::token::Token;

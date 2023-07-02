@@ -10,12 +10,8 @@ use ethers_middleware::{
     NonceManagerMiddleware, SignerMiddleware,
 };
 use shared_mongodb::ClientHolder;
-use std::{
-    collections::HashMap,
-    error::Error,
-    sync::{Arc, Mutex},
-};
-use tokio::task::JoinHandle;
+use std::{collections::HashMap, error::Error, sync::Arc};
+use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::{
     dex::{dex::TokenPair, Dex},
