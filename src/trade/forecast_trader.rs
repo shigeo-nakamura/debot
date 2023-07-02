@@ -96,42 +96,43 @@ impl ForcastTrader {
                 transaction_log.clone(),
             ),
             FundManager::new(
-                "mean-reverse-short",
-                TradingStrategy::MeanReversion,
-                short_trade_period,
+                "trend-follow-medium",
+                TradingStrategy::TrendFollowing,
+                medium_trade_period,
                 leverage,
                 initial_amount,
                 10.0, // initial score
                 position_creation_inteval,
-                1.006,
-                0.99,
+                1.008,
+                0.985,
                 1.0, // 1 day
                 transaction_log.clone(),
             ),
             FundManager::new(
-                "constrarian-short",
-                TradingStrategy::Contrarian,
-                short_trade_period,
+                "trend-follow-long",
+                TradingStrategy::TrendFollowing,
+                long_trade_period,
                 leverage,
                 initial_amount,
                 10.0, // initial score
                 position_creation_inteval,
-                1.006,
-                0.99,
+                1.1,
+                0.98,
                 1.0, // 1 day
                 transaction_log.clone(),
             ),
             // FundManager::new(
-            //     "trend-follow-medium",
-            //     TradingStrategy::TrendFollowing,
-            //     medium_trade_period,
+            //     "mean-reverse-short",
+            //     TradingStrategy::MeanReversion,
+            //     short_trade_period,
             //     leverage,
             //     initial_amount,
             //     10.0, // initial score
             //     position_creation_inteval,
-            //     1.05,
-            //     0.97,
-            //     7.0, // 7 day
+            //     1.006,
+            //     0.99,
+            //     1.0, // 1 day
+            //     transaction_log.clone(),
             // ),
             // FundManager::new(
             //     "mean-reverse-medium",
@@ -144,30 +145,7 @@ impl ForcastTrader {
             //     1.05,
             //     0.97,
             //     7.0, // 7 day
-            // ),
-            // FundManager::new(
-            //     "constrarian-medium",
-            //     TradingStrategy::Contrarian,
-            //     medium_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     10.0, // initial score
-            //     position_creation_inteval,
-            //     1.05,
-            //     0.97,
-            //     7.0, // 7 day
-            // ),
-            // FundManager::new(
-            //     "trend-follow-long",
-            //     TradingStrategy::TrendFollowing,
-            //     long_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     10.0, // initial score
-            //     position_creation_inteval,
-            //     1.1,
-            //     0.95,
-            //     28.0, // 28 day
+            //     transaction_log.clone(),
             // ),
             // FundManager::new(
             //     "mean-reverse-long",
@@ -180,6 +158,33 @@ impl ForcastTrader {
             //     1.1,
             //     0.95,
             //     28.0, // 28 day
+            //     transaction_log.clone(),
+            // ),
+            // FundManager::new(
+            //     "constrarian-short",
+            //     TradingStrategy::Contrarian,
+            //     short_trade_period,
+            //     leverage,
+            //     initial_amount,
+            //     10.0, // initial score
+            //     position_creation_inteval,
+            //     1.006,
+            //     0.99,
+            //     1.0, // 1 day
+            //     transaction_log.clone(),
+            // ),
+            // FundManager::new(
+            //     "constrarian-medium",
+            //     TradingStrategy::Contrarian,
+            //     medium_trade_period,
+            //     leverage,
+            //     initial_amount,
+            //     10.0, // initial score
+            //     position_creation_inteval,
+            //     1.05,
+            //     0.97,
+            //     7.0, // 7 day
+            //     transaction_log.clone(),
             // ),
             // FundManager::new(
             //     "constrarian-long",
@@ -192,6 +197,7 @@ impl ForcastTrader {
             //     1.1,
             //     0.95,
             //     28.0, // 28 day
+            //     transaction_log.clone(),
             // ),
         ];
 

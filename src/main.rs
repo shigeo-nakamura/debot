@@ -273,7 +273,7 @@ async fn manage_token_amount<T: AbstractTrader>(
 
     if config.treasury.is_some() && current_amount > config.max_managed_amount {
         let treasury = config.treasury.unwrap();
-        let amount = current_amount - config.min_managed_amount;
+        let amount = current_amount - (config. max_managed_amount + config.min_managed_amount) / 2.0;
         match trader
             .transfer_token(treasury, &trader.base_token(), amount)
             .await

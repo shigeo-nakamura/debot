@@ -137,25 +137,25 @@ impl FundManager {
                 predicted_price,
             );
 
-            if !self.can_create_new_position(token_name) {
-                log::debug!(
-                    "{} Need to wait for a while to create a new position",
-                    self.fund_name()
-                );
-                return None;
-            }
-
-            let amount = self.state.amount * self.config.leverage;
-
-            if self.state.amount < amount {
-                log::debug!(
-                    "No enough found left: {:6.5} < {:6.5}",
-                    self.state.amount,
-                    amount
-                )
-            }
-
             if profit_ratio >= self.config.take_profit_threshold {
+                if !self.can_create_new_position(token_name) {
+                    log::debug!(
+                        "{} Need to wait for a while to create a new position",
+                        self.fund_name()
+                    );
+                    return None;
+                }
+
+                let amount = self.state.amount * self.config.leverage;
+
+                if self.state.amount < amount {
+                    log::debug!(
+                        "No enough found left: {:6.5} < {:6.5}",
+                        self.state.amount,
+                        amount
+                    )
+                }
+
                 if history.is_flash_crash() {
                     log::info!(
                         "Skip this buy trade as price of {} is crashed({:6.5} --> {:6.5})",
@@ -207,7 +207,9 @@ impl FundManager {
                     {
                         log::info!("Close the position as it reaches the limit of hold period");
                         amount = position.amount;
-                    } else if position.do_take_profit() || position.do_cut_loss() {
+                    } else if position.do_take_profit(sell_price)
+                        || position.do_cut_loss(sell_price)
+                    {
                         amount = position.amount;
                     }
                 }
@@ -319,7 +321,18 @@ impl FundManager {
         log::debug!("update_transaction_log");
 
         let mut item = TransactionLogItem::default();
+
         item.id = self.state.transaction_log.increment_counter();
+        item.open_time = String::new(); //
+        item.close_time = String::new(); //
+        item.fund_name = self.fund_name().to_owned();
+        item.event_type = String::new(); //
+        item.token = String::new(); //
+        item.buy_price = position.average_price;
+        item.predicted_price = position.take_profit_price;
+        item.sell_price = 0.0; //
+        item.amount = position.amount;
+        item.realized_pnl = 0.0; //
 
         let db = match database::get(db_client, self.state.transaction_log.db_name()).await {
             Ok(db) => db,

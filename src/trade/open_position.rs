@@ -39,12 +39,12 @@ impl OpenPosition {
         }
     }
 
-    pub fn do_take_profit(&self) -> bool {
-        self.average_price >= self.take_profit_price
+    pub fn do_take_profit(&self, sell_price: f64) -> bool {
+        sell_price >= self.take_profit_price
     }
 
-    pub fn do_cut_loss(&self) -> bool {
-        self.average_price <= self.cut_loss_price
+    pub fn do_cut_loss(&self, sell_price: f64) -> bool {
+        sell_price <= self.cut_loss_price
     }
 
     fn update(&mut self, token_name: &str, average_price: f64, amount: f64) {
