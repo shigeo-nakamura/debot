@@ -117,7 +117,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let medium_trade_period = get_env_var("MEDIUM_TRADE_PEREIOD", "420")?; // 4200sec = 70min
         let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "1260")?; // 12600sec = 210min
         let position_creation_inteval_period =
-            get_env_var("POSITION_CREATION_INVERVAL_PERIOD", "10")?;
+            get_env_var("POSITION_CREATION_INVERVAL_PERIOD", "30")?;
         let flash_crash_threshold = get_env_var("FLASH_CRASH_THRESHOLD", "0.95")?;
         let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;
         let reward_multiplier = get_env_var("reward_multiplier", "1.5")?;

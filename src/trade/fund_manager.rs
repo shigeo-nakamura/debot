@@ -17,7 +17,6 @@ pub struct FundManagerState {
     close_all_position: bool,
     score: f64,
     past_scores: Vec<f64>,
-    last_position_creation_time: Option<SystemTime>,
     transaction_log: Arc<TransactionLog>,
 }
 
@@ -77,7 +76,6 @@ impl FundManager {
             close_all_position: false,
             score: initial_score,
             past_scores: vec![],
-            last_position_creation_time: None,
             transaction_log,
         };
 
@@ -139,8 +137,11 @@ impl FundManager {
                 predicted_price,
             );
 
-            if !self.can_create_new_position() {
-                log::debug!("{} can't create a new position", self.fund_name());
+            if !self.can_create_new_position(token_name) {
+                log::debug!(
+                    "{} Need to wait for a while to create a new position",
+                    self.fund_name()
+                );
                 return None;
             }
 
@@ -226,16 +227,14 @@ impl FundManager {
         None
     }
 
-    fn can_create_new_position(&self) -> bool {
-        if self.state.last_position_creation_time.is_none() {
-            return true;
-        }
-        let current_time = SystemTime::now();
-        let time_since_last_creation = current_time
-            .duration_since(self.state.last_position_creation_time.unwrap())
-            .unwrap();
+    fn can_create_new_position(&self, token_name: &str) -> bool {
+        if let Some(position) = self.state.open_positions.get(token_name) {
+            let current_time = chrono::Utc::now().timestamp();
+            let time_since_last_creation = current_time - position.open_time;
 
-        time_since_last_creation < Duration::from_secs(self.config.position_creation_inteval)
+            return time_since_last_creation < (self.config.position_creation_inteval as i64);
+        }
+        true
     }
 
     pub fn update_position(
@@ -246,9 +245,6 @@ impl FundManager {
         amount_out: f64,
         db_client: &Arc<Mutex<ClientHolder>>,
     ) -> Option<f64> {
-        // Update the last position creation time to the current time
-        self.state.last_position_creation_time = Some(SystemTime::now());
-
         if is_buy_trade {
             self.state.amount -= amount_in;
 
