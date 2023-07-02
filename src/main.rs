@@ -205,21 +205,23 @@ async fn main_loop(
 
             manage_token_amount(trader, &wallet_address, config).await?;
 
-            let mut opportunities =
-                trader
-                    .find_opportunities(histories)
-                    .await
-                    .unwrap_or_else(|e| {
-                        log::error!("Error while finding opportunities: {}", e);
-                        error_manager.increment_error_count();
-                        Vec::new()
-                    });
+            let mut opportunities = match trader.find_opportunities(histories).await {
+                Ok(opportunities) => {
+                    error_manager.reset_error_count();
+                    opportunities
+                }
+                Err(e) => {
+                    log::error!("Error while finding opportunities: {}", e);
+                    error_manager.increment_error_count();
+                    Vec::new()
+                }
+            };
             opportunities.sort_by(|a, b| {
                 a.predicted_profit
                     .partial_cmp(&b.predicted_profit)
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
-            trader
+            match trader
                 .execute_transactions(
                     &opportunities,
                     wallet_and_provider,
@@ -227,10 +229,15 @@ async fn main_loop(
                     config.deadline_secs,
                 )
                 .await
-                .unwrap_or_else(|e| {
-                    log::error!("Error while executing transactions: {}", e);
+            {
+                Ok(_) => {
+                    error_manager.reset_error_count();
+                }
+                Err(e) => {
+                    log::error!("Error while finding opportunities: {}", e);
                     error_manager.increment_error_count();
-                });
+                }
+            };
             skip_sleep = trader.is_close_all_positions();
         }
         log::info!("### leave");
