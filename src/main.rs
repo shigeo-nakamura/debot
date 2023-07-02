@@ -111,9 +111,10 @@ async fn prepare_algorithm_trader_instance(
     ErrorManager,
 ) {
     // Create a wallet and provider
-    let (wallet, wallet_and_provider) = create_wallet(&config.chain_params, config.use_kms)
-        .await
-        .unwrap();
+    let (wallet, wallet_and_provider) =
+        create_wallet(&config.chain_params, config.rpc_node_index, config.use_kms)
+            .await
+            .unwrap();
 
     // Check the native token amount
     let gas_token_amount = get_balance_of_native_token(&config.chain_params, wallet.address())

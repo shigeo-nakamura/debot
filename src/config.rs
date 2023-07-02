@@ -12,6 +12,7 @@ use std::str::FromStr;
 #[derive(Debug)]
 pub struct EnvConfig {
     pub chain_params: &'static ChainParams,
+    pub rpc_node_index: usize,
     pub mongodb_uri: String,
     pub db_name: String,
     pub use_kms: bool,
@@ -101,6 +102,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             _ => return Err(ConfigError::UnsupportedChainName),
         };
 
+        let rpc_node_index = get_env_var("RPC_NODE_INDX", "0")?;
         let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
         let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
         let use_kms = get_bool_env_var("USE_KMS", false);
@@ -128,6 +130,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
 
         let env_config = EnvConfig {
             chain_params,
+            rpc_node_index,
             mongodb_uri,
             db_name,
             use_kms,

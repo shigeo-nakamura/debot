@@ -18,17 +18,11 @@ use web3::Web3;
 use crate::blockchain_factory::ChainParams;
 use crate::kws_decrypt::decrypt_data_with_kms;
 
-use lazy_static::lazy_static;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-lazy_static! {
-    static ref INDEX: AtomicUsize = AtomicUsize::new(0);
-}
-
 const TOKEN_DECIMALS: usize = 18;
 
 pub async fn create_wallet(
     chain_params: &ChainParams,
+    rpc_node_index: usize,
     use_kms: bool,
 ) -> Result<
     (
@@ -47,10 +41,7 @@ pub async fn create_wallet(
     let private_key_bytes = hex::decode(&private_key_hex_string)?;
     let secret_key = SecretKey::from_slice(&private_key_bytes)?;
 
-    let index = INDEX.fetch_add(1, Ordering::SeqCst);
-    let provider = Provider::<Http>::try_from(
-        chain_params.rpc_node_urls[index % chain_params.rpc_node_urls.len()],
-    )?;
+    let provider = Provider::<Http>::try_from(chain_params.rpc_node_urls[rpc_node_index])?;
 
     let wallet = LocalWallet::from(secret_key).with_chain_id(chain_params.chain_id);
     let provider = provider.with_signer(wallet.clone());
