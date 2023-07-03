@@ -116,89 +116,37 @@ impl ForcastTrader {
                 initial_amount,
                 10.0, // initial score
                 position_creation_inteval,
-                1.1,
+                1.01,
                 0.98,
                 1.0, // 1 day
                 transaction_log.clone(),
             ),
-            // FundManager::new(
-            //     "mean-reverse-short",
-            //     TradingStrategy::MeanReversion,
-            //     short_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     10.0, // initial score
-            //     position_creation_inteval,
-            //     1.006,
-            //     0.99,
-            //     1.0, // 1 day
-            //     transaction_log.clone(),
-            // ),
-            // FundManager::new(
-            //     "mean-reverse-medium",
-            //     TradingStrategy::MeanReversion,
-            //     medium_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     10.0, // initial score
-            //     position_creation_inteval,
-            //     1.05,
-            //     0.97,
-            //     7.0, // 7 day
-            //     transaction_log.clone(),
-            // ),
-            // FundManager::new(
-            //     "mean-reverse-long",
-            //     TradingStrategy::MeanReversion,
-            //     long_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     10.0, // initial score
-            //     position_creation_inteval,
-            //     1.1,
-            //     0.95,
-            //     28.0, // 28 day
-            //     transaction_log.clone(),
-            // ),
-            // FundManager::new(
-            //     "constrarian-short",
-            //     TradingStrategy::Contrarian,
-            //     short_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     10.0, // initial score
-            //     position_creation_inteval,
-            //     1.006,
-            //     0.99,
-            //     1.0, // 1 day
-            //     transaction_log.clone(),
-            // ),
-            // FundManager::new(
-            //     "constrarian-medium",
-            //     TradingStrategy::Contrarian,
-            //     medium_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     10.0, // initial score
-            //     position_creation_inteval,
-            //     1.05,
-            //     0.97,
-            //     7.0, // 7 day
-            //     transaction_log.clone(),
-            // ),
-            // FundManager::new(
-            //     "constrarian-long",
-            //     TradingStrategy::Contrarian,
-            //     long_trade_period,
-            //     leverage,
-            //     initial_amount,
-            //     10.0, // initial score
-            //     position_creation_inteval,
-            //     1.1,
-            //     0.95,
-            //     28.0, // 28 day
-            //     transaction_log.clone(),
-            // ),
+            FundManager::new(
+                "mean-reversion-medium",
+                TradingStrategy::MeanReversion,
+                medium_trade_period,
+                leverage,
+                initial_amount,
+                10.0, // initial score
+                position_creation_inteval,
+                1.01,
+                0.99,
+                1.0, // 1 day
+                transaction_log.clone(),
+            ),
+            FundManager::new(
+                "constrarian-medium",
+                TradingStrategy::Contrarian,
+                medium_trade_period,
+                leverage,
+                initial_amount,
+                10.0, // initial score
+                position_creation_inteval,
+                1.01,
+                0.99,
+                1.0, // 1 day
+                transaction_log.clone(),
+            ),
         ];
 
         for fund_manager in fund_managers {
@@ -219,6 +167,7 @@ impl ForcastTrader {
                 skip_write,
                 gas,
                 db_client,
+                transaction_log,
             ),
             config,
             state,
@@ -567,7 +516,6 @@ impl AbstractTrader for ForcastTrader {
     async fn get_token_pair_prices(
         &self,
     ) -> Result<HashMap<(String, String, String), f64>, Box<dyn Error + Send + Sync>> {
-        // Get the prices of all token pairs
         let base_token = &self.base_token();
         let dexes = &self.dexes();
         let tokens = &self.tokens();
@@ -675,5 +623,9 @@ impl AbstractTrader for ForcastTrader {
         self.base_trader
             .transfer_token(recipient, token, amount)
             .await
+    }
+
+    async fn log_current_balance(&self, wallet_address: &Address) {
+        self.base_trader.log_current_balance(wallet_address).await
     }
 }

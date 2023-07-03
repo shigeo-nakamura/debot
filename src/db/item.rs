@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use bson::Document;
-use chrono_tz::Tz;
 use futures::stream::TryStreamExt;
 use mongodb::bson::doc;
 use mongodb::options::*;
@@ -91,24 +90,24 @@ pub async fn create_unique_index(db: &Database) -> Result<(), Box<dyn error::Err
     Ok(())
 }
 
-pub fn atoi(a: &str) -> Result<u32, Box<dyn error::Error>> {
-    let i: u32 = a.to_string().parse()?;
-    Ok(i)
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct TransactionLogItem {
     pub id: u32,
     pub open_time: String,
-    pub close_time: String,
+    pub close_time: Option<String>,
     pub fund_name: String,
-    pub event_type: String, // "take profit", "loss cut", ""hold period over
-    pub token: String,      // token against the base token
+    pub token: String, // token against the base token
     pub buy_price: f64,
     pub predicted_price: f64,
-    pub sell_price: f64,
+    pub sold_price: Option<f64>,
     pub amount: f64,
-    pub realized_pnl: f64, // realized profit or loss
+    pub realized_pnl: Option<f64>, // realized profit or loss
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct BalanceLogItem {
+    pub date: String,
+    pub amount: f64,
 }
 
 #[async_trait]
@@ -144,7 +143,36 @@ impl Entity for TransactionLogItem {
     }
 
     fn get_collection_name(&self) -> &str {
-        "transactions"
+        "transaction"
+    }
+}
+
+#[async_trait]
+impl Entity for BalanceLogItem {
+    async fn insert(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
+        let collection = self.get_collection(db);
+        collection.insert_one(self, None).await?;
+        Ok(())
+    }
+
+    async fn update(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
+        panic!("Not implemented")
+    }
+
+    async fn delete(&self, _db: &Database) -> Result<(), Box<dyn error::Error>> {
+        panic!("Not implemented")
+    }
+
+    async fn delete_all(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
+        panic!("Not implemented")
+    }
+
+    async fn search(&self, db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
+        panic!("Not implemented")
+    }
+
+    fn get_collection_name(&self) -> &str {
+        "balance"
     }
 }
 

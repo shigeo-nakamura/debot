@@ -2,16 +2,19 @@
 
 use blockchain_factory::create_dexes;
 use config::EnvConfig;
+use db::{insert_item, BalanceLogItem};
 use error_manager::ErrorManager;
+use ethers::abi::Detokenize;
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Address;
 use ethers_middleware::providers::{Http, Provider};
 use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
+use token::Token;
 use tokio::sync::Mutex;
 use trade::transaction_log::get_last_transaction_id;
-use trade::{ForcastTrader, PriceHistory, TransactionLog};
+use trade::{find_index, ForcastTrader, PriceHistory, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
 use crate::trade::AbstractTrader;
@@ -19,7 +22,7 @@ use std::collections::HashMap;
 use std::env;
 use std::net::TcpListener;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use wallet::{create_wallet, get_balance_of_native_token};
 
 mod addresses;
@@ -167,6 +170,8 @@ async fn prepare_algorithm_trader_instance(
         transaction_log,
     );
 
+    trader.rebalance(wallet.address()).await;
+
     // Do some initialization
     trader
         .init(wallet.address(), config.min_managed_amount)
@@ -194,18 +199,29 @@ async fn main_loop(
     )>,
     configs: &[EnvConfig],
 ) -> std::io::Result<()> {
+    let now = SystemTime::now();
+    let mut last_execution = SystemTime::UNIX_EPOCH;
+    let one_day = Duration::from_secs(24 * 60 * 60);
+
     loop {
         let mut skip_sleep = false;
         log::info!("### enter");
         for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
             trader_instances.iter_mut()
         {
+            if now.duration_since(last_execution).unwrap() > one_day {
+                trader.log_current_balance(wallet_address).await;
+                last_execution = now;
+            }
+
             if error_manager.get_error_count() >= config.max_error_count {
                 log::error!("Error count reached the limit");
                 trader.close_all_positions();
             }
 
-            manage_token_amount(trader, &wallet_address, config).await?;
+            if let Some(_amount) = manage_token_amount(trader, &wallet_address, config).await {
+                trader.rebalance(*wallet_address).await;
+            }
 
             let mut opportunities = match trader.find_opportunities(histories).await {
                 Ok(opportunities) => {
@@ -252,12 +268,12 @@ async fn main_loop(
 }
 
 async fn manage_token_amount<T: AbstractTrader>(
-    trader: &mut T,
+    trader: &T,
     wallet_address: &Address,
     config: &EnvConfig,
-) -> std::io::Result<()> {
+) -> Option<f64> {
     if config.skip_write {
-        return Ok(());
+        return None;
     }
 
     let current_amount = match trader
@@ -266,26 +282,28 @@ async fn manage_token_amount<T: AbstractTrader>(
     {
         Ok(amount) => amount,
         Err(e) => {
-            log::error!("manage_token_amount get: {:?}", e);
-            return Ok(());
+            log::error!("get_current_token_amount: {:?}", e);
+            return None;
         }
     };
 
     if config.treasury.is_some() && current_amount > config.max_managed_amount {
         let treasury = config.treasury.unwrap();
-        let amount = current_amount - (config. max_managed_amount + config.min_managed_amount) / 2.0;
+        let amount = current_amount - (config.max_managed_amount + config.min_managed_amount) / 2.0;
         match trader
             .transfer_token(treasury, &trader.base_token(), amount)
             .await
         {
-            Ok(()) => {}
+            Ok(()) => {
+                return Some(amount);
+            }
             Err(e) => {
                 log::error!("manage_token_amount transfer: {:?}", e);
-                return Ok(());
+                return None;
             }
         }
     }
-    Ok(())
+    return None;
 }
 
 async fn handle_sleep_and_signal(skip_sleep: bool, interval: u64) -> Result<(), &'static str> {

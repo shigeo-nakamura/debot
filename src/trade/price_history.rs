@@ -157,9 +157,9 @@ impl PriceHistory {
         let (lower_band, _, upper_band) = self.calculate_bollinger_bands(period);
         let last_price = *self.prices.last().unwrap();
         if last_price > upper_band {
-            last_price * 0.99 // assume a 1% price drop
+            (last_price + last_price * 0.99) / 2.0 // take the average of the last price and the price assuming a 1% drop
         } else if last_price < lower_band {
-            last_price * 1.01 // assume a 1% price rise
+            (last_price + last_price * 1.01) / 2.0 // take the average of the last price and the price assuming a 1% rise
         } else {
             last_price // price is within bands, return last price
         }
@@ -179,6 +179,7 @@ impl PriceHistory {
             level3 // price might retreat to level3
         }
     }
+
     pub fn calculate_std_dev(&self) -> f64 {
         let mean = self.prices.iter().sum::<f64>() / self.prices.len() as f64;
         let variance =
@@ -377,13 +378,15 @@ impl PriceHistory {
             if up_votes != 0 {
                 up_sum / up_votes as f64
             } else {
-                0.0
+                *last_price
             }
+        } else if up_votes == down_votes {
+            *last_price
         } else {
             if down_votes != 0 {
                 down_sum / down_votes as f64
             } else {
-                0.0
+                *last_price
             }
         }
     }

@@ -18,7 +18,7 @@ use ethers_middleware::NonceManagerMiddleware;
 use shared_mongodb::ClientHolder;
 
 use super::abstract_trader::BaseTrader;
-use super::{AbstractTrader, Operation, TradeOpportunity};
+use super::{AbstractTrader, Operation, TradeOpportunity, TransactionLog};
 pub struct ArbitrageTrader {
     base_trader: BaseTrader,
     num_swaps: usize,
@@ -36,6 +36,7 @@ impl ArbitrageTrader {
         num_swaps: usize,
         gas: f64,
         db_client: Arc<Mutex<ClientHolder>>,
+        transaction_log: Arc<TransactionLog>,
     ) -> Self {
         Self {
             base_trader: BaseTrader::new(
@@ -49,6 +50,7 @@ impl ArbitrageTrader {
                 skip_write,
                 gas,
                 db_client,
+                transaction_log,
             ),
             num_swaps,
         }
@@ -429,6 +431,10 @@ impl AbstractTrader for ArbitrageTrader {
         self.base_trader
             .transfer_token(recipient, token, amount)
             .await
+    }
+
+    async fn log_current_balance(&self, wallet_address: &Address) {
+        self.base_trader.log_current_balance(wallet_address).await
     }
 }
 

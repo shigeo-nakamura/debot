@@ -16,6 +16,7 @@ use tokio::{sync::Mutex, task::JoinHandle};
 use crate::{
     dex::{dex::TokenPair, Dex},
     token::Token,
+    trade::TransactionLog,
 };
 
 pub fn find_index<T, F>(list: &[T], predicate: F) -> Option<usize>
@@ -87,6 +88,7 @@ pub struct BaseTrader {
     skip_write: bool,
     gas: f64,
     client_holder: Arc<Mutex<ClientHolder>>,
+    transaction_log: Arc<TransactionLog>,
 }
 
 impl BaseTrader {
@@ -101,6 +103,7 @@ impl BaseTrader {
         skip_write: bool,
         gas: f64,
         client_holder: Arc<Mutex<ClientHolder>>,
+        transaction_log: Arc<TransactionLog>,
     ) -> Self {
         Self {
             name,
@@ -113,6 +116,7 @@ impl BaseTrader {
             skip_write,
             gas,
             client_holder,
+            transaction_log,
         }
     }
 
@@ -279,6 +283,48 @@ impl BaseTrader {
         get_price_futures
     }
 
+    pub async fn log_current_balance(&self, wallet_address: &Address) {
+        let mut total_amount_in_base_token = 0.0;
+
+        for token in self.tokens().iter() {
+            if let Ok(amount) = self.get_amount_of_token(*wallet_address, token).await {
+                let dex_arc = Arc::new(self.dexes[0].clone());
+                let token_arc = Arc::new(token.clone());
+                let base_token_arc = Arc::new(self.base_token.clone());
+
+                log::debug!("{}: {:6.6}", token.symbol_name(), amount);
+
+                if token.symbol_name() == self.base_token.symbol_name() {
+                    total_amount_in_base_token += amount;
+                    continue;
+                }
+
+                if amount == 0.0 {
+                    continue;
+                }
+
+                if let Some((_token_a_name, _token_b_name, _dex_name, price)) =
+                    Self::fetch_token_prices(&dex_arc, &base_token_arc, &token_arc, amount, false)
+                        .await
+                {
+                    total_amount_in_base_token += amount * price;
+                }
+            }
+        }
+
+        log::info!("log_current_balance: {:6.6}", total_amount_in_base_token);
+
+        if self.skip_write {
+            return;
+        }
+
+        if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
+            if let Err(e) = TransactionLog::insert_balance(&db, total_amount_in_base_token).await {
+                log::info!("{:?}", e);
+            }
+        }
+    }
+
     pub fn leverage(&self) -> f64 {
         self.leverage
     }
@@ -358,4 +404,6 @@ pub trait AbstractTrader {
         token: &Box<dyn Token>,
         amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
+
+    async fn log_current_balance(&self, wallet_address: &Address);
 }
