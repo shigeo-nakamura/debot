@@ -34,6 +34,7 @@ pub struct ForcastTraderConfig {
     flash_crash_threshold: f64,
     reward_multiplier: f64,
     penalty_multiplier: f64,
+    dex_index: usize,
 }
 
 pub struct ForcastTraderState {
@@ -66,6 +67,7 @@ impl ForcastTrader {
         penalty_multiplier: f64,
         db_client: Arc<Mutex<ClientHolder>>,
         transaction_log: Arc<TransactionLog>,
+        dex_index: usize,
     ) -> Self {
         let config = ForcastTraderConfig {
             short_trade_period,
@@ -74,6 +76,7 @@ impl ForcastTrader {
             flash_crash_threshold,
             reward_multiplier,
             penalty_multiplier,
+            dex_index,
         };
 
         let mut state = ForcastTraderState {
@@ -517,19 +520,17 @@ impl AbstractTrader for ForcastTrader {
         &self,
     ) -> Result<HashMap<(String, String, String), f64>, Box<dyn Error + Send + Sync>> {
         let base_token = &self.base_token();
-        let dexes = &self.dexes();
+        let dex = &self.dexes()[self.config.dex_index];
         let tokens = &self.tokens();
         let amount = self.initial_amount() * self.leverage();
 
         // Get prices with base token / each token and each token / base token
         let mut get_price_futures = Vec::new();
-        for dex in dexes.iter() {
-            let mut dex_get_price_futures = self
-                .base_trader
-                .get_token_pair_prices(dex, base_token, tokens, amount)
-                .await;
-            get_price_futures.append(&mut dex_get_price_futures);
-        }
+        let mut dex_get_price_futures = self
+            .base_trader
+            .get_token_pair_prices(&dex, base_token, tokens, amount)
+            .await;
+        get_price_futures.append(&mut dex_get_price_futures);
 
         // Wait for all token price futures to finish with a timeout
         let timeout_duration = Duration::from_secs(10);

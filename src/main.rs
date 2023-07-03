@@ -168,6 +168,7 @@ async fn prepare_algorithm_trader_instance(
         config.penalty_multiplier,
         client_holder.clone(),
         transaction_log,
+        config.dex_index,
     );
 
     trader.rebalance(wallet.address()).await;
