@@ -167,7 +167,7 @@ impl PriceHistory {
 
     pub fn predict_next_price_fibonacci(&mut self) -> f64 {
         self.update_ema(*self.prices.last().unwrap());
-        let (level1, level2, level3, low) = self.calculate_fibonacci_retracement();
+        let (level1, level2, level3, _low) = self.calculate_fibonacci_retracement();
         let last_price = *self.prices.last().unwrap();
         if last_price < level1 {
             last_price * 1.01 // assume a 1% price rise
@@ -236,7 +236,7 @@ impl PriceHistory {
             .enumerate()
             .skip(current_index - period + 1)
             .take(period)
-            .fold(sma, |ema, (i, &price)| (price - ema) * multiplier + ema);
+            .fold(sma, |ema, (_i, &price)| (price - ema) * multiplier + ema);
 
         ema
     }

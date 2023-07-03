@@ -1,10 +1,9 @@
 // fund_manager.rs
 
-use shared_mongodb::{database, ClientHolder};
+use shared_mongodb::ClientHolder;
 
 use super::{OpenPosition, PriceHistory, TradingStrategy, TransactionLog};
 use crate::db::TransactionLogItem;
-use crate::token::Token;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;

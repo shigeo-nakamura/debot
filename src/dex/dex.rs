@@ -253,7 +253,7 @@ pub trait Dex: Send + Sync {
 
         for log in &logs {
             if log.address == output_address {
-                let (amount0_in, amount1_in, amount0_out, amount1_out) = parse_swap_log(&log)?;
+                let (_amount0_in, _amount1_in, amount0_out, amount1_out) = parse_swap_log(&log)?;
                 output_amount = Some(parse_units(&(amount0_out + amount1_out), 18)?.into());
                 break;
             }

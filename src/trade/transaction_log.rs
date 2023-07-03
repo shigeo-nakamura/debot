@@ -32,7 +32,7 @@ pub struct TransactionLog {
 impl TransactionLog {
     pub fn new(max_counter: u32, counter: u32, db_name: &str) -> Self {
         TransactionLog {
-            max_counter: max_counter,
+            max_counter,
             counter: std::sync::Mutex::new(counter),
             db_name: db_name.to_owned(),
         }
@@ -58,6 +58,7 @@ impl TransactionLog {
         let items = match search_items(db, item).await {
             Ok(items) => items,
             Err(e) => {
+                log::error!("{:?}", e);
                 vec![]
             }
         };

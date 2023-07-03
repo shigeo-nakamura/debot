@@ -2,19 +2,16 @@
 
 use blockchain_factory::create_dexes;
 use config::EnvConfig;
-use db::{insert_item, BalanceLogItem};
 use error_manager::ErrorManager;
-use ethers::abi::Detokenize;
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Address;
 use ethers_middleware::providers::{Http, Provider};
 use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
-use token::Token;
 use tokio::sync::Mutex;
 use trade::transaction_log::get_last_transaction_id;
-use trade::{find_index, ForcastTrader, PriceHistory, TransactionLog};
+use trade::{ForcastTrader, PriceHistory, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
 use crate::trade::AbstractTrader;

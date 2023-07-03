@@ -155,7 +155,7 @@ impl Entity for BalanceLogItem {
         Ok(())
     }
 
-    async fn update(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
+    async fn update(&self, _db: &Database) -> Result<(), Box<dyn error::Error>> {
         panic!("Not implemented")
     }
 
@@ -163,11 +163,11 @@ impl Entity for BalanceLogItem {
         panic!("Not implemented")
     }
 
-    async fn delete_all(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
+    async fn delete_all(&self, _db: &Database) -> Result<(), Box<dyn error::Error>> {
         panic!("Not implemented")
     }
 
-    async fn search(&self, db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
+    async fn search(&self, _db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
         panic!("Not implemented")
     }
 
