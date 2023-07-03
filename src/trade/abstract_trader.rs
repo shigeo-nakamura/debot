@@ -89,6 +89,7 @@ pub struct BaseTrader {
     gas: f64,
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
+    prev_balance: Option<f64>,
 }
 
 impl BaseTrader {
@@ -117,6 +118,7 @@ impl BaseTrader {
             gas,
             client_holder,
             transaction_log,
+            prev_balance: None,
         }
     }
 
@@ -283,7 +285,7 @@ impl BaseTrader {
         get_price_futures
     }
 
-    pub async fn log_current_balance(&self, wallet_address: &Address) {
+    pub async fn log_current_balance(&mut self, wallet_address: &Address) {
         let mut total_amount_in_base_token = 0.0;
 
         for token in self.tokens().iter() {
@@ -314,12 +316,15 @@ impl BaseTrader {
 
         log::info!("log_current_balance: {:6.6}", total_amount_in_base_token);
 
-        if self.skip_write {
+        if self.prev_balance.is_none() {
+            self.prev_balance = Some(total_amount_in_base_token);
             return;
         }
 
+        let change = self.prev_balance.unwrap() - total_amount_in_base_token;
+
         if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
-            if let Err(e) = TransactionLog::insert_balance(&db, total_amount_in_base_token).await {
+            if let Err(e) = TransactionLog::insert_balance(&db, change).await {
                 log::info!("{:?}", e);
             }
         }
@@ -405,5 +410,5 @@ pub trait AbstractTrader {
         amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
-    async fn log_current_balance(&self, wallet_address: &Address);
+    async fn log_current_balance(&mut self, wallet_address: &Address);
 }

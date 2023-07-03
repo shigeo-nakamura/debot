@@ -626,7 +626,7 @@ impl AbstractTrader for ForcastTrader {
             .await
     }
 
-    async fn log_current_balance(&self, wallet_address: &Address) {
+    async fn log_current_balance(&mut self, wallet_address: &Address) {
         self.base_trader.log_current_balance(wallet_address).await
     }
 }

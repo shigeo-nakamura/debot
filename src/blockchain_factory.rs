@@ -81,8 +81,8 @@ lazy_static! {
             // ("ANKR_BNB", BSC_ANKR_BNB_ADDRESS),
         ],
         dex_list: &[
-            ("BiSwap", BSC_BISWAP_ROUTER),
             ("PancakeSwap", BSC_PANCAKESWAP_ROUTER),
+            ("BiSwap", BSC_BISWAP_ROUTER),
             // ("ApeSwap", BSC_APESWAP_ROUTER),
             // ("BakerySwap", BSC_BAKERYSWAP_ROUTER),
             // ("BabyDoge", BSC_BABYDOGE_ROUTER),
@@ -134,8 +134,8 @@ lazy_static! {
             //("LINK", POLYGON_LINK_ADDRESS),
         ],
         dex_list: &[
-            ("SushiSwap", POLYGON_SUSHISWAP_ROUTER),
             ("QuickSwap", POLYGON_QUICKSWAP_ROUTER),
+            ("SushiSwap", POLYGON_SUSHISWAP_ROUTER),
             // ("MeshSwap", POLYGON_MESHSWAP_ROUTER),
             // ("Dyfn", POLYGON_DYFN_ROUTER),
             // ("ApeSwapPolygon", POLYGON_APESWAP_ROUTER),
