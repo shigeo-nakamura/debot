@@ -15,6 +15,7 @@ use trade::{ForcastTrader, PriceHistory, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
 use crate::trade::AbstractTrader;
+use std::cmp::max;
 use std::collections::HashMap;
 use std::env;
 use std::net::TcpListener;
@@ -202,7 +203,8 @@ async fn main_loop(
     let one_day = Duration::from_secs(24 * 60 * 60);
 
     loop {
-        let mut skip_sleep = false;
+        let interval = configs[0].interval as f64 / trader_instances.len() as f64;
+
         log::info!("### enter");
         for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
             trader_instances.iter_mut()
@@ -254,14 +256,16 @@ async fn main_loop(
                     error_manager.increment_error_count();
                 }
             };
-            skip_sleep = trader.is_close_all_positions();
+            if trader.is_close_all_positions() {
+                continue;
+            }
+
+            if let Err(e) = handle_sleep_and_signal(interval).await {
+                log::error!("Error handling sleep and signal: {}", e);
+                return Ok(());
+            }
         }
         log::info!("### leave");
-
-        if let Err(e) = handle_sleep_and_signal(skip_sleep, configs[0].interval).await {
-            log::error!("Error handling sleep and signal: {}", e);
-            return Ok(());
-        }
     }
 }
 
@@ -304,18 +308,16 @@ async fn manage_token_amount<T: AbstractTrader>(
     return None;
 }
 
-async fn handle_sleep_and_signal(skip_sleep: bool, interval: u64) -> Result<(), &'static str> {
-    if !skip_sleep {
-        let sleep_fut = tokio::time::sleep(Duration::from_secs(interval));
-        let ctrl_c_fut = tokio::signal::ctrl_c();
-        tokio::select! {
-            _ = sleep_fut => {
-                // continue to the next iteration of loop
-            },
-            _ = ctrl_c_fut => {
-                log::info!("SIGINT received. Shutting down...");
-                return Err("SIGINT received");
-            }
+async fn handle_sleep_and_signal(interval: f64) -> Result<(), &'static str> {
+    let sleep_fut = tokio::time::sleep(Duration::from_secs_f64(interval));
+    let ctrl_c_fut = tokio::signal::ctrl_c();
+    tokio::select! {
+        _ = sleep_fut => {
+            // continue to the next iteration of loop
+        },
+        _ = ctrl_c_fut => {
+            log::info!("SIGINT received. Shutting down...");
+            return Err("SIGINT received");
         }
     }
     Ok(())

@@ -88,23 +88,36 @@ fn get_bool_env_var(var: &str, default: bool) -> bool {
 }
 
 pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
-    let chain_names = env::var("CHAIN_NAME").unwrap_or_else(|_| "POLYGON".to_string());
+    let chain_names = env::var("CHAIN_NAME").unwrap_or_else(|_| "BSC".to_string());
     let chain_names: Vec<&str> = chain_names.split(',').collect();
     let mut env_configs = vec![];
 
-    for chain_name in chain_names {
-        let chain_name = chain_name.trim(); // To handle spaces after the comma
+    let mut polygon_index = 0;
+    let mut bsc_index = 0;
 
+    for chain_name in chain_names {
+        let mut rpc_node_index = 0;
+        let mut dex_index = 0;
+
+        let chain_name = chain_name.trim(); // To handle spaces after the comma
         let chain_params: &'static ChainParams = match chain_name {
-            "BSC" => &BSC_CHAIN_PARAMS,
+            "BSC" => {
+                rpc_node_index = bsc_index;
+                dex_index = bsc_index;
+                bsc_index += 1;
+                &BSC_CHAIN_PARAMS
+            },
+            "POLYGON" => {
+                rpc_node_index = polygon_index;
+                dex_index = polygon_index;
+                polygon_index += 1;
+                 &POLYGON_CHAIN_PARAMS
+            },
             "BSC_TESTNET" => &TESTNET_BSC_CHAIN_PARAMS,
-            "POLYGON" => &POLYGON_CHAIN_PARAMS,
             "POLYGON_TESTNET" => &TESTNET_POLYGON_CHAIN_PARAMS,
             _ => return Err(ConfigError::UnsupportedChainName),
         };
 
-        let rpc_node_index = get_env_var("RPC_NODE_INDX", "0")?;
-        let dex_index = get_env_var("DEX_INDE", "0")?;
         let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
         let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
         let use_kms = get_bool_env_var("USE_KMS", false);
