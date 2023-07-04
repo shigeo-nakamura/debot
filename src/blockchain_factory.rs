@@ -73,7 +73,7 @@ lazy_static! {
             // ("LINK", BSC_LINK_ADDRESS),
             // ("LTC", BSC_LTC_ADDRESS),
             // ("DOT", BSC_DOT_ADDRESS),
-            ("DOGE", BSC_DOGE_ADDRESS),
+            // ("DOGE", BSC_DOGE_ADDRESS),
             // ("XVS", BSC_XVS_ADDRESS),
             // ("PEPE", BSC_PEPE_ADDRESS),
             // ("STK_BNB", BSC_STK_BNB_ADDRESS),
