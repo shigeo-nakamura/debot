@@ -100,6 +100,7 @@ pub struct TransactionLogItem {
     pub buy_price: f64,
     pub predicted_price: f64,
     pub sold_price: Option<f64>,
+    pub sold_amount: Option<f64>,
     pub amount: f64,
     pub realized_pnl: Option<f64>, // realized profit or loss
 }

@@ -359,6 +359,7 @@ impl FundManager {
         item.buy_price = position.average_buy_price;
         item.predicted_price = position.take_profit_price;
         item.sold_price = position.sold_price;
+        item.sold_amount = position.sold_amount;
         item.amount = position.amount;
         item.realized_pnl = position.realized_pnl;
 

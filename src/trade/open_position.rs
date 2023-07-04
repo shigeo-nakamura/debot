@@ -9,6 +9,7 @@ pub struct OpenPosition {
     pub take_profit_price: f64,
     pub cut_loss_price: f64,
     pub sold_price: Option<f64>,
+    pub sold_amount: Option<f64>,
     pub amount: f64,
     pub amount_in_base_token: f64,
     pub realized_pnl: Option<f64>,
@@ -36,6 +37,7 @@ impl OpenPosition {
             take_profit_price,
             cut_loss_price,
             sold_price: None,
+            sold_amount: None,
             amount,
             amount_in_base_token,
             realized_pnl: None,
@@ -50,22 +52,9 @@ impl OpenPosition {
         sell_price <= self.cut_loss_price
     }
 
-    fn update(&mut self, token_name: &str, average_price: f64, amount: f64) {
-        self.amount += amount;
-
-        if self.amount == 0.0 {
-            self.sold_price = Some(average_price);
-            let pnl = (average_price - self.average_buy_price) * amount;
-            self.realized_pnl = Some(pnl);
-            self.close_time = Some(chrono::Utc::now().timestamp());
-
-            log::debug!(
-                "Cloes the position for token: {}, amount: {:6.3}, PNL: {:6.3}",
-                token_name,
-                amount,
-                pnl
-            );
-        } else {
+    fn update(&mut self, token_name: &str, average_price: f64, amount: f64, is_buy: bool) {
+        if is_buy {
+            self.amount += amount;
             self.average_buy_price = (self.average_buy_price * self.amount
                 + average_price * amount)
                 / (self.amount + amount);
@@ -78,12 +67,25 @@ impl OpenPosition {
             self.take_profit_price,
             self.cut_loss_price,
         );
+        } else {
+            self.amount -= amount;
+            self.sold_price = Some(average_price);
+            self.sold_amount = Some(amount);
+            let pnl = (average_price - self.average_buy_price) * amount;
+            self.realized_pnl = Some(pnl);
+            self.close_time = Some(chrono::Utc::now().timestamp());
+
+            log::debug!(
+                "Cloes the position for token: {}, amount: {:6.3}, PNL: {:6.3}",
+                token_name,
+                amount,
+                pnl
+            );
         }
     }
 
     pub fn del(&mut self, token_name: &str, sold_price: f64, amount: f64) {
-        let amount = amount * -1.0;
-        self.update(token_name, sold_price, amount);
+        self.update(token_name, sold_price, amount, false);
     }
 
     pub fn add(
@@ -102,7 +104,7 @@ impl OpenPosition {
         self.cut_loss_price =
             (self.cut_loss_price * self.amount + cut_loss_price * amount) / (self.amount + amount);
 
-        self.update(token_name, average_price, amount);
+        self.update(token_name, average_price, amount, true);
     }
 
     pub fn print_info(&self, token_name: &str, current_price: f64) {
