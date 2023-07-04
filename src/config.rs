@@ -106,13 +106,13 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
                 dex_index = bsc_index;
                 bsc_index += 1;
                 &BSC_CHAIN_PARAMS
-            },
+            }
             "POLYGON" => {
                 rpc_node_index = polygon_index;
                 dex_index = polygon_index;
                 polygon_index += 1;
-                 &POLYGON_CHAIN_PARAMS
-            },
+                &POLYGON_CHAIN_PARAMS
+            }
             "BSC_TESTNET" => &TESTNET_BSC_CHAIN_PARAMS,
             "POLYGON_TESTNET" => &TESTNET_POLYGON_CHAIN_PARAMS,
             _ => return Err(ConfigError::UnsupportedChainName),

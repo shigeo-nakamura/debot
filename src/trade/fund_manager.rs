@@ -294,7 +294,6 @@ impl FundManager {
             self.state.amount += amount_out;
 
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
-                position.amount -= amount_in;
                 let sold_price = amount_out / amount_in;
                 position.del(token_name, sold_price, amount_in);
 
@@ -340,16 +339,15 @@ impl FundManager {
         if let Some(transaction_log_id) = transaction_log_id {
             // Search the item
             item.id = transaction_log_id;
-            let mut items = TransactionLog::search(&db, &item).await;
-            if items.len() != 1 {
-                log::info!("The transaction is not determined: {}", items.len());
-                return None;
-            }
-            item = items.pop().unwrap();
-            log::trace!("{:?}", item);
+            let item = match TransactionLog::search(&db, &item).await {
+                Some(item) => item,
+                None => return None,
+            };
+            log::trace!("Existing item = {:?}", item);
         } else {
             item.id = self.state.transaction_log.increment_counter();
             transaction_log_id = Some(item.id);
+            log::trace!("New item = {:?}", item);
         }
         item.open_time = position.get_datetime_string(position.open_time);
         item.close_time = match position.close_time {

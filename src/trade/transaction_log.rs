@@ -3,8 +3,8 @@ use shared_mongodb::{database, ClientHolder};
 use std::error;
 use std::sync::Arc;
 
-use crate::db::item::{search_items, update_item};
-use crate::db::{insert_item, BalanceLogItem, TransactionLogItem};
+use crate::db::item::{search_item, update_item};
+use crate::db::{insert_item, search_items, BalanceLogItem, TransactionLogItem};
 
 pub async fn get_last_transaction_id(db: &Database) -> u32 {
     let mut last_counter = 0;
@@ -54,15 +54,14 @@ impl TransactionLog {
         transaction_id
     }
 
-    pub async fn search(db: &Database, item: &TransactionLogItem) -> Vec<TransactionLogItem> {
-        let items = match search_items(db, item).await {
-            Ok(items) => items,
+    pub async fn search(db: &Database, item: &TransactionLogItem) -> Option<TransactionLogItem> {
+        match search_item(db, item).await {
+            Ok(item) => Some(item),
             Err(e) => {
                 log::error!("{:?}", e);
-                vec![]
+                None
             }
-        };
-        items
+        }
     }
 
     pub async fn get_db(
