@@ -234,7 +234,7 @@ impl FundManager {
             let current_time = chrono::Utc::now().timestamp();
             let time_since_last_creation = current_time - position.open_time;
 
-            return time_since_last_creation < (self.config.position_creation_inteval as i64);
+            return time_since_last_creation > (self.config.position_creation_inteval as i64);
         }
         true
     }
