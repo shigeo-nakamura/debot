@@ -120,7 +120,7 @@ lazy_static! {
         tokens: &[
             ("USDC", POLYGON_USDC_ADDRESS),
             // ("USDT", POLYGON_USDT_ADDRESS),
-            ("WBTC", POLYGON_WBTC_ADDRESS),
+            // ("WBTC", POLYGON_WBTC_ADDRESS),
             ("WETH", POLYGON_WETH_ADDRESS),
             // ("DAI", POLYGON_DAI_ADDRESS),
             // ("MAI", POLYGON_MAI_ADDRESS),
