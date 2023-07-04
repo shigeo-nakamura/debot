@@ -34,6 +34,7 @@ pub struct EnvConfig {
     pub max_error_count: u32,
     pub reward_multiplier: f64,
     pub penalty_multiplier: f64,
+    pub slippage: f64,
     pub treasury: Option<Address>,
 }
 
@@ -137,8 +138,9 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             get_env_var("POSITION_CREATION_INVERVAL_PERIOD", "30")?;
         let flash_crash_threshold = get_env_var("FLASH_CRASH_THRESHOLD", "0.95")?;
         let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;
-        let reward_multiplier = get_env_var("reward_multiplier", "1.5")?;
-        let penalty_multiplier = get_env_var("penalty_multiplier", "0.9")?;
+        let reward_multiplier = get_env_var("REWARD_MULTIPLIER", "1.5")?;
+        let penalty_multiplier = get_env_var("PENALTY_MULTIPLIER", "0.9")?;
+        let slippage = get_env_var("SLIPPAGE", "0.03")?;
 
         let treasury_str = env::var("TREASURY").unwrap_or_default();
         let treasury: Option<Address> = Some(Address::from_str(&treasury_str).unwrap_or_default());
@@ -167,6 +169,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             max_error_count,
             reward_multiplier,
             penalty_multiplier,
+            slippage,
             treasury,
         };
 

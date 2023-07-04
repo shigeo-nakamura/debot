@@ -35,9 +35,11 @@ pub struct ForcastTraderConfig {
     reward_multiplier: f64,
     penalty_multiplier: f64,
     dex_index: usize,
+    slippage: f64,
 }
 
 pub struct ForcastTraderState {
+    amount: f64,
     close_all_position: bool,
     fund_manager_map: HashMap<String, FundManager>,
 }
@@ -68,6 +70,7 @@ impl ForcastTrader {
         db_client: Arc<Mutex<ClientHolder>>,
         transaction_log: Arc<TransactionLog>,
         dex_index: usize,
+        slippage: f64,
     ) -> Self {
         let config = ForcastTraderConfig {
             short_trade_period,
@@ -77,9 +80,11 @@ impl ForcastTrader {
             reward_multiplier,
             penalty_multiplier,
             dex_index,
+            slippage,
         };
 
         let mut state = ForcastTraderState {
+            amount: initial_amount,
             close_all_position: false,
             fund_manager_map: HashMap::new(),
         };
@@ -213,6 +218,26 @@ impl ForcastTrader {
         Ok(token_pair_prices)
     }
 
+    fn is_price_impacted(buy_price: f64, sell_price: f64, amount_in: f64, slippage: f64) -> bool {
+        let amount_out = (buy_price * amount_in) * sell_price;
+        if amount_out >= amount_in {
+            return false;
+        }
+
+        let diff = amount_in - amount_out;
+        if diff / amount_in > slippage {
+            log::info!(
+                "Price impact is too high: amount_in = {:6.6}, amount_out = {:6.6}, diff = {:3.3}",
+                amount_in,
+                amount_out,
+                diff
+            );
+            return true;
+        }
+
+        return false;
+    }
+
     fn find_buy_opportunities(
         &self,
         current_prices: &HashMap<(String, String, String), f64>,
@@ -242,6 +267,24 @@ impl ForcastTrader {
                 let proposal = fund_manager.find_buy_opportunities(token_a_name, *price, histories);
 
                 if let Some(opportunity) = proposal {
+                    let key = (
+                        self.base_token().symbol_name().to_owned(),
+                        token_a_name.to_owned(),
+                        self.dexes()[self.config.dex_index].name().to_owned(),
+                    );
+                    let buy_price = current_prices.get(&key);
+                    if buy_price.is_none() {
+                        continue;
+                    }
+                    if Self::is_price_impacted(
+                        *buy_price.unwrap(),
+                        opportunity.price,
+                        opportunity.amount,
+                        self.config.slippage,
+                    ) {
+                        continue;
+                    }
+
                     opportunities.push(TradeOpportunity {
                         dex_index: vec![dex_index],
                         token_index: vec![token_b_index, token_a_index],
@@ -343,6 +386,16 @@ impl ForcastTrader {
                 return;
             }
         };
+
+        if base_token_amount == 0.0 {
+            if self.base_trader.skip_write() {
+                // for testing
+                return;
+            }
+            panic!("No balance")
+        }
+
+        self.state.amount = base_token_amount;
 
         let mut total_score = 0.0;
         let mut scores: Vec<f64> = vec![];
@@ -522,7 +575,7 @@ impl AbstractTrader for ForcastTrader {
         let base_token = &self.base_token();
         let dex = &self.dexes()[self.config.dex_index];
         let tokens = &self.tokens();
-        let amount = self.initial_amount() * self.leverage();
+        let amount = self.state.amount;
 
         // Get prices with base token / each token and each token / base token
         let mut get_price_futures = Vec::new();
