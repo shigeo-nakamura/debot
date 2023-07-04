@@ -172,7 +172,7 @@ pub trait Dex: Send + Sync {
             * 10f64.powi(input_decimals as i32 - output_decimals as i32);
 
         log::trace!(
-            "Dex: {}, Input Amount: {}({}), Output Amount: {}({}), Price: {}",
+            "{}, Amount-in: {}({}), Amount-out: {}({}), Price: {:6.6}",
             self.name(),
             amount_in,
             token_pair.input_token.symbol_name(),
