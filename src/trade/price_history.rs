@@ -72,7 +72,10 @@ impl PriceHistory {
             x if x == self.short_period => predict(self.short_period, self.ema_short),
             x if x == self.medium_period => predict(self.medium_period, self.ema_medium),
             x if x == self.long_period => predict(self.long_period, self.ema_long),
-            _ => panic!("Invalid period"),
+            _ => {
+                log::error!("Invalid period");
+                predict(self.short_period, self.ema_short)
+            }
         }
     }
 

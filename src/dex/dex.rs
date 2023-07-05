@@ -297,7 +297,8 @@ pub trait Dex: Send + Sync {
             Ok(result) => result,
             Err(err) => {
                 // Handle the error or panic with a custom message
-                panic!("Failed to execute contract call: {:?}", err);
+                log::error!("Failed to execute contract call: {:?}", err);
+                return false;
             }
         };
 

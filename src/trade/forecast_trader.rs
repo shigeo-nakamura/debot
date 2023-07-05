@@ -392,7 +392,8 @@ impl ForcastTrader {
                 // for testing
                 return;
             }
-            panic!("No balance")
+            log::warn!("No balance left");
+            return;
         }
 
         self.state.amount = base_token_amount;

@@ -17,7 +17,7 @@ pub async fn get_last_transaction_id(db: &Database) -> u32 {
             }
         }
         Err(e) => {
-            log::error!("{:?}", e);
+            log::warn!(" get_last_transaction_id: {:?}", e);
         }
     };
     last_counter
@@ -58,7 +58,7 @@ impl TransactionLog {
         match search_item(db, item).await {
             Ok(item) => Some(item),
             Err(e) => {
-                log::error!("{:?}", e);
+                log::error!("search: {:?}", e);
                 None
             }
         }
@@ -71,7 +71,7 @@ impl TransactionLog {
         let db = match database::get(db_client, self.db_name()).await {
             Ok(db) => Some(db),
             Err(e) => {
-                log::warn!("{:?}", e);
+                log::error!("get_db: {:?}", e);
                 None
             }
         };
