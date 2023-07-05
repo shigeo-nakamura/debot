@@ -3,6 +3,13 @@
 const SIGNAL_PERIOD: usize = 9;
 const MACD_THRESHOLD: f64 = 0.1;
 
+// RSI thresholds
+const RSI_OVERBOUGHT: f64 = 70.0;
+const RSI_OVERSOLD: f64 = 30.0;
+
+// Threshold for detecting flash crash based on RSI
+const RSI_FLASH_CRASH: f64 = 85.0;
+
 #[derive(Debug, Clone)]
 pub struct PriceHistory {
     prices: Vec<f64>,
@@ -146,9 +153,9 @@ impl PriceHistory {
 
     pub fn predict_next_price_rsi(&self, period: usize) -> f64 {
         let rsi = self.calculate_rsi(period);
-        if rsi > 70.0 {
+        if rsi > RSI_OVERBOUGHT {
             self.prices.last().unwrap() * 0.99 // assume a 1% price drop
-        } else if rsi < 30.0 {
+        } else if rsi < RSI_OVERSOLD {
             self.prices.last().unwrap() * 1.01 // assume a 1% price rise
         } else {
             *self.prices.last().unwrap() // no clear signal, return last price
@@ -191,7 +198,9 @@ impl PriceHistory {
     }
 
     pub fn is_flash_crash(&self) -> bool {
-        if self.last_price < (self.ema_short * self.flash_crash_threshold) {
+        if self.last_price < (self.ema_short * self.flash_crash_threshold)
+            && self.calculate_rsi(SIGNAL_PERIOD) > RSI_FLASH_CRASH
+        {
             return true;
         }
         false
