@@ -1,9 +1,9 @@
 // fund_manager.rs
 
+use ethers::abi::Hash;
 use shared_mongodb::ClientHolder;
 
-use super::{OpenPosition, PriceHistory, TradingStrategy, TransactionLog};
-use crate::db::TransactionLogItem;
+use super::{PriceHistory, TradePosition, TradingStrategy, TransactionLog};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -13,7 +13,7 @@ const MOVING_AVERAGE_WINDOW_SIZE: usize = 5;
 
 pub struct FundManagerState {
     amount: f64,
-    open_positions: HashMap<String, OpenPosition>,
+    open_positions: HashMap<String, TradePosition>,
     close_all_position: bool,
     score: f64,
     past_scores: Vec<f64>,
@@ -47,6 +47,7 @@ pub struct TradeProposal {
 impl FundManager {
     pub fn new(
         fund_name: &str,
+        open_positions: Option<HashMap<String, TradePosition>>,
         strategy: TradingStrategy,
         trade_period: usize,
         leverage: f64,
@@ -70,9 +71,14 @@ impl FundManager {
                 as u64,
         };
 
+        let open_positions = match open_positions {
+            Some(positions) => positions,
+            None => HashMap::new(),
+        };
+
         let state = FundManagerState {
             amount: initial_amount,
-            open_positions: HashMap::new(),
+            open_positions,
             close_all_position: false,
             score: initial_score,
             past_scores: vec![],
@@ -188,7 +194,7 @@ impl FundManager {
     ) -> Option<TradeProposal> {
         if let Some(history) = histories.get(token_name) {
             if let Some(position) = self.state.open_positions.get(token_name) {
-                position.print_info(token_name, sell_price);
+                position.print_info(sell_price);
 
                 let mut amount = 0.0;
 
@@ -262,30 +268,35 @@ impl FundManager {
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
                 // if there are already open positions for this token, update them
                 position.add(
-                    token_name,
-                    average_price,
-                    take_profit_price,
-                    cut_loss_price,
-                    amount_out,
-                );
-
-                let position_cloned = position.clone();
-                self.update_transaction_log(db_client, &position_cloned, token_name)
-                    .await;
-            } else {
-                // else, create a new position
-                let mut position = OpenPosition::new(
-                    token_name,
                     average_price,
                     take_profit_price,
                     cut_loss_price,
                     amount_out,
                     amount_in,
                 );
-                let transaction_log_id = self
-                    .update_transaction_log(db_client, &position, token_name)
+
+                if position.id.is_none() {
+                    position.id = Some(self.state.transaction_log.increment_counter());
+                }
+
+                let position_cloned = position.clone();
+                self.update_transaction_log(db_client, &position_cloned)
                     .await;
-                position.transaction_log_id = transaction_log_id;
+            } else {
+                // else, create a new position
+                let mut position = TradePosition::new(
+                    token_name,
+                    self.fund_name(),
+                    average_price,
+                    take_profit_price,
+                    cut_loss_price,
+                    amount_out,
+                    amount_in,
+                );
+                position.id = Some(self.state.transaction_log.increment_counter());
+                let position_cloned = position.clone();
+                self.update_transaction_log(db_client, &position_cloned)
+                    .await;
                 self.state
                     .open_positions
                     .insert(token_name.to_owned(), position);
@@ -295,11 +306,11 @@ impl FundManager {
 
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
                 let sold_price = amount_out / amount_in;
-                position.del(token_name, sold_price, amount_in);
+                position.del(sold_price, amount_in);
 
                 let position_cloned = position.clone();
                 let amount = position.amount;
-                self.update_transaction_log(db_client, &position_cloned, token_name)
+                self.update_transaction_log(db_client, &position_cloned)
                     .await;
 
                 if amount > 0.0 {
@@ -321,53 +332,21 @@ impl FundManager {
     async fn update_transaction_log(
         &self,
         db_client: &Arc<Mutex<ClientHolder>>,
-        position: &OpenPosition,
-        token_name: &str,
-    ) -> Option<u32> {
+        position: &TradePosition,
+    ) {
         log::debug!("update_transaction_log");
 
         let db = self.state.transaction_log.get_db(db_client).await;
         if db.is_none() {
             log::error!("The DB access it no possible");
-            return None;
+            return;
         }
 
         let db = db.unwrap();
-        let mut transaction_log_id = position.transaction_log_id;
-        let mut item = TransactionLogItem::default();
 
-        if let Some(transaction_log_id) = transaction_log_id {
-            // Search the item
-            item.id = transaction_log_id;
-            let item = match TransactionLog::search(&db, &item).await {
-                Some(item) => item,
-                None => return None,
-            };
-            log::trace!("Existing item = {:?}", item);
-        } else {
-            item.id = self.state.transaction_log.increment_counter();
-            transaction_log_id = Some(item.id);
-            log::trace!("New item = {:?}", item);
+        if let Err(e) = TransactionLog::update_transaction(&db, position).await {
+            log::error!("update_transaction_log: {:?}", e);
         }
-        item.open_time = position.get_datetime_string(position.open_time);
-        item.close_time = match position.close_time {
-            Some(time) => Some(position.get_datetime_string(time)),
-            None => None,
-        };
-        item.fund_name = self.fund_name().to_owned();
-        item.token = token_name.to_owned();
-        item.buy_price = position.average_buy_price;
-        item.predicted_price = position.take_profit_price;
-        item.sold_price = position.sold_price;
-        item.sold_amount = position.sold_amount;
-        item.amount = position.amount;
-        item.realized_pnl = position.realized_pnl;
-
-        if let Err(e) = TransactionLog::update_transaction(&db, &item).await {
-            log::error!("{:?}", e);
-            return None;
-        }
-        transaction_log_id
     }
 
     fn calculate_moving_average_score(&self, window: usize) -> f64 {

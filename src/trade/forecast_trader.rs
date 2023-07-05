@@ -22,8 +22,10 @@ use shared_mongodb::ClientHolder;
 use tokio::time::{timeout, Duration};
 
 use super::abstract_trader::BaseTrader;
+use super::fund_configurations;
 use super::FundManager;
 use super::Operation;
+use super::TradePosition;
 use super::TransactionLog;
 use super::{PriceHistory, TradeOpportunity};
 
@@ -71,6 +73,8 @@ impl ForcastTrader {
         transaction_log: Arc<TransactionLog>,
         dex_index: usize,
         slippage: f64,
+        open_positions_map: HashMap<String, HashMap<String, TradePosition>>,
+        prev_balance: Option<f64>,
     ) -> Self {
         let config = ForcastTraderConfig {
             short_trade_period,
@@ -89,73 +93,27 @@ impl ForcastTrader {
             fund_manager_map: HashMap::new(),
         };
 
-        let fund_managers = vec![
-            FundManager::new(
-                "trend-follow-short",
-                TradingStrategy::TrendFollowing,
-                short_trade_period,
-                leverage,
-                initial_amount,
-                10.0, // initial score
-                position_creation_inteval,
-                1.006,
-                0.99,
-                1.0, // 1 day
-                transaction_log.clone(),
-            ),
-            FundManager::new(
-                "trend-follow-medium",
-                TradingStrategy::TrendFollowing,
-                medium_trade_period,
-                leverage,
-                initial_amount,
-                10.0, // initial score
-                position_creation_inteval,
-                1.008,
-                0.985,
-                1.0, // 1 day
-                transaction_log.clone(),
-            ),
-            FundManager::new(
-                "trend-follow-long",
-                TradingStrategy::TrendFollowing,
-                long_trade_period,
-                leverage,
-                initial_amount,
-                10.0, // initial score
-                position_creation_inteval,
-                1.01,
-                0.98,
-                1.0, // 1 day
-                transaction_log.clone(),
-            ),
-            FundManager::new(
-                "mean-reversion-medium",
-                TradingStrategy::MeanReversion,
-                medium_trade_period,
-                leverage,
-                initial_amount,
-                10.0, // initial score
-                position_creation_inteval,
-                1.01,
-                0.99,
-                1.0, // 1 day
-                transaction_log.clone(),
-            ),
-            FundManager::new(
-                "constrarian-medium",
-                TradingStrategy::Contrarian,
-                medium_trade_period,
-                leverage,
-                initial_amount,
-                10.0, // initial score
-                position_creation_inteval,
-                1.01,
-                0.99,
-                1.0, // 1 day
-                transaction_log.clone(),
-            ),
-        ];
+        let fund_manager_configurations =
+            fund_configurations::get(short_trade_period, medium_trade_period, long_trade_period);
+        let fund_managers: Vec<_> = fund_manager_configurations
+            .into_iter()
+            .map(|(name, strategy, period, take_profit, cut_loss)| {
+                FundManager::new(
+                    name,
+                    open_positions_map.get(name).cloned(),
+                    strategy,
+                    period,
+                    leverage,
+                    initial_amount,
+                    10.0, // initial score
+                    position_creation_inteval,
+                    take_profit,
+                    cut_loss,
+                    1.0, // 1 day
+                    transaction_log.clone(),
+                )
+            })
+            .collect();
 
         for fund_manager in fund_managers {
             state
@@ -176,10 +134,46 @@ impl ForcastTrader {
                 gas,
                 db_client,
                 transaction_log,
+                prev_balance,
             ),
             config,
             state,
         }
+    }
+
+    pub async fn get_open_positions_map(
+        transaction_log: Arc<TransactionLog>,
+        db_client: Arc<Mutex<ClientHolder>>,
+    ) -> HashMap<String, HashMap<String, TradePosition>> {
+        let db = transaction_log.get_db(&db_client).await;
+        if db.is_none() {
+            log::error!("The DB access it no possible");
+            return HashMap::new();
+        }
+
+        let db = db.unwrap();
+
+        let open_positions_vec = TransactionLog::get_all_open_positions(&db).await;
+        let mut open_positions_map = HashMap::new();
+
+        // Populate the open_positions_map
+        for position in open_positions_vec {
+            // Ensure a HashMap exists for this fund_name
+            open_positions_map
+                .entry(position.fund_name.clone())
+                .or_insert_with(HashMap::new)
+                .insert(position.token_name.clone(), position);
+        }
+
+        for (fund_name, positions) in &open_positions_map {
+            log::info!("Fund name: {}", fund_name);
+            for (token_name, position) in positions {
+                log::info!("Token name: {}", token_name);
+                log::info!("Position: {:?}", position);
+            }
+        }
+
+        open_positions_map
     }
 
     async fn get_current_prices(
@@ -680,7 +674,7 @@ impl AbstractTrader for ForcastTrader {
             .await
     }
 
-    async fn log_current_balance(&mut self, wallet_address: &Address) {
+    async fn log_current_balance(&mut self, wallet_address: &Address) -> Option<f64> {
         self.base_trader.log_current_balance(wallet_address).await
     }
 }

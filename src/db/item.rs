@@ -10,6 +10,10 @@ use serde::{Deserialize, Serialize};
 use std::error;
 use std::io::{Error, ErrorKind};
 
+use crate::trade::transaction_log::AppState;
+use crate::trade::BalanceLog;
+use crate::trade::TradePosition;
+
 #[async_trait]
 pub trait Entity {
     async fn insert(&self, db: &Database) -> Result<(), Box<dyn error::Error>>;
@@ -85,36 +89,17 @@ pub async fn search_item<T: Entity>(db: &Database, item: &T) -> Result<T, Box<dy
 }
 
 pub async fn create_unique_index(db: &Database) -> Result<(), Box<dyn error::Error>> {
-    let item = TransactionLogItem::default();
+    let item = TradePosition::default();
     item.create_unique_index(db).await?;
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct TransactionLogItem {
-    pub id: u32,
-    pub open_time: String,
-    pub close_time: Option<String>,
-    pub fund_name: String,
-    pub token: String, // token against the base token
-    pub buy_price: f64,
-    pub predicted_price: f64,
-    pub sold_price: Option<f64>,
-    pub sold_amount: Option<f64>,
-    pub amount: f64,
-    pub realized_pnl: Option<f64>, // realized profit or loss
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct BalanceLogItem {
-    pub date: String,
-    pub amount: f64,
-}
-
 #[async_trait]
-impl Entity for TransactionLogItem {
-    async fn insert(&self, _db: &Database) -> Result<(), Box<dyn error::Error>> {
-        panic!("Not implemented")
+impl Entity for TradePosition {
+    async fn insert(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
+        let collection = self.get_collection(db);
+        collection.insert_one(self, None).await?;
+        Ok(())
     }
 
     async fn update(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
@@ -129,27 +114,26 @@ impl Entity for TransactionLogItem {
         panic!("Not implemented")
     }
 
-    async fn delete_all(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
-        let collection = self.get_collection(db);
-        collection.delete_all().await
+    async fn delete_all(&self, _db: &Database) -> Result<(), Box<dyn error::Error>> {
+        panic!("Not implemented")
     }
 
     async fn search(&self, db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
         let mut query = doc! { "id": { "$gt": 0 }};
-        if self.id != 0 {
-            query = doc! { "id": self.id };
+        if self.id != None {
+            query = doc! { "id": self.id.unwrap() };
         }
         let collection = self.get_collection(db);
         collection.search(query).await
     }
 
     fn get_collection_name(&self) -> &str {
-        "transaction"
+        "position"
     }
 }
 
 #[async_trait]
-impl Entity for BalanceLogItem {
+impl Entity for BalanceLog {
     async fn insert(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
         let collection = self.get_collection(db);
         collection.insert_one(self, None).await?;
@@ -174,6 +158,39 @@ impl Entity for BalanceLogItem {
 
     fn get_collection_name(&self) -> &str {
         "balance"
+    }
+}
+
+#[async_trait]
+impl Entity for AppState {
+    async fn insert(&self, _db: &Database) -> Result<(), Box<dyn error::Error>> {
+        panic!("Not implemented")
+    }
+
+    async fn update(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
+        let query = doc! { "id": 1 };
+        let update = bson::to_bson(self).unwrap();
+        let update = doc! { "$set" : update };
+        let collection = self.get_collection(db);
+        collection.update(query, update, true).await
+    }
+
+    async fn delete(&self, _db: &Database) -> Result<(), Box<dyn error::Error>> {
+        panic!("Not implemented")
+    }
+
+    async fn delete_all(&self, _db: &Database) -> Result<(), Box<dyn error::Error>> {
+        panic!("Not implemented")
+    }
+
+    async fn search(&self, db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
+        let query = doc! { "id": 1 };
+        let collection = self.get_collection(db);
+        collection.search(query).await
+    }
+
+    fn get_collection_name(&self) -> &str {
+        "app-state"
     }
 }
 

@@ -10,7 +10,7 @@ use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
-use trade::transaction_log::get_last_transaction_id;
+use trade::transaction_log::{get_last_transaction_id, AppState};
 use trade::{ForcastTrader, PriceHistory, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
@@ -64,19 +64,43 @@ async fn main() -> std::io::Result<()> {
         .await
         .unwrap();
     let last_transaction_id = get_last_transaction_id(&db).await;
-    let transaction_log = TransactionLog::new(configs[0].log_limit, last_transaction_id, &db_name);
+    let transaction_log = Arc::new(TransactionLog::new(
+        configs[0].log_limit,
+        last_transaction_id,
+        &db_name,
+    ));
+
+    // Read the last App state
+    let db = transaction_log
+        .get_db(&client_holder.clone())
+        .await
+        .unwrap();
+    let app_state = TransactionLog::get_app_state(&db).await;
 
     // Initialize an empty vector to hold trader instances
-    let mut trader_instances =
-        prepare_trader_instances(&configs, client_holder, Arc::new(transaction_log)).await;
+    let mut trader_instances = prepare_trader_instances(
+        &configs,
+        client_holder.clone(),
+        transaction_log.clone(),
+        app_state.prev_balance,
+    )
+    .await;
 
-    main_loop(&mut trader_instances, &configs).await
+    main_loop(
+        &mut trader_instances,
+        &configs,
+        app_state.last_execution_time,
+        client_holder,
+        transaction_log.clone(),
+    )
+    .await
 }
 
 async fn prepare_trader_instances(
     configs: &[EnvConfig],
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
+    prev_balance: Option<f64>,
 ) -> Vec<(
     ForcastTrader,
     WalletAndProvider,
@@ -92,6 +116,7 @@ async fn prepare_trader_instances(
             config,
             client_holder.clone(),
             transaction_log.clone(),
+            prev_balance,
         )
         .await;
         trader_instances.push(trader_instance);
@@ -104,6 +129,7 @@ async fn prepare_algorithm_trader_instance(
     config: &EnvConfig,
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
+    prev_balance: Option<f64>,
 ) -> (
     ForcastTrader,
     WalletAndProvider,
@@ -148,6 +174,10 @@ async fn prepare_algorithm_trader_instance(
     // Create an error manager
     let error_manager = ErrorManager::new();
 
+    // Read open positions from the DB
+    let open_positions_map =
+        ForcastTrader::get_open_positions_map(transaction_log.clone(), client_holder.clone()).await;
+
     let mut trader = ForcastTrader::new(
         config.leverage,
         config.min_managed_amount,
@@ -168,6 +198,8 @@ async fn prepare_algorithm_trader_instance(
         transaction_log,
         config.dex_index,
         config.slippage,
+        open_positions_map,
+        prev_balance,
     );
 
     trader.rebalance(wallet.address()).await;
@@ -198,10 +230,18 @@ async fn main_loop(
         ErrorManager,
     )>,
     configs: &[EnvConfig],
+    last_execution_time: SystemTime,
+    client_holder: Arc<Mutex<ClientHolder>>,
+    transaction_log: Arc<TransactionLog>,
 ) -> std::io::Result<()> {
     let now = SystemTime::now();
-    let mut last_execution = SystemTime::UNIX_EPOCH;
     let one_day = Duration::from_secs(24 * 60 * 60);
+    let mut last_execution_time = last_execution_time;
+
+    log::warn!(
+        "main_loop() starts, last_execution_time = {:?}",
+        last_execution_time
+    );
 
     loop {
         let interval = configs[0].interval as f64 / trader_instances.len() as f64;
@@ -209,9 +249,15 @@ async fn main_loop(
         for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
             trader_instances.iter_mut()
         {
-            if now.duration_since(last_execution).unwrap() > one_day {
-                trader.log_current_balance(wallet_address).await;
-                last_execution = now;
+            if now.duration_since(last_execution_time).unwrap() > one_day {
+                let prev_balance = trader.log_current_balance(wallet_address).await;
+                last_execution_time = now;
+                let db = transaction_log
+                    .get_db(&client_holder.clone())
+                    .await
+                    .unwrap();
+
+                TransactionLog::update_app_state(&db, last_execution_time, prev_balance);
             }
 
             if error_manager.get_error_count() >= config.max_error_count {

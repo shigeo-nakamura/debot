@@ -51,6 +51,7 @@ impl ArbitrageTrader {
                 gas,
                 db_client,
                 transaction_log,
+                None,
             ),
             num_swaps,
         }
@@ -433,7 +434,7 @@ impl AbstractTrader for ArbitrageTrader {
             .await
     }
 
-    async fn log_current_balance(&mut self, wallet_address: &Address) {
+    async fn log_current_balance(&mut self, wallet_address: &Address) -> Option<f64> {
         self.base_trader.log_current_balance(wallet_address).await
     }
 }

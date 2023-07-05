@@ -1,10 +1,15 @@
 // open_position.rs
 
-#[derive(Clone, Debug)]
-pub struct OpenPosition {
-    pub transaction_log_id: Option<u32>,
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct TradePosition {
+    pub id: Option<u32>,
+    pub token_name: String,
+    pub fund_name: String,
     pub open_time: i64,
-    pub close_time: Option<i64>,
+    pub open_time_str: String,
+    pub close_time_str: String,
     pub average_buy_price: f64,
     pub take_profit_price: f64,
     pub cut_loss_price: f64,
@@ -15,9 +20,10 @@ pub struct OpenPosition {
     pub realized_pnl: Option<f64>,
 }
 
-impl OpenPosition {
+impl TradePosition {
     pub fn new(
         token_name: &str,
+        fund_name: &str,
         average_buy_price: f64,
         take_profit_price: f64,
         cut_loss_price: f64,
@@ -29,10 +35,15 @@ impl OpenPosition {
             token_name, average_buy_price, take_profit_price, cut_loss_price,
         );
 
+        let open_time = chrono::Utc::now().timestamp();
+
         Self {
-            transaction_log_id: None,
-            open_time: chrono::Utc::now().timestamp(),
-            close_time: None,
+            id: None,
+            token_name: token_name.to_owned(),
+            fund_name: fund_name.to_owned(),
+            open_time,
+            open_time_str: Self::get_datetime_string(open_time),
+            close_time_str: String::new(),
             average_buy_price,
             take_profit_price,
             cut_loss_price,
@@ -52,7 +63,7 @@ impl OpenPosition {
         sell_price <= self.cut_loss_price
     }
 
-    fn update(&mut self, token_name: &str, average_price: f64, amount: f64, is_buy: bool) {
+    fn update(&mut self, average_price: f64, amount: f64, is_buy: bool) {
         if is_buy {
             self.amount += amount;
             self.average_buy_price = (self.average_buy_price * self.amount
@@ -61,7 +72,7 @@ impl OpenPosition {
 
             log::debug!(
             "Updated open position for token: {}, amount: {:6.3}, average_buy_price: {:6.3}, take_profit_price: {:6.3}, cut_loss_price: {:6.3}",
-            token_name,
+            self.token_name,
             self.amount,
             self.average_buy_price,
             self.take_profit_price,
@@ -73,30 +84,33 @@ impl OpenPosition {
             self.sold_amount = Some(amount);
             let pnl = (average_price - self.average_buy_price) * amount;
             self.realized_pnl = Some(pnl);
-            self.close_time = Some(chrono::Utc::now().timestamp());
+            self.close_time_str = Self::get_datetime_string(chrono::Utc::now().timestamp());
 
             log::debug!(
                 "Cloes the position for token: {}, amount: {:6.3}, PNL: {:6.3}",
-                token_name,
+                self.token_name,
                 amount,
                 pnl
             );
         }
     }
 
-    pub fn del(&mut self, token_name: &str, sold_price: f64, amount: f64) {
-        self.update(token_name, sold_price, amount, false);
+    pub fn del(&mut self, sold_price: f64, amount: f64) {
+        self.update(sold_price, amount, false);
     }
 
     pub fn add(
         &mut self,
-        token_name: &str,
         average_price: f64,
         take_profit_price: f64,
         cut_loss_price: f64,
         amount: f64,
+        amount_in_base_token: f64,
     ) {
         self.open_time = chrono::Utc::now().timestamp();
+        self.open_time_str = Self::get_datetime_string(self.open_time);
+
+        self.amount_in_base_token += amount_in_base_token;
 
         self.take_profit_price = (self.take_profit_price * self.amount
             + take_profit_price * amount)
@@ -104,20 +118,20 @@ impl OpenPosition {
         self.cut_loss_price =
             (self.cut_loss_price * self.amount + cut_loss_price * amount) / (self.amount + amount);
 
-        self.update(token_name, average_price, amount, true);
+        self.update(average_price, amount, true);
     }
 
-    pub fn print_info(&self, token_name: &str, current_price: f64) {
+    pub fn print_info(&self, current_price: f64) {
         let pnl = (current_price - self.average_buy_price) * self.amount;
-        let transaction_log_id = match self.transaction_log_id {
+        let id = match self.id {
             Some(id) => id,
             None => 0,
         };
 
         log::debug!(
             "ID: {}, Token: {} PNL = {:6.3}, current_price: {:6.3}, average_buy_price: {:6.3}, take_profit_price: {:6.3}, cut_loss_price: {:6.3}, amount: {:6.6}",
-            transaction_log_id,
-            token_name,
+            id,
+            self.token_name,
             pnl,
             current_price,
             self.average_buy_price,
@@ -127,7 +141,7 @@ impl OpenPosition {
         );
     }
 
-    pub fn get_datetime_string(&self, time: i64) -> String {
+    fn get_datetime_string(time: i64) -> String {
         let naive_datetime =
             chrono::NaiveDateTime::from_timestamp_opt(time, 0).expect("Invalid timestamp");
         naive_datetime.format("%Y-%m-%d %H:%M:%S").to_string()

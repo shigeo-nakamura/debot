@@ -105,6 +105,7 @@ impl BaseTrader {
         gas: f64,
         client_holder: Arc<Mutex<ClientHolder>>,
         transaction_log: Arc<TransactionLog>,
+        prev_balance: Option<f64>,
     ) -> Self {
         Self {
             name,
@@ -118,7 +119,7 @@ impl BaseTrader {
             gas,
             client_holder,
             transaction_log,
-            prev_balance: None,
+            prev_balance,
         }
     }
 
@@ -178,7 +179,7 @@ impl BaseTrader {
                             panic!("Not enough amount of base token");
                         }
                     }
-                    log::info!("basek_token_amount = {:6.3}", base_token_amount);
+                    log::info!("base_token_amount = {:6.3}", base_token_amount);
                     self.initial_amount = min_managed_amount;
                 }
 
@@ -285,7 +286,7 @@ impl BaseTrader {
         get_price_futures
     }
 
-    pub async fn log_current_balance(&mut self, wallet_address: &Address) {
+    pub async fn log_current_balance(&mut self, wallet_address: &Address) -> Option<f64> {
         let mut total_amount_in_base_token = 0.0;
 
         for token in self.tokens().iter() {
@@ -318,16 +319,17 @@ impl BaseTrader {
 
         if self.prev_balance.is_none() {
             self.prev_balance = Some(total_amount_in_base_token);
-            return;
-        }
+        } else {
+            let change = self.prev_balance.unwrap() - total_amount_in_base_token;
 
-        let change = self.prev_balance.unwrap() - total_amount_in_base_token;
-
-        if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
-            if let Err(e) = TransactionLog::insert_balance(&db, change).await {
-                log::error!("{:?}", e);
+            if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
+                if let Err(e) = TransactionLog::insert_balance(&db, change).await {
+                    log::error!("{:?}", e);
+                }
             }
         }
+
+        self.prev_balance
     }
 
     pub fn leverage(&self) -> f64 {
@@ -410,5 +412,5 @@ pub trait AbstractTrader {
         amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
-    async fn log_current_balance(&mut self, wallet_address: &Address);
+    async fn log_current_balance(&mut self, wallet_address: &Address) -> Option<f64>;
 }
