@@ -1,6 +1,7 @@
 // main.rs
 
 use blockchain_factory::create_dexes;
+use chrono::{DateTime, Utc};
 use config::EnvConfig;
 use error_manager::ErrorManager;
 use ethers::signers::{LocalWallet, Signer};
@@ -238,9 +239,11 @@ async fn main_loop(
     let one_day = Duration::from_secs(24 * 60 * 60);
     let mut last_execution_time = last_execution_time;
 
+    let datetime: DateTime<Utc> = last_execution_time.into();
+
     log::warn!(
-        "main_loop() starts, last_execution_time = {:?}",
-        last_execution_time
+        "main_loop() starts, last_execution_time = {}",
+        datetime.format("%Y-%m-%d %H:%M:%S")
     );
 
     loop {

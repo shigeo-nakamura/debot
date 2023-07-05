@@ -155,6 +155,20 @@ impl BaseTrader {
         min_managed_amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         for token in self.tokens.iter() {
+            if token.symbol_name() == self.base_token.symbol_name() {
+                let base_token_amount = self.get_amount_of_token(owner, token).await?;
+                if base_token_amount < min_managed_amount {
+                    if !self.skip_write {
+                        panic!("Not enough amount of base token");
+                    }
+                }
+                log::info!("base_token_amount = {:6.3}", base_token_amount);
+                self.initial_amount = min_managed_amount;
+                break;
+            }
+        }
+
+        for token in self.tokens.iter() {
             for dex in self.dexes.iter() {
                 // Check the allowed amount
                 let spender = dex.router_address();
@@ -166,26 +180,15 @@ impl BaseTrader {
                     dex.name(),
                 );
 
+                if self.skip_write {
+                    continue;
+                }
+
                 let token_decimals = token.decimals().unwrap();
                 let converted_amount = U256::from_dec_str(&format!(
                     "{:.0}",
                     min_managed_amount * self.allowance_factor * 10f64.powi(token_decimals as i32)
                 ))?;
-
-                if token.symbol_name() == self.base_token.symbol_name() {
-                    let base_token_amount = self.get_amount_of_token(owner, token).await?;
-                    if base_token_amount < min_managed_amount {
-                        if !self.skip_write {
-                            panic!("Not enough amount of base token");
-                        }
-                    }
-                    log::info!("base_token_amount = {:6.3}", base_token_amount);
-                    self.initial_amount = min_managed_amount;
-                }
-
-                if self.skip_write {
-                    continue;
-                }
 
                 if allowance < converted_amount {
                     // Convert f64 to U256
