@@ -49,11 +49,11 @@ impl TradeOpportunity {
         let num_paths = self.dex_index.len();
         if let Some(profit) = self.predicted_profit {
             if profit > 0.0 {
-                log::info!("{} profit: {}", self.trader_name, profit);
+                log::debug!("{} profit: {}", self.trader_name, profit);
                 for i in 0..num_paths {
                     let dex = &dexes[self.dex_index[i]];
                     let token = &tokens[self.token_index[i]];
-                    log::info!(
+                    log::debug!(
                         "  DEX: {}, Token: {}, Amount: {}",
                         dex.name(),
                         token.symbol_name(),
@@ -325,7 +325,7 @@ impl BaseTrader {
 
         if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
             if let Err(e) = TransactionLog::insert_balance(&db, change).await {
-                log::info!("{:?}", e);
+                log::error!("{:?}", e);
             }
         }
     }

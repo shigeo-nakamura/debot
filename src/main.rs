@@ -206,7 +206,6 @@ async fn main_loop(
     loop {
         let interval = configs[0].interval as f64 / trader_instances.len() as f64;
 
-        log::info!("### enter");
         for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
             trader_instances.iter_mut()
         {
@@ -266,7 +265,6 @@ async fn main_loop(
                 return Ok(());
             }
         }
-        log::info!("### leave");
     }
 }
 

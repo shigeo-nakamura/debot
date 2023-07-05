@@ -71,7 +71,7 @@ impl TransactionLog {
         let db = match database::get(db_client, self.db_name()).await {
             Ok(db) => Some(db),
             Err(e) => {
-                log::info!("{:?}", e);
+                log::warn!("{:?}", e);
                 None
             }
         };

@@ -157,7 +157,7 @@ impl FundManager {
                 }
 
                 if history.is_flash_crash() {
-                    log::info!(
+                    log::warn!(
                         "Skip this buy trade as price of {} is crashed({:6.5} --> {:6.5})",
                         token_name,
                         price,
@@ -193,7 +193,7 @@ impl FundManager {
                 let mut amount = 0.0;
 
                 if history.is_flash_crash() || self.state.close_all_position {
-                    log::info!(
+                    log::warn!(
                         "Close the position of {}, as its price{:.6} is crashed, or requested to close",
                         token_name,
                         sell_price
@@ -205,7 +205,7 @@ impl FundManager {
 
                     if holding_interval > self.config.max_hold_interval_in_secs.try_into().unwrap()
                     {
-                        log::info!("Close the position as it reaches the limit of hold period");
+                        log::warn!("Close the position as it reaches the limit of hold period");
                         amount = position.amount;
                     } else if position.do_take_profit(sell_price)
                         || position.do_cut_loss(sell_price)
@@ -364,7 +364,7 @@ impl FundManager {
         item.realized_pnl = position.realized_pnl;
 
         if let Err(e) = TransactionLog::update_transaction(&db, &item).await {
-            log::info!("{:?}", e);
+            log::error!("{:?}", e);
             return None;
         }
         transaction_log_id
