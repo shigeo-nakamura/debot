@@ -343,6 +343,12 @@ impl ForcastTrader {
         Ok(opportunities)
     }
 
+    fn check_positions(&self, current_prices: &HashMap<(String, String, String), f64>) {
+        for fund_manager in self.state.fund_manager_map.values() {
+            fund_manager.check_positions(current_prices, self.base_token().symbol_name());
+        }
+    }
+
     pub async fn find_opportunities(
         &self,
         histories: &mut HashMap<String, PriceHistory>,
@@ -352,6 +358,8 @@ impl ForcastTrader {
             self.get_current_prices(histories).await?;
 
         let mut results: Vec<TradeOpportunity> = vec![];
+
+        self.check_positions(&current_prices);
 
         let mut result_for_open = self.find_buy_opportunities(&current_prices, histories)?;
         results.append(&mut result_for_open);

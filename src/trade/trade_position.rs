@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct TradePosition {
     pub id: Option<u32>,
+    pub state: State,
     pub token_name: String,
     pub fund_name: String,
     pub open_time: i64,
@@ -18,6 +19,14 @@ pub struct TradePosition {
     pub amount: f64,
     pub amount_in_base_token: f64,
     pub realized_pnl: Option<f64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub enum State {
+    #[default]
+    Open,
+    Closed,
+    Liquidated,
 }
 
 impl TradePosition {
@@ -39,6 +48,7 @@ impl TradePosition {
 
         Self {
             id: None,
+            state: State::Open,
             token_name: token_name.to_owned(),
             fund_name: fund_name.to_owned(),
             open_time,
@@ -63,8 +73,8 @@ impl TradePosition {
         sell_price <= self.cut_loss_price
     }
 
-    fn update(&mut self, average_price: f64, amount: f64, is_buy: bool) {
-        if is_buy {
+    fn update(&mut self, average_price: f64, amount: f64, state: State) {
+        if state == State::Open {
             self.amount += amount;
             self.average_buy_price = (self.average_buy_price * self.amount
                 + average_price * amount)
@@ -85,6 +95,7 @@ impl TradePosition {
             let pnl = (average_price - self.average_buy_price) * amount;
             self.realized_pnl = Some(pnl);
             self.close_time_str = Self::get_datetime_string(chrono::Utc::now().timestamp());
+            self.state = state;
 
             log::info!(
                 "Cloes the position for token: {}, amount: {:6.3}, PNL: {:6.3}",
@@ -95,8 +106,12 @@ impl TradePosition {
         }
     }
 
-    pub fn del(&mut self, sold_price: f64, amount: f64) {
-        self.update(sold_price, amount, false);
+    pub fn del(&mut self, sold_price: f64, amount: f64, is_liquidated: bool) {
+        let state = match is_liquidated {
+            true => State::Liquidated,
+            false => State::Closed,
+        };
+        self.update(sold_price, amount, state);
     }
 
     pub fn add(
@@ -118,7 +133,7 @@ impl TradePosition {
         self.cut_loss_price =
             (self.cut_loss_price * self.amount + cut_loss_price * amount) / (self.amount + amount);
 
-        self.update(average_price, amount, true);
+        self.update(average_price, amount, State::Open);
     }
 
     pub fn print_info(&self, current_price: f64) {

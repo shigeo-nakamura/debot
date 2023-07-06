@@ -5,6 +5,7 @@ use shared_mongodb::ClientHolder;
 use crate::trade::CounterType;
 
 use super::{PriceHistory, TradePosition, TradingStrategy, TransactionLog};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;
@@ -16,7 +17,7 @@ const MOVING_AVERAGE_WINDOW_SIZE: usize = 5;
 pub struct FundManagerState {
     amount: f64,
     open_positions: HashMap<String, TradePosition>,
-    close_all_position: bool,
+    close_all_position: Arc<std::sync::Mutex<bool>>,
     score: f64,
     past_scores: Vec<f64>,
     transaction_log: Arc<TransactionLog>,
@@ -84,7 +85,7 @@ impl FundManager {
         let state = FundManagerState {
             amount: initial_amount,
             open_positions,
-            close_all_position: false,
+            close_all_position: Arc::new(std::sync::Mutex::new(false)),
             score: initial_score,
             past_scores: vec![],
             transaction_log,
@@ -110,7 +111,7 @@ impl FundManager {
         self.state.amount = amount;
     }
 
-    pub fn amount_of_positinos_in_base_token(&self) -> f64 {
+    fn amount_of_positinos_in_base_token(&self) -> f64 {
         let mut amount = 0.0;
         for position in self.state.open_positions.values() {
             amount += position.amount_in_base_token;
@@ -118,8 +119,9 @@ impl FundManager {
         amount
     }
 
-    pub fn close_all_positions(&mut self) {
-        self.state.close_all_position = true;
+    pub fn close_all_positions(&self) {
+        let mut close_all_position = self.state.close_all_position.lock().unwrap();
+        *close_all_position = true;
     }
 
     pub fn find_buy_opportunities(
@@ -161,9 +163,9 @@ impl FundManager {
 
                 if amount < self.config.min_trading_amount {
                     log::info!(
-                        "No enough fund left, {:6.3} v.s. {:6.3}",
+                        "No enough fund left: remaining = {:6.3}, invested = {:6.3}",
                         self.state.amount,
-                        amount
+                        self.amount_of_positinos_in_base_token(),
                     );
                     return None;
                 }
@@ -192,6 +194,36 @@ impl FundManager {
         None
     }
 
+    pub fn check_positions(
+        &self,
+        current_prices: &HashMap<(String, String, String), f64>,
+        base_token: &str,
+    ) {
+        let mut unrealized_pnl = 0.0;
+
+        for ((token_a_name, token_b_name, dex_name), price) in current_prices {
+            if token_b_name != base_token {
+                continue;
+            }
+
+            if let Some(position) = self.state.open_positions.get(token_a_name) {
+                position.print_info(*price);
+                unrealized_pnl += price * position.amount - position.amount_in_base_token;
+            }
+        }
+
+        if self.amount() + unrealized_pnl < 0.0 {
+            log::info!(
+                "This fund({}) should be liquidated. remaing_amount = {:6.3}, unrealized_pnl = {:6.3}",
+                self.fund_name(),
+                self.amount(),
+                unrealized_pnl
+            );
+            let mut close_all_position = self.state.close_all_position.lock().unwrap();
+            *close_all_position = true;
+        }
+    }
+
     pub fn find_sell_opportunities(
         &self,
         token_name: &str,
@@ -200,11 +232,9 @@ impl FundManager {
     ) -> Option<TradeProposal> {
         if let Some(history) = histories.get(token_name) {
             if let Some(position) = self.state.open_positions.get(token_name) {
-                position.print_info(sell_price);
-
                 let mut amount = 0.0;
 
-                if history.is_flash_crash() || self.state.close_all_position {
+                if history.is_flash_crash() || *self.state.close_all_position.lock().unwrap() {
                     log::warn!(
                         "Close the position of {}, as its price{:.6} is crashed, or requested to close",
                         token_name,
@@ -312,7 +342,7 @@ impl FundManager {
 
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
                 let sold_price = amount_out / amount_in;
-                position.del(sold_price, amount_in);
+                position.del(sold_price, amount_in, *self.state.close_all_position.lock().unwrap());
 
                 let position_cloned = position.clone();
                 let amount = position.amount;
