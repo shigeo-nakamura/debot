@@ -404,8 +404,7 @@ impl ForcastTrader {
         let amount_per_score = self.state.amount / total_score;
 
         for fund_manager in self.state.fund_manager_map.values_mut() {
-            let amount = fund_manager.score() * amount_per_score
-                + fund_manager.amount_of_positinos_in_base_token();
+            let amount = fund_manager.score() * amount_per_score;
             fund_manager.set_amount(amount);
         }
     }

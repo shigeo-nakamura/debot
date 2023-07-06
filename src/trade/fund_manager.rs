@@ -3,7 +3,8 @@
 use shared_mongodb::ClientHolder;
 
 use super::{PriceHistory, TradePosition, TradingStrategy, TransactionLog};
-use std::f64;use std::collections::HashMap;
+use std::collections::HashMap;
+use std::f64;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -154,7 +155,7 @@ impl FundManager {
                 let amount = self.state.amount * self.config.leverage;
 
                 if amount <= 0.0 {
-                    return  None;
+                    return None;
                 }
 
                 if history.is_flash_crash() {
