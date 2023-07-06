@@ -82,7 +82,7 @@ lazy_static! {
         ],
         dex_list: &[
             ("PancakeSwap", BSC_PANCAKESWAP_ROUTER),
-            ("BiSwap", BSC_BISWAP_ROUTER),
+            // ("BiSwap", BSC_BISWAP_ROUTER),
             // ("ApeSwap", BSC_APESWAP_ROUTER),
             // ("BakerySwap", BSC_BAKERYSWAP_ROUTER),
             // ("BabyDoge", BSC_BABYDOGE_ROUTER),

@@ -392,7 +392,7 @@ impl ForcastTrader {
             return;
         }
 
-        self.state.amount = base_token_amount;
+        self.state.amount = base_token_amount / self.dexes().len() as f64;
 
         let mut total_score = 0.0;
         let mut scores: Vec<f64> = vec![];
@@ -405,7 +405,7 @@ impl ForcastTrader {
 
         log::info!("Scores: {:?}", scores);
 
-        let amount_per_score = base_token_amount / total_score;
+        let amount_per_score = self.state.amount / total_score;
 
         for fund_manager in self.state.fund_manager_map.values_mut() {
             let amount = fund_manager.score() * amount_per_score
@@ -605,7 +605,7 @@ impl AbstractTrader for ForcastTrader {
                     token_pair_prices.insert((token_1_symbol, token_2_symbol, dex_name), price);
                 }
                 Ok(Ok(None)) => {
-                    log::info!("No price info returned")
+                    continue;
                 }
                 Ok(Err(e)) => {
                     // Handle the error case
