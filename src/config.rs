@@ -123,7 +123,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
         let use_kms = get_bool_env_var("USE_KMS", false);
         let interval = get_env_var("INTERVAL", "10")?; // sec
-        let leverage = get_env_var("LEVERAGE", "0.1")?;
+        let leverage = get_env_var("LEVERAGE", "0.2")?;
         let min_managed_amount = get_env_var("min_managed_amount", "500.0")?;
         let max_managed_amount = get_env_var("max_managed_amount", "4500.0")?;
         let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
