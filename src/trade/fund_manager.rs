@@ -27,6 +27,7 @@ pub struct FundManagerConfig {
     strategy: TradingStrategy,
     trade_period: usize,
     leverage: f64,
+    min_trading_amount: f64,
     position_creation_inteval: u64,
     take_profit_threshold: f64,
     cut_loss_threshold: f64,
@@ -54,6 +55,7 @@ impl FundManager {
         trade_period: usize,
         leverage: f64,
         initial_amount: f64,
+        min_trading_amount: f64,
         initial_score: f64,
         position_creation_inteval: u64,
         take_profit_threshold: f64,
@@ -66,6 +68,7 @@ impl FundManager {
             strategy,
             trade_period,
             leverage,
+            min_trading_amount,
             position_creation_inteval,
             take_profit_threshold,
             cut_loss_threshold,
@@ -156,7 +159,12 @@ impl FundManager {
 
                 let amount = self.state.amount * self.config.leverage;
 
-                if amount <= 0.0 {
+                if amount < self.config.min_trading_amount {
+                    log::info!(
+                        "No enough fund left, {:6.3} v.s. {:6.3}",
+                        self.state.amount,
+                        amount
+                    );
                     return None;
                 }
 

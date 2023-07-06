@@ -188,6 +188,7 @@ async fn prepare_algorithm_trader_instance(
     let mut trader = ForcastTrader::new(
         config.leverage,
         config.min_managed_amount,
+        config.min_trading_amount,
         config.allowance_factor,
         tokens.clone(),
         usdt_token.clone(),

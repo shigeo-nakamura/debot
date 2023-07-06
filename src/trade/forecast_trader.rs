@@ -56,6 +56,7 @@ impl ForcastTrader {
     pub fn new(
         leverage: f64,
         initial_amount: f64,
+        min_trading_amount: f64,
         allowance_factor: f64,
         tokens: Arc<Vec<Box<dyn Token>>>,
         base_token: Arc<Box<dyn Token>>,
@@ -107,6 +108,7 @@ impl ForcastTrader {
                     period,
                     leverage,
                     initial_amount,
+                    min_trading_amount,
                     score,
                     position_creation_inteval,
                     take_profit,
