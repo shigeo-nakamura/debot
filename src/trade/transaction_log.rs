@@ -52,11 +52,19 @@ pub struct BalanceLog {
     pub date: String,
     pub change: f64,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct PriceLog {
+    pub id: u32,
+    weth: f64,
+    wbtc: f64,
+    wmatic: f64,
+}
+
 pub struct TransactionLog {
     max_counter: u32,
     counter: std::sync::Mutex<u32>,
     db_name: String,
-    prev_balance: Option<f64>,
 }
 
 impl TransactionLog {
@@ -65,7 +73,6 @@ impl TransactionLog {
             max_counter,
             counter: std::sync::Mutex::new(counter),
             db_name: db_name.to_owned(),
-            prev_balance: None,
         }
     }
 

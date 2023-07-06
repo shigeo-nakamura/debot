@@ -3,6 +3,7 @@
 use blockchain_factory::create_dexes;
 use chrono::{DateTime, Utc};
 use config::EnvConfig;
+use db::create_unique_index;
 use error_manager::ErrorManager;
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Address;
@@ -59,11 +60,15 @@ async fn main() -> std::io::Result<()> {
     client_options.tls = Some(Tls::Enabled(tls_options));
     let client_holder = Arc::new(Mutex::new(ClientHolder::new(client_options)));
 
-    // Set up the transaction log
     let db_name = &configs[0].db_name;
     let db = shared_mongodb::database::get(&client_holder, &db_name)
         .await
         .unwrap();
+    create_unique_index(&db)
+        .await
+        .expect("Error creating unique index");
+
+    // Set up the transaction log
     let last_transaction_id = get_last_transaction_id(&db).await;
     let transaction_log = Arc::new(TransactionLog::new(
         configs[0].log_limit,
