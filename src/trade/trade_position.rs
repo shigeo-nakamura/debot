@@ -70,7 +70,7 @@ impl TradePosition {
                 + average_price * amount)
                 / (self.amount + amount);
 
-            log::debug!(
+            log::info!(
             "Updated open position for token: {}, amount: {:6.3}, average_buy_price: {:6.3}, take_profit_price: {:6.3}, cut_loss_price: {:6.3}",
             self.token_name,
             self.amount,
@@ -86,7 +86,7 @@ impl TradePosition {
             self.realized_pnl = Some(pnl);
             self.close_time_str = Self::get_datetime_string(chrono::Utc::now().timestamp());
 
-            log::debug!(
+            log::info!(
                 "Cloes the position for token: {}, amount: {:6.3}, PNL: {:6.3}",
                 self.token_name,
                 amount,

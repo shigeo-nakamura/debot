@@ -97,7 +97,7 @@ impl ForcastTrader {
             fund_configurations::get(short_trade_period, medium_trade_period, long_trade_period);
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
-            .map(|(name, strategy, period, take_profit, cut_loss)| {
+            .map(|(name, strategy, period, take_profit, cut_loss, score)| {
                 let fund_name = format!("{}-{}", dexes[dex_index].name(), name);
 
                 FundManager::new(
@@ -107,7 +107,7 @@ impl ForcastTrader {
                     period,
                     leverage,
                     initial_amount,
-                    10.0, // initial score
+                    score,
                     position_creation_inteval,
                     take_profit,
                     cut_loss,
@@ -373,8 +373,6 @@ impl ForcastTrader {
     }
 
     pub async fn rebalance(&mut self, owner: Address) {
-        log::debug!("rebalance");
-
         let base_token_amount = match self.get_amount_of_token(owner, &self.base_token()).await {
             Ok(amount) => amount,
             Err(e) => {
@@ -403,7 +401,7 @@ impl ForcastTrader {
             scores.push(score);
         }
 
-        log::info!("Scores: {:?}", scores);
+        log::debug!("rebalance scores: {:?}", scores);
 
         let amount_per_score = self.state.amount / total_score;
 

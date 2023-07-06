@@ -30,6 +30,7 @@ pub enum TradingStrategy {
     TrendFollowing,
     MeanReversion,
     Contrarian,
+    MLSGDPredictive,
 }
 
 impl PriceHistory {
@@ -98,23 +99,16 @@ impl PriceHistory {
 
         let compute_macd = |short_period, long_period| {
             let short_ema = self.calculate_ema(self.prices.len() - 1, short_period);
-            log::trace!("Short EMA: {}", short_ema);
-
             let long_ema = self.calculate_ema(self.prices.len() - 1, long_period);
-            log::trace!("Long EMA: {}", long_ema);
-
-            let macd_line = short_ema - long_ema + 1e-8; // Added small constant to prevent exact zero
-            log::trace!("MACD Line: {}", macd_line);
-
+            let macd_line = short_ema - long_ema + 1e-8;
             let macd_lines = self.calculate_macd_lines(short_period, long_period, SIGNAL_PERIOD);
             let signal_line = self.calculate_ema(macd_lines.len() - 1, SIGNAL_PERIOD);
-            log::trace!("Signal Line: {}", signal_line);
-
             let histogram = macd_line - signal_line;
-            log::trace!("Histogram: {}", histogram);
-
             let predicted_price = self.prices[self.prices.len() - 1] + histogram;
-            log::trace!("Predicted Price: {}", predicted_price);
+
+            log::trace!("Short EMA: {}, Long EMA: {}, MACD Line: {}, Signal Line: {}, Histogram: {}, Predicted Price: {}", 
+                short_ema, long_ema, macd_line, signal_line, histogram, predicted_price);
+
             predicted_price
         };
 
@@ -188,6 +182,10 @@ impl PriceHistory {
         } else {
             level3 // price might retreat to level3
         }
+    }
+
+    pub fn predict_next_price_sdg(&self, period: usize) -> f64 {
+        *self.prices.last().unwrap()
     }
 
     pub fn calculate_std_dev(&self) -> f64 {
@@ -366,6 +364,10 @@ impl PriceHistory {
                 predictions.push(macd);
                 predictions.push(rsi_prediction);
                 log::trace!("MACD: {:6.3}, RSI: {:6.3}", macd, rsi_prediction);
+            }
+            TradingStrategy::MLSGDPredictive => {
+                let sdg = self.predict_next_price_sdg(period);
+                predictions.push(sdg);
             }
         }
 

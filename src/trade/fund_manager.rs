@@ -1,10 +1,9 @@
 // fund_manager.rs
 
-use ethers::abi::Hash;
 use shared_mongodb::ClientHolder;
 
 use super::{PriceHistory, TradePosition, TradingStrategy, TransactionLog};
-use std::collections::HashMap;
+use std::f64;use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -101,7 +100,7 @@ impl FundManager {
     }
 
     pub fn set_amount(&mut self, amount: f64) {
-        log::trace!("{}'s new amount = {:6.5}", self.fund_name(), amount);
+        log::info!("{}'s new amount = {:6.5}", self.fund_name(), amount);
         self.state.amount = amount;
     }
 
@@ -154,12 +153,8 @@ impl FundManager {
 
                 let amount = self.state.amount * self.config.leverage;
 
-                if self.state.amount < amount {
-                    log::debug!(
-                        "No enough found left: {:6.5} < {:6.5}",
-                        self.state.amount,
-                        amount
-                    )
+                if amount <= 0.0 {
+                    return  None;
                 }
 
                 if history.is_flash_crash() {
@@ -253,7 +248,7 @@ impl FundManager {
         amount_out: f64,
         db_client: &Arc<Mutex<ClientHolder>>,
     ) {
-        log::trace!(
+        log::debug!(
             "update_position: amount_in = {:6.6}, amount_out = {:6.6}",
             amount_in,
             amount_out

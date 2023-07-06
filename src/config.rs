@@ -123,9 +123,9 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
         let use_kms = get_bool_env_var("USE_KMS", false);
         let interval = get_env_var("INTERVAL", "10")?; // sec
-        let leverage = get_env_var("LEVERAGE", "0.25")?;
+        let leverage = get_env_var("LEVERAGE", "0.1")?;
         let min_managed_amount = get_env_var("min_managed_amount", "500.0")?;
-        let max_managed_amount = get_env_var("max_managed_amount", "2000.0")?;
+        let max_managed_amount = get_env_var("max_managed_amount", "4500.0")?;
         let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
         let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
@@ -135,7 +135,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let medium_trade_period = get_env_var("MEDIUM_TRADE_PEREIOD", "420")?; // 4200sec = 70min
         let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "1260")?; // 12600sec = 210min
         let position_creation_inteval_period =
-            get_env_var("POSITION_CREATION_INVERVAL_PERIOD", "30")?;
+            get_env_var("POSITION_CREATION_INVERVAL_PERIOD", "360")?; // 1h
         let flash_crash_threshold = get_env_var("FLASH_CRASH_THRESHOLD", "0.95")?;
         let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;
         let reward_multiplier = get_env_var("REWARD_MULTIPLIER", "1.5")?;
