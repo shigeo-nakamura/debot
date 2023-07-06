@@ -73,6 +73,7 @@ async fn main() -> std::io::Result<()> {
     let transaction_log = Arc::new(TransactionLog::new(
         configs[0].log_limit,
         last_transaction_id,
+        0, // todo
         &db_name,
     ));
 

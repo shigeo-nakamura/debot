@@ -13,6 +13,11 @@ use crate::db::{
 
 use super::TradePosition;
 
+pub enum CounterType {
+    Transaction,
+    Price,
+}
+
 pub async fn get_last_transaction_id(db: &Database) -> u32 {
     let mut last_counter = 0;
     let item = TradePosition::default();
@@ -63,15 +68,22 @@ pub struct PriceLog {
 
 pub struct TransactionLog {
     max_counter: u32,
-    counter: std::sync::Mutex<u32>,
+    transaction_counter: std::sync::Mutex<u32>,
+    price_counter: std::sync::Mutex<u32>,
     db_name: String,
 }
 
 impl TransactionLog {
-    pub fn new(max_counter: u32, counter: u32, db_name: &str) -> Self {
+    pub fn new(
+        max_counter: u32,
+        transaction_counter: u32,
+        price_counter: u32,
+        db_name: &str,
+    ) -> Self {
         TransactionLog {
             max_counter,
-            counter: std::sync::Mutex::new(counter),
+            transaction_counter: std::sync::Mutex::new(transaction_counter),
+            price_counter: std::sync::Mutex::new(price_counter),
             db_name: db_name.to_owned(),
         }
     }
@@ -80,16 +92,21 @@ impl TransactionLog {
         &self.db_name
     }
 
-    pub fn increment_counter(&self) -> u32 {
-        let mut counter = self.counter.lock().unwrap();
+    pub fn increment_counter(&self, counter_type: CounterType) -> u32 {
+        let counter = match counter_type {
+            CounterType::Transaction => &self.transaction_counter,
+            CounterType::Price => &self.price_counter,
+        };
+
+        let mut counter = counter.lock().unwrap();
         *counter += 1;
-        let mut transaction_id = *counter % (self.max_counter + 1);
-        if transaction_id == 0 {
-            transaction_id = 1;
+        let mut id = *counter % (self.max_counter + 1);
+        if id == 0 {
+            id = 1;
         }
-        *counter = transaction_id;
+        *counter = id;
         drop(counter);
-        transaction_id
+        id
     }
 
     pub async fn get_db(

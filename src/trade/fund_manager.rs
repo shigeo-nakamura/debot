@@ -2,6 +2,8 @@
 
 use shared_mongodb::ClientHolder;
 
+use crate::trade::CounterType;
+
 use super::{PriceHistory, TradePosition, TradingStrategy, TransactionLog};
 use std::collections::HashMap;
 use std::f64;
@@ -271,10 +273,6 @@ impl FundManager {
                     amount_in,
                 );
 
-                if position.id.is_none() {
-                    position.id = Some(self.state.transaction_log.increment_counter());
-                }
-
                 let position_cloned = position.clone();
                 self.update_transaction_log(db_client, &position_cloned)
                     .await;
@@ -289,7 +287,11 @@ impl FundManager {
                     amount_out,
                     amount_in,
                 );
-                position.id = Some(self.state.transaction_log.increment_counter());
+                position.id = Some(
+                    self.state
+                        .transaction_log
+                        .increment_counter(CounterType::Transaction),
+                );
                 let position_cloned = position.clone();
                 self.update_transaction_log(db_client, &position_cloned)
                     .await;

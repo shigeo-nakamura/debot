@@ -20,4 +20,5 @@ pub use price_history::PriceHistory;
 pub use price_history::TradingStrategy;
 pub use trade_position::TradePosition;
 pub use transaction_log::BalanceLog;
+pub use transaction_log::CounterType;
 pub use transaction_log::TransactionLog;
