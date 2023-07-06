@@ -382,15 +382,13 @@ impl ForcastTrader {
         };
 
         if base_token_amount == 0.0 {
-            if self.base_trader.skip_write() {
-                // for testing
-                return;
-            }
             log::warn!("No balance left");
             return;
         }
 
-        self.state.amount = base_token_amount / self.dexes().len() as f64;
+        if !self.base_trader.skip_write() {
+            self.state.amount = base_token_amount / self.dexes().len() as f64;
+        }
 
         let mut total_score = 0.0;
         let mut scores: Vec<f64> = vec![];
