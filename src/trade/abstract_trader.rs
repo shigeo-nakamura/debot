@@ -224,8 +224,8 @@ impl BaseTrader {
         match dex.get_token_price(&token_pair, amount, reverse).await {
             Ok(price) => Some((token_a_name, token_b_name, dex_name, price)),
             Err(e) => {
-                log::debug!("{:?}", e);
-                log::trace!("No price: {}-{}@{}", token_a_name, token_b_name, dex_name);
+                log::trace!("{:?}", e);
+                log::debug!("No price: {}-{}@{}", token_a_name, token_b_name, dex_name);
                 None
             }
         }

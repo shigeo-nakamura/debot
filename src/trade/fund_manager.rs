@@ -5,7 +5,6 @@ use shared_mongodb::ClientHolder;
 use crate::trade::CounterType;
 
 use super::{PriceHistory, TradePosition, TradingStrategy, TransactionLog};
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;
@@ -201,7 +200,7 @@ impl FundManager {
     ) {
         let mut unrealized_pnl = 0.0;
 
-        for ((token_a_name, token_b_name, dex_name), price) in current_prices {
+        for ((token_a_name, token_b_name, _dex_name), price) in current_prices {
             if token_b_name != base_token {
                 continue;
             }
@@ -342,7 +341,11 @@ impl FundManager {
 
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
                 let sold_price = amount_out / amount_in;
-                position.del(sold_price, amount_in, *self.state.close_all_position.lock().unwrap());
+                position.del(
+                    sold_price,
+                    amount_in,
+                    *self.state.close_all_position.lock().unwrap(),
+                );
 
                 let position_cloned = position.clone();
                 let amount = position.amount;

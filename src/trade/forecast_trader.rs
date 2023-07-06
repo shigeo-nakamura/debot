@@ -10,7 +10,6 @@ use crate::dex::Dex;
 use crate::token::Token;
 use crate::trade::find_index;
 use crate::trade::AbstractTrader;
-use crate::trade::TradingStrategy;
 
 use async_trait::async_trait;
 use ethers::prelude::{Provider, SignerMiddleware};
