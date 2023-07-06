@@ -101,16 +101,18 @@ impl TransactionLog {
 
     pub async fn get_all_open_positions(db: &Database) -> Vec<TradePosition> {
         let item = TradePosition::default();
-        match search_items(db, &item).await {
+        let items = match search_items(db, &item).await {
             Ok(items) => items
                 .into_iter()
-                .filter(|position| position.amount == 0.0)
+                .filter(|position| position.sold_amount == None)
                 .collect(),
             Err(e) => {
                 log::error!("get_all_open_positions: {:?}", e);
                 vec![]
             }
-        }
+        };
+        log::trace!("{:?}", items);
+        items
     }
 
     pub async fn update_transaction(

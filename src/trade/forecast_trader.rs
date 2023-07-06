@@ -98,9 +98,11 @@ impl ForcastTrader {
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
             .map(|(name, strategy, period, take_profit, cut_loss)| {
+                let fund_name = format!("{}-{}", dexes[dex_index].name(), name);
+
                 FundManager::new(
-                    name,
-                    open_positions_map.get(name).cloned(),
+                    &fund_name,
+                    open_positions_map.get(&fund_name).cloned(),
                     strategy,
                     period,
                     leverage,

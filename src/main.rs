@@ -235,9 +235,13 @@ async fn main_loop(
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
 ) -> std::io::Result<()> {
-    let now = SystemTime::now();
     let one_day = Duration::from_secs(24 * 60 * 60);
     let mut last_execution_time = last_execution_time;
+    let interval = configs[0].interval as f64 / trader_instances.len() as f64;
+
+    if last_execution_time == SystemTime::UNIX_EPOCH {
+        last_execution_time = SystemTime::now() - one_day;
+    }
 
     let datetime: DateTime<Utc> = last_execution_time.into();
 
@@ -247,7 +251,7 @@ async fn main_loop(
     );
 
     loop {
-        let interval = configs[0].interval as f64 / trader_instances.len() as f64;
+        let now = SystemTime::now();
 
         for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
             trader_instances.iter_mut()
@@ -255,12 +259,13 @@ async fn main_loop(
             if now.duration_since(last_execution_time).unwrap() > one_day {
                 let prev_balance = trader.log_current_balance(wallet_address).await;
                 last_execution_time = now;
-                let db = transaction_log
-                    .get_db(&client_holder.clone())
-                    .await
-                    .unwrap();
-
-                TransactionLog::update_app_state(&db, last_execution_time, prev_balance);
+                update_app_state(
+                    &transaction_log,
+                    &client_holder,
+                    last_execution_time,
+                    prev_balance,
+                )
+                .await;
             }
 
             if error_manager.get_error_count() >= config.max_error_count {
@@ -369,4 +374,23 @@ async fn handle_sleep_and_signal(interval: f64) -> Result<(), &'static str> {
         }
     }
     Ok(())
+}
+
+async fn update_app_state(
+    transaction_log: &Arc<TransactionLog>,
+    client_holder: &Arc<Mutex<ClientHolder>>,
+    last_execution_time: SystemTime,
+    prev_balance: Option<f64>,
+) {
+    let db = transaction_log
+        .get_db(&client_holder.clone())
+        .await
+        .unwrap();
+
+    match TransactionLog::update_app_state(&db, last_execution_time, prev_balance).await {
+        Ok(_) => {}
+        Err(e) => {
+            log::warn!("{:?}", e);
+        }
+    }
 }
