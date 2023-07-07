@@ -81,30 +81,20 @@ async fn main() -> std::io::Result<()> {
 
     // Read the last App state
     let app_state = TransactionLog::get_app_state(&db).await;
-    let prev_balance = if app_state.prev_balance == 0.0 {
-        None
-    } else {
-        Some(app_state.prev_balance)
-    };
-    let last_execution_time = if app_state.last_execution_time == SystemTime::UNIX_EPOCH {
-        None
-    } else {
-        Some(app_state.last_execution_time)
-    };
 
     // Initialize an empty vector to hold trader instances
     let mut trader_instances = prepare_trader_instances(
         &configs,
         client_holder.clone(),
         transaction_log.clone(),
-        prev_balance,
+        app_state.prev_balance,
     )
     .await;
 
     main_loop(
         &mut trader_instances,
         &configs,
-        last_execution_time,
+        app_state.last_execution_time,
         client_holder,
         transaction_log.clone(),
     )
