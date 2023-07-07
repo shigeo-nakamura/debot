@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
-print("hello")
-
-# import pandas as pd
-# import numpy as np
-# from pymongo import MongoClient
-# from sklearn.linear_model import SGDRegressor
-# from sklearn.preprocessing import StandardScaler
+import pandas as pd
+import numpy as np
+from pymongo import MongoClient
+from sklearn.linear_model import SGDRegressor
+from sklearn.preprocessing import StandardScaler
 
 # def load_data_from_mongodb():
 #     # Initialize MongoDB client
