@@ -1,5 +1,6 @@
 // algorithm_trader.rs
 
+use ethers::abi::Hash;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
@@ -110,6 +111,8 @@ impl ForcastTrader {
                         None => &score,
                     };
 
+                    state.scores.insert(fund_name.to_owned(), *intial_score);
+
                     FundManager::new(
                         &fund_name,
                         open_positions_map.get(&fund_name).cloned(),
@@ -133,7 +136,7 @@ impl ForcastTrader {
         for fund_manager in fund_managers {
             state
                 .fund_manager_map
-                .insert(fund_manager.fund_name().to_owned(), fund_manager);
+                .insert(fund_manager.name().to_owned(), fund_manager);
         }
 
         Self {
@@ -438,15 +441,24 @@ impl ForcastTrader {
         }
 
         let mut total_score = 0.0;
-        let mut scores: Vec<f64> = vec![];
+        let mut changed = false;
 
         for fund_manager in self.state.fund_manager_map.values() {
             let score = fund_manager.score();
+            let name = fund_manager.name();
             total_score += score;
-            scores.push(score);
+
+            let prev_score = self.state.scores.insert(name.to_owned(), score);
+            if prev_score.is_some() {
+                if score != prev_score.unwrap() {
+                    changed = true;
+                }
+            }
         }
 
-        log::debug!("rebalance scores: {:?}", scores);
+        if changed {
+            log::info!("rebalanced scores: {:?}", self.state.scores);
+        }
 
         let amount_per_score = self.state.amount / total_score;
 

@@ -23,7 +23,7 @@ pub struct FundManagerState {
 }
 
 pub struct FundManagerConfig {
-    fund_name: String,
+    name: String,
     strategy: TradingStrategy,
     trade_period: usize,
     leverage: f64,
@@ -66,7 +66,7 @@ impl FundManager {
         transaction_log: Arc<TransactionLog>,
     ) -> Self {
         let config = FundManagerConfig {
-            fund_name: fund_name.to_owned(),
+            name: fund_name.to_owned(),
             strategy,
             trade_period,
             leverage,
@@ -101,8 +101,8 @@ impl FundManager {
         Self { config, state }
     }
 
-    pub fn fund_name(&self) -> &str {
-        &self.config.fund_name
+    pub fn name(&self) -> &str {
+        &self.config.name
     }
 
     pub fn score(&self) -> f64 {
@@ -114,7 +114,7 @@ impl FundManager {
     }
 
     pub fn set_amount(&mut self, amount: f64) {
-        log::info!("{}'s new amount = {:6.5}", self.fund_name(), amount);
+        log::info!("{}'s new amount = {:6.5}", self.name(), amount);
         self.state.amount = amount;
     }
 
@@ -151,7 +151,7 @@ impl FundManager {
                 "{} {:3.3}%\x1b[0m {} \x1b[0;34m{:<6}\x1b[0m current: {:6.5}, predict: {:6.5}",
                 color,
                 profit_ratio,
-                self.fund_name(),
+                self.name(),
                 token_name,
                 price,
                 predicted_price,
@@ -161,7 +161,7 @@ impl FundManager {
                 if !self.can_create_new_position(token_name) {
                     log::debug!(
                         "{} Need to wait for a while to create a new position",
-                        self.fund_name()
+                        self.name()
                     );
                     return None;
                 }
@@ -171,7 +171,7 @@ impl FundManager {
                 if amount < self.config.min_trading_amount {
                     log::info!(
                         "No enough fund left({}): remaining = {:6.3}, amount = {:6.3}, invested = {:6.3}",
-                        self.fund_name(),
+                        self.name(),
                         self.state.amount,
                         amount,
                         self.amount_of_positinos_in_base_token(),
@@ -196,7 +196,7 @@ impl FundManager {
                     price,
                     predicted_price,
                     amount,
-                    fund_name: self.config.fund_name.to_owned(),
+                    fund_name: self.config.name.to_owned(),
                 });
             }
         }
@@ -224,7 +224,7 @@ impl FundManager {
         if self.amount() + unrealized_pnl < 0.0 {
             log::info!(
                 "This fund({}) should be liquidated. remaing_amount = {:6.3}, unrealized_pnl = {:6.3}",
-                self.fund_name(),
+                self.name(),
                 self.amount(),
                 unrealized_pnl
             );
@@ -272,7 +272,7 @@ impl FundManager {
                         price: sell_price,
                         predicted_price: sell_price,
                         amount,
-                        fund_name: self.config.fund_name.to_owned(),
+                        fund_name: self.config.name.to_owned(),
                     });
                 }
             }
@@ -327,7 +327,7 @@ impl FundManager {
                 // else, create a new position
                 let mut position = TradePosition::new(
                     token_name,
-                    self.fund_name(),
+                    self.name(),
                     average_price,
                     take_profit_price,
                     cut_loss_price,
@@ -413,7 +413,7 @@ impl FundManager {
         let moving_average_score = self.calculate_moving_average_score(MOVING_AVERAGE_WINDOW_SIZE);
         log::trace!(
             "{}'s new score = {:6.2}, moving average score = {:6.2}",
-            self.config.fund_name,
+            self.config.name,
             self.state.score,
             moving_average_score
         );
