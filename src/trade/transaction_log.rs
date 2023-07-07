@@ -173,7 +173,6 @@ impl TransactionLog {
                 .filter(|position| position.sold_amount == None)
                 .collect(),
             Err(e) => {
-                log::error!("get_all_open_positions: {:?}", e);
                 vec![]
             }
         };
@@ -185,7 +184,6 @@ impl TransactionLog {
         db: &Database,
         item: &TradePosition,
     ) -> Result<(), Box<dyn error::Error>> {
-        log::trace!("update: {:?}", item);
         update_item(db, item).await?;
         Ok(())
     }
@@ -244,7 +242,7 @@ impl TransactionLog {
         match search_items(db, &item).await {
             Ok(items) => items,
             Err(e) => {
-                log::error!("get_performance: {:?}", e);
+                log::warn!("get_performance: {:?}", e);
                 vec![]
             }
         }
