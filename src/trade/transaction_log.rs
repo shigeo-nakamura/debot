@@ -1,6 +1,7 @@
 use mongodb::Database;
 use serde::{Deserialize, Serialize};
 use shared_mongodb::{database, ClientHolder};
+use std::collections::HashMap;
 use std::error;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -88,7 +89,7 @@ pub struct PerformanceLog {
     pub id: u32,
     pub system_time: SystemTime,
     pub date: String,
-    pub scores: Vec<(String, f64)>,
+    pub scores: HashMap<String, f64>,
 }
 
 impl PerformanceLog {
@@ -98,7 +99,7 @@ impl PerformanceLog {
             id: 0,
             system_time: now,
             date: now.to_datetime_string(),
-            scores: vec![],
+            scores: HashMap::new(),
         }
     }
 }
@@ -233,5 +234,16 @@ impl TransactionLog {
 
         update_item(db, &item).await?;
         Ok(())
+    }
+
+    pub async fn get_performance(db: &Database) -> Vec<PerformanceLog> {
+        let item = PerformanceLog::default();
+        match search_items(db, &item).await {
+            Ok(items) => items,
+            Err(e) => {
+                log::error!("get_performance: {:?}", e);
+                vec![]
+            }
+        }
     }
 }

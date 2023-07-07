@@ -43,6 +43,7 @@ pub struct ForcastTraderState {
     amount: f64,
     close_all_position: bool,
     fund_manager_map: HashMap<String, FundManager>,
+    scores: HashMap<String, f64>,
 }
 
 pub struct ForcastTrader {
@@ -75,6 +76,7 @@ impl ForcastTrader {
         slippage: f64,
         open_positions_map: HashMap<String, HashMap<String, TradePosition>>,
         prev_balance: Option<f64>,
+        scores: HashMap<String, f64>,
     ) -> Self {
         let config = ForcastTraderConfig {
             short_trade_period,
@@ -91,6 +93,7 @@ impl ForcastTrader {
             amount: initial_amount,
             close_all_position: false,
             fund_manager_map: HashMap::new(),
+            scores: scores.clone(),
         };
 
         let fund_manager_configurations =
@@ -101,6 +104,12 @@ impl ForcastTrader {
                 |(name, strategy, period, buy_signal, take_profit, cut_loss, score)| {
                     let fund_name = format!("{}-{}", dexes[dex_index].name(), name);
 
+                    let prev_score = scores.get(&fund_name);
+                    let intial_score = match prev_score {
+                        Some(prev_score) => prev_score,
+                        None => &score,
+                    };
+
                     FundManager::new(
                         &fund_name,
                         open_positions_map.get(&fund_name).cloned(),
@@ -109,7 +118,7 @@ impl ForcastTrader {
                         leverage,
                         initial_amount,
                         min_trading_amount,
-                        score,
+                        *intial_score,
                         position_creation_inteval,
                         buy_signal,
                         take_profit,
@@ -153,7 +162,7 @@ impl ForcastTrader {
     ) -> HashMap<String, HashMap<String, TradePosition>> {
         let db = transaction_log.get_db(&db_client).await;
         if db.is_none() {
-            log::error!("The DB access it no possible");
+            log::error!("get_open_positions_map: no DB");
             return HashMap::new();
         }
 
@@ -180,6 +189,30 @@ impl ForcastTrader {
         }
 
         open_positions_map
+    }
+
+    pub async fn get_last_scores(
+        transaction_log: Arc<TransactionLog>,
+        db_client: Arc<Mutex<ClientHolder>>,
+    ) -> HashMap<String, f64> {
+        let db = transaction_log.get_db(&db_client).await;
+        if db.is_none() {
+            log::error!("get_last_scores: no DB");
+            return HashMap::new();
+        }
+
+        let db = db.unwrap();
+
+        let mut last_performance_vec = TransactionLog::get_performance(&db).await;
+        if last_performance_vec.len() == 0 {
+            return HashMap::new();
+        }
+
+        let scores = last_performance_vec.pop().unwrap().scores;
+
+        log::debug!("Las score = {:?}", scores);
+
+        scores
     }
 
     async fn get_current_prices(

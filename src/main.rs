@@ -187,6 +187,10 @@ async fn prepare_algorithm_trader_instance(
     let open_positions_map =
         ForcastTrader::get_open_positions_map(transaction_log.clone(), client_holder.clone()).await;
 
+    // Read the last scores from the DB
+    let scores =
+        ForcastTrader::get_last_scores(transaction_log.clone(), client_holder.clone()).await;
+
     let mut trader = ForcastTrader::new(
         config.leverage,
         config.min_managed_amount,
@@ -210,6 +214,7 @@ async fn prepare_algorithm_trader_instance(
         config.slippage,
         open_positions_map,
         prev_balance,
+        scores,
     );
 
     trader.rebalance(wallet.address()).await;
