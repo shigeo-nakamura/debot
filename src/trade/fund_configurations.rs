@@ -58,7 +58,7 @@ pub fn get(
             1.01,  // buy_signal_threshold
             1.005, // take_profilt_threshold
             0.95,  // loss_cut_threshold
-            0.0,  // initial_score
+            0.0,   // initial_score
         ),
         (
             "ml-sdg-medium",
@@ -67,7 +67,7 @@ pub fn get(
             1.01, // buy_signal_threshold
             1.01, // take_profilt_threshold
             0.95, // loss_cut_threshold
-            0.0, // initial_score
+            0.0,  // initial_score
         ),
         (
             "ml-sdg-long",
@@ -76,7 +76,7 @@ pub fn get(
             1.01, // buy_signal_threshold
             1.02, // take_profilt_threshold
             0.95, // loss_cut_threshold
-            0.0, // initial_score
+            0.0,  // initial_score
         ),
     ]
 }

@@ -237,7 +237,7 @@ async fn main_loop(
         ErrorManager,
     )>,
     configs: &[EnvConfig],
-    last_execution_time: SystemTime,
+    last_execution_time: Option<SystemTime>,
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
 ) -> std::io::Result<()> {
@@ -245,11 +245,11 @@ async fn main_loop(
     let mut last_execution_time = last_execution_time;
     let interval = configs[0].interval as f64 / trader_instances.len() as f64;
 
-    if last_execution_time == SystemTime::UNIX_EPOCH {
-        last_execution_time = SystemTime::now() - one_day;
+    if last_execution_time.is_none() {
+        last_execution_time = Some(SystemTime::now() - one_day);
     }
 
-    let datetime: DateTime<Utc> = last_execution_time.into();
+    let datetime: DateTime<Utc> = last_execution_time.unwrap().into();
 
     log::warn!(
         "main_loop() starts, last_execution_time = {}",
@@ -262,21 +262,22 @@ async fn main_loop(
         for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
             trader_instances.iter_mut()
         {
-            if now.duration_since(last_execution_time).unwrap() > one_day {
+            if now.duration_since(last_execution_time.unwrap()).unwrap() > one_day {
                 let prev_balance = trader.log_current_balance(wallet_address).await;
-                last_execution_time = now;
+                last_execution_time = Some(now);
                 update_app_state(
                     &transaction_log,
                     &client_holder,
                     last_execution_time,
                     prev_balance,
+                    false,
                 )
                 .await;
             }
 
             if error_manager.get_error_count() >= config.max_error_count {
                 log::error!("Error count reached the limit");
-                trader.close_all_positions();
+                trader.close_all_positions().await;
             }
 
             if let Some(_amount) = manage_token_amount(trader, &wallet_address, config).await {
@@ -385,15 +386,18 @@ async fn handle_sleep_and_signal(interval: f64) -> Result<(), &'static str> {
 async fn update_app_state(
     transaction_log: &Arc<TransactionLog>,
     client_holder: &Arc<Mutex<ClientHolder>>,
-    last_execution_time: SystemTime,
+    last_execution_time: Option<SystemTime>,
     prev_balance: Option<f64>,
+    is_liquidated: bool,
 ) {
     let db = transaction_log
         .get_db(&client_holder.clone())
         .await
         .unwrap();
 
-    match TransactionLog::update_app_state(&db, last_execution_time, prev_balance).await {
+    match TransactionLog::update_app_state(&db, last_execution_time, prev_balance, is_liquidated)
+        .await
+    {
         Ok(_) => {}
         Err(e) => {
             log::warn!("{:?}", e);

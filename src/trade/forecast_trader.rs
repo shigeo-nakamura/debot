@@ -372,12 +372,14 @@ impl ForcastTrader {
         Ok(results)
     }
 
-    pub fn close_all_positions(&mut self) {
+    pub async fn close_all_positions(&mut self) {
         self.state.close_all_position = true;
 
         for fund_manager in self.state.fund_manager_map.values_mut() {
             fund_manager.close_all_positions();
         }
+
+        self.base_trader.log_liquidate_time().await;
     }
 
     pub fn is_close_all_positions(&self) -> bool {
@@ -681,6 +683,10 @@ impl AbstractTrader for ForcastTrader {
         self.base_trader
             .transfer_token(recipient, token, amount)
             .await
+    }
+
+    async fn log_liquidate_time(&self) {
+        self.base_trader.log_liquidate_time().await
     }
 
     async fn log_current_balance(&mut self, wallet_address: &Address) -> Option<f64> {

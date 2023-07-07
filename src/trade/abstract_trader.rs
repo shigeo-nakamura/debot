@@ -289,6 +289,21 @@ impl BaseTrader {
         get_price_futures
     }
 
+    pub async fn log_liquidate_time(&self) {
+        let db = self
+            .transaction_log
+            .get_db(&self.client_holder)
+            .await
+            .unwrap();
+
+        match TransactionLog::update_app_state(&db, None, None, true).await {
+            Ok(_) => {}
+            Err(e) => {
+                log::warn!("log_liquidate_time: {:?}", e);
+            }
+        }
+    }
+
     pub async fn log_current_balance(&mut self, wallet_address: &Address) -> Option<f64> {
         let mut total_amount_in_base_token = 0.0;
 
@@ -414,6 +429,8 @@ pub trait AbstractTrader {
         token: &Box<dyn Token>,
         amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
+
+    async fn log_liquidate_time(&self);
 
     async fn log_current_balance(&mut self, wallet_address: &Address) -> Option<f64>;
 }

@@ -38,16 +38,18 @@ pub async fn get_last_transaction_id(db: &Database) -> u32 {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppState {
     pub id: u32,
-    pub last_execution_time: SystemTime,
+    pub last_execution_time: Option<SystemTime>,
     pub prev_balance: Option<f64>,
+    pub liquidated_time: Vec<String>,
 }
 
 impl AppState {
     pub fn default() -> Self {
         Self {
             id: 1,
-            last_execution_time: SystemTime::UNIX_EPOCH,
+            last_execution_time: None,
             prev_balance: None,
+            liquidated_time: vec![],
         }
     }
 }
@@ -135,7 +137,7 @@ impl TransactionLog {
                 vec![]
             }
         };
-        log::trace!("{:?}", items);
+        log::trace!("get_all_open_position: {:?}", items);
         items
     }
 
@@ -175,12 +177,29 @@ impl TransactionLog {
 
     pub async fn update_app_state(
         db: &Database,
-        last_execution_time: SystemTime,
+        last_execution_time: Option<SystemTime>,
         prev_balance: Option<f64>,
+        is_liquidated: bool,
     ) -> Result<(), Box<dyn error::Error>> {
-        let mut item = AppState::default();
-        item.last_execution_time = last_execution_time;
-        item.prev_balance = prev_balance;
+        let item = AppState::default();
+        let mut item = search_item(db, &item).await?;
+
+        if last_execution_time.is_some() {
+            item.last_execution_time = last_execution_time;
+        }
+
+        if prev_balance.is_some() {
+            item.prev_balance = prev_balance;
+        }
+
+        if is_liquidated {
+            let current_time = chrono::Utc::now().timestamp();
+            let naive_datetime = chrono::NaiveDateTime::from_timestamp_opt(current_time, 0)
+                .expect("Invalid timestamp");
+            let date_string = naive_datetime.format("%Y-%m-%d %H:%M:%S").to_string();
+            item.liquidated_time.push(date_string);
+        }
+
         update_item(db, &item).await?;
         Ok(())
     }
