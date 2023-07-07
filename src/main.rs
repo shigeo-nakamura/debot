@@ -75,6 +75,7 @@ async fn main() -> std::io::Result<()> {
         configs[0].log_limit,
         last_transaction_id,
         0, // todo
+        0, // todo
         &db_name,
     ));
 

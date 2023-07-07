@@ -17,6 +17,7 @@ use super::TradePosition;
 pub enum CounterType {
     Transaction,
     Price,
+    Performance,
 }
 
 pub async fn get_last_transaction_id(db: &Database) -> u32 {
@@ -61,12 +62,25 @@ pub struct BalanceLog {
     pub change: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PriceLog {
     pub id: u32,
+    pub system_time: SystemTime,
     weth: f64,
     wbtc: f64,
     wmatic: f64,
+}
+
+impl PriceLog {
+    pub fn default() -> Self {
+        Self {
+            id: 0,
+            system_time: SystemTime::now(),
+            weth: 0.0,
+            wbtc: 0.0,
+            wmatic: 0.0,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -93,6 +107,7 @@ pub struct TransactionLog {
     max_counter: u32,
     transaction_counter: std::sync::Mutex<u32>,
     price_counter: std::sync::Mutex<u32>,
+    performance_counter: std::sync::Mutex<u32>,
     db_name: String,
 }
 
@@ -101,12 +116,14 @@ impl TransactionLog {
         max_counter: u32,
         transaction_counter: u32,
         price_counter: u32,
+        performance_counter: u32,
         db_name: &str,
     ) -> Self {
         TransactionLog {
             max_counter,
             transaction_counter: std::sync::Mutex::new(transaction_counter),
             price_counter: std::sync::Mutex::new(price_counter),
+            performance_counter: std::sync::Mutex::new(performance_counter),
             db_name: db_name.to_owned(),
         }
     }
@@ -119,6 +136,7 @@ impl TransactionLog {
         let counter = match counter_type {
             CounterType::Transaction => &self.transaction_counter,
             CounterType::Price => &self.price_counter,
+            CounterType::Performance => &self.performance_counter,
         };
 
         let mut counter = counter.lock().unwrap();
