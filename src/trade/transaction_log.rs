@@ -10,6 +10,7 @@ use crate::db::{
     insert_item,
     item::{search_items, update_item},
 };
+use crate::utils::{DateTimeUtils, ToDateTimeString};
 
 use super::TradePosition;
 
@@ -66,6 +67,26 @@ pub struct PriceLog {
     weth: f64,
     wbtc: f64,
     wmatic: f64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PerformanceLog {
+    pub id: u32,
+    pub system_time: SystemTime,
+    pub date: String,
+    pub scores: Vec<(String, f64)>,
+}
+
+impl PerformanceLog {
+    pub fn default() -> Self {
+        let now = SystemTime::now();
+        Self {
+            id: 0,
+            system_time: now,
+            date: now.to_datetime_string(),
+            scores: vec![],
+        }
+    }
 }
 
 pub struct TransactionLog {
@@ -151,13 +172,8 @@ impl TransactionLog {
     }
 
     pub async fn insert_balance(db: &Database, change: f64) -> Result<(), Box<dyn error::Error>> {
-        let current_time = chrono::Utc::now().timestamp();
-        let naive_datetime =
-            chrono::NaiveDateTime::from_timestamp_opt(current_time, 0).expect("Invalid timestamp");
-        let date_string = naive_datetime.format("%Y-%m-%d").to_string();
-
         let mut item = BalanceLog::default();
-        item.date = date_string;
+        item.date = DateTimeUtils::get_current_date_string();
         item.change = change;
 
         insert_item(db, &item).await?;
@@ -193,10 +209,7 @@ impl TransactionLog {
         }
 
         if is_liquidated {
-            let current_time = chrono::Utc::now().timestamp();
-            let naive_datetime = chrono::NaiveDateTime::from_timestamp_opt(current_time, 0)
-                .expect("Invalid timestamp");
-            let date_string = naive_datetime.format("%Y-%m-%d %H:%M:%S").to_string();
+            let date_string = DateTimeUtils::get_current_datetime_string();
             item.liquidated_time.push(date_string);
         }
 

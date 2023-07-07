@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::utils::{DateTimeUtils, ToDateTimeString};
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct TradePosition {
     pub id: Option<u32>,
@@ -52,7 +54,7 @@ impl TradePosition {
             token_name: token_name.to_owned(),
             fund_name: fund_name.to_owned(),
             open_time,
-            open_time_str: Self::get_datetime_string(open_time),
+            open_time_str: open_time.to_datetime_string(),
             close_time_str: String::new(),
             average_buy_price,
             take_profit_price,
@@ -94,7 +96,7 @@ impl TradePosition {
             self.sold_amount = Some(amount);
             let pnl = (average_price - self.average_buy_price) * amount;
             self.realized_pnl = Some(pnl);
-            self.close_time_str = Self::get_datetime_string(chrono::Utc::now().timestamp());
+            self.close_time_str = DateTimeUtils::get_current_datetime_string();
             self.state = state;
 
             log::info!(
@@ -123,7 +125,7 @@ impl TradePosition {
         amount_in_base_token: f64,
     ) {
         self.open_time = chrono::Utc::now().timestamp();
-        self.open_time_str = Self::get_datetime_string(self.open_time);
+        self.open_time_str = self.open_time.to_datetime_string();
 
         self.amount_in_base_token += amount_in_base_token;
 
@@ -154,11 +156,5 @@ impl TradePosition {
             self.cut_loss_price,
             self.amount
         );
-    }
-
-    fn get_datetime_string(time: i64) -> String {
-        let naive_datetime =
-            chrono::NaiveDateTime::from_timestamp_opt(time, 0).expect("Invalid timestamp");
-        naive_datetime.format("%Y-%m-%d %H:%M:%S").to_string()
     }
 }

@@ -17,6 +17,7 @@ use trade::{ForcastTrader, PriceHistory, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
 use crate::trade::AbstractTrader;
+use crate::utils::ToDateTimeString;
 use std::collections::HashMap;
 use std::env;
 use std::net::TcpListener;
@@ -33,6 +34,7 @@ mod error_manager;
 mod kws_decrypt;
 mod token;
 mod trade;
+mod utils;
 mod wallet;
 
 type WalletAndProvider = Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>;
@@ -249,11 +251,9 @@ async fn main_loop(
         last_execution_time = Some(SystemTime::now() - one_day);
     }
 
-    let datetime: DateTime<Utc> = last_execution_time.unwrap().into();
-
     log::warn!(
         "main_loop() starts, last_execution_time = {}",
-        datetime.format("%Y-%m-%d %H:%M:%S")
+        last_execution_time.unwrap().to_datetime_string()
     );
 
     loop {
