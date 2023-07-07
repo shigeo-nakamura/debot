@@ -162,8 +162,10 @@ impl FundManager {
 
                 if amount < self.config.min_trading_amount {
                     log::info!(
-                        "No enough fund left: remaining = {:6.3}, invested = {:6.3}",
+                        "No enough fund left({}): remaining = {:6.3}, amount = {:6.3}, invested = {:6.3}",
+                        self.fund_name(),
                         self.state.amount,
+                        amount,
                         self.amount_of_positinos_in_base_token(),
                     );
                     return None;
