@@ -29,6 +29,7 @@ pub struct FundManagerConfig {
     leverage: f64,
     min_trading_amount: f64,
     position_creation_inteval: u64,
+    buy_signal_threshold: f64,
     take_profit_threshold: f64,
     cut_loss_threshold: f64,
     max_hold_interval_in_secs: u64,
@@ -58,6 +59,7 @@ impl FundManager {
         min_trading_amount: f64,
         initial_score: f64,
         position_creation_inteval: u64,
+        buy_signal_threshold: f64,
         take_profit_threshold: f64,
         cut_loss_threshold: f64,
         max_hold_interval_in_days: f64,
@@ -70,6 +72,7 @@ impl FundManager {
             leverage,
             min_trading_amount,
             position_creation_inteval,
+            buy_signal_threshold,
             take_profit_threshold,
             cut_loss_threshold,
             max_hold_interval_in_secs: (max_hold_interval_in_days * (SECONDS_PER_DAY as f64))
@@ -81,8 +84,13 @@ impl FundManager {
             None => HashMap::new(),
         };
 
+        let mut amount = initial_amount;
+        for open_position in open_positions.values() {
+            amount -= open_position.amount_in_base_token;
+        }
+
         let state = FundManagerState {
-            amount: initial_amount,
+            amount: amount,
             open_positions,
             close_all_position: Arc::new(std::sync::Mutex::new(false)),
             score: initial_score,
@@ -149,7 +157,7 @@ impl FundManager {
                 predicted_price,
             );
 
-            if profit_ratio >= self.config.take_profit_threshold {
+            if profit_ratio >= self.config.buy_signal_threshold {
                 if !self.can_create_new_position(token_name) {
                     log::debug!(
                         "{} Need to wait for a while to create a new position",

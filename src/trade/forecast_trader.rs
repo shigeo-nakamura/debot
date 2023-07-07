@@ -97,25 +97,28 @@ impl ForcastTrader {
             fund_configurations::get(short_trade_period, medium_trade_period, long_trade_period);
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
-            .map(|(name, strategy, period, take_profit, cut_loss, score)| {
-                let fund_name = format!("{}-{}", dexes[dex_index].name(), name);
+            .map(
+                |(name, strategy, period, buy_signal, take_profit, cut_loss, score)| {
+                    let fund_name = format!("{}-{}", dexes[dex_index].name(), name);
 
-                FundManager::new(
-                    &fund_name,
-                    open_positions_map.get(&fund_name).cloned(),
-                    strategy,
-                    period,
-                    leverage,
-                    initial_amount,
-                    min_trading_amount,
-                    score,
-                    position_creation_inteval,
-                    take_profit,
-                    cut_loss,
-                    1.0, // 1 day
-                    transaction_log.clone(),
-                )
-            })
+                    FundManager::new(
+                        &fund_name,
+                        open_positions_map.get(&fund_name).cloned(),
+                        strategy,
+                        period,
+                        leverage,
+                        initial_amount,
+                        min_trading_amount,
+                        score,
+                        position_creation_inteval,
+                        buy_signal,
+                        take_profit,
+                        cut_loss,
+                        1.0, // 1 day
+                        transaction_log.clone(),
+                    )
+                },
+            )
             .collect();
 
         for fund_manager in fund_managers {
