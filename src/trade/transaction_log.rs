@@ -41,8 +41,8 @@ pub async fn get_last_transaction_id(db: &Database) -> u32 {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppState {
     pub id: u32,
-    pub last_execution_time: Option<SystemTime>,
-    pub prev_balance: Option<f64>,
+    pub last_execution_time: SystemTime,
+    pub prev_balance: f64,
     pub liquidated_time: Vec<String>,
 }
 
@@ -50,8 +50,8 @@ impl AppState {
     pub fn default() -> Self {
         Self {
             id: 1,
-            last_execution_time: None,
-            prev_balance: None,
+            last_execution_time: SystemTime::UNIX_EPOCH,
+            prev_balance: 0.0,
             liquidated_time: vec![],
         }
     }
@@ -220,11 +220,11 @@ impl TransactionLog {
         let mut item = search_item(db, &item).await?;
 
         if last_execution_time.is_some() {
-            item.last_execution_time = last_execution_time;
+            item.last_execution_time = last_execution_time.unwrap();
         }
 
         if prev_balance.is_some() {
-            item.prev_balance = prev_balance;
+            item.prev_balance = prev_balance.unwrap();
         }
 
         if is_liquidated {

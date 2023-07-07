@@ -342,7 +342,7 @@ impl BaseTrader {
 
             if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
                 if let Err(e) = TransactionLog::insert_balance(&db, change).await {
-                    log::error!("{:?}", e);
+                    log::error!("log_current_balance: {:?}", e);
                 }
             }
         }

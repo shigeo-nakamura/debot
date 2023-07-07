@@ -80,25 +80,31 @@ async fn main() -> std::io::Result<()> {
     ));
 
     // Read the last App state
-    let db = transaction_log
-        .get_db(&client_holder.clone())
-        .await
-        .unwrap();
     let app_state = TransactionLog::get_app_state(&db).await;
+    let prev_balance = if app_state.prev_balance == 0.0 {
+        None
+    } else {
+        Some(app_state.prev_balance)
+    };
+    let last_execution_time = if app_state.last_execution_time == SystemTime::UNIX_EPOCH {
+        None
+    } else {
+        Some(app_state.last_execution_time)
+    };
 
     // Initialize an empty vector to hold trader instances
     let mut trader_instances = prepare_trader_instances(
         &configs,
         client_holder.clone(),
         transaction_log.clone(),
-        app_state.prev_balance,
+        prev_balance,
     )
     .await;
 
     main_loop(
         &mut trader_instances,
         &configs,
-        app_state.last_execution_time,
+        last_execution_time,
         client_holder,
         transaction_log.clone(),
     )
@@ -250,16 +256,17 @@ async fn main_loop(
     transaction_log: Arc<TransactionLog>,
 ) -> std::io::Result<()> {
     let one_day = Duration::from_secs(24 * 60 * 60);
-    let mut last_execution_time = last_execution_time;
     let interval = configs[0].interval as f64 / trader_instances.len() as f64;
 
-    if last_execution_time.is_none() {
-        last_execution_time = Some(SystemTime::now() - one_day);
-    }
+    let mut last_execution_time = if last_execution_time.is_none() {
+        SystemTime::UNIX_EPOCH
+    } else {
+        last_execution_time.unwrap()
+    };
 
     log::warn!(
         "main_loop() starts, last_execution_time = {}",
-        last_execution_time.unwrap().to_datetime_string()
+        last_execution_time.to_datetime_string()
     );
 
     loop {
@@ -268,13 +275,13 @@ async fn main_loop(
         for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
             trader_instances.iter_mut()
         {
-            if now.duration_since(last_execution_time.unwrap()).unwrap() > one_day {
+            if now.duration_since(last_execution_time).unwrap() > one_day {
                 let prev_balance = trader.log_current_balance(wallet_address).await;
-                last_execution_time = Some(now);
+                last_execution_time = now;
                 update_app_state(
                     &transaction_log,
                     &client_holder,
-                    last_execution_time,
+                    Some(last_execution_time),
                     prev_balance,
                     false,
                 )
@@ -406,7 +413,7 @@ async fn update_app_state(
     {
         Ok(_) => {}
         Err(e) => {
-            log::warn!("{:?}", e);
+            log::warn!("update_app_state: {:?}", e);
         }
     }
 }
