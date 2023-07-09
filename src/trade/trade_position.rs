@@ -105,8 +105,8 @@ impl TradePosition {
         sell_price <= *self.cut_loss_price.lock().unwrap()
     }
 
-    fn update(&mut self, average_price: f64, amount: f64, state: State) {
-        if state == State::Open {
+    fn update(&mut self, average_price: f64, amount: f64) {
+        if self.state == State::Open {
             self.amount += amount;
             self.average_buy_price = (self.average_buy_price * self.amount
                 + average_price * amount)
@@ -120,24 +120,14 @@ impl TradePosition {
             let pnl = (average_price - self.average_buy_price) * amount;
             self.realized_pnl = Some(pnl);
             self.close_time_str = DateTimeUtils::get_current_datetime_string();
-            self.state = state;
 
             log::info!("Cloes the position: {:?}", self);
         }
     }
 
-    pub fn del(&mut self, sold_price: f64, amount: f64, is_liquidated: bool) {
-        let state = match is_liquidated {
-            true => State::Liquidated,
-            false => {
-                if self.state == State::Expired {
-                    State::Expired
-                } else {
-                    State::Closed
-                }
-            }
-        };
-        self.update(sold_price, amount, state);
+    pub fn del(&mut self, sold_price: f64, amount: f64, state: State) {
+        self.state = state;
+        self.update(sold_price, amount);
     }
 
     pub fn add(
@@ -162,7 +152,7 @@ impl TradePosition {
             (*self_cut_loss_price * self.amount + cut_loss_price * amount) / (self.amount + amount);
         drop(self_cut_loss_price);
 
-        self.update(average_price, amount, State::Open);
+        self.update(average_price, amount);
     }
 
     pub fn print_info(&self, current_price: f64) {

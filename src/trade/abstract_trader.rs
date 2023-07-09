@@ -32,6 +32,13 @@ pub enum Operation {
     Sell,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReasonForSell {
+    Liquidated,
+    Expired,
+    Others,
+}
+
 #[derive(Debug, Clone)]
 pub struct TradeOpportunity {
     pub trader_name: String,
@@ -39,6 +46,7 @@ pub struct TradeOpportunity {
     pub token_index: Vec<usize>,
     pub amounts: Vec<f64>,
     pub operation: Operation,
+    pub reason_for_sell: Option<ReasonForSell>,
     pub predicted_profit: Option<f64>,
     pub currect_price: Option<f64>,
     pub predicted_price: Option<f64>,

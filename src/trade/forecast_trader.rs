@@ -347,6 +347,7 @@ impl ForcastTrader {
                         currect_price: Some(opportunity.price),
                         predicted_price: Some(opportunity.predicted_price),
                         trader_name: opportunity.fund_name.to_owned(),
+                        reason_for_sell: None,
                     });
                 }
             }
@@ -380,16 +381,17 @@ impl ForcastTrader {
                 let proposal =
                     fund_manager.find_sell_opportunities(token_a_name, *price, histories);
 
-                if let Some(opportunity) = proposal {
+                if let Some(proposal) = proposal {
                     opportunities.push(TradeOpportunity {
                         dex_index: vec![dex_index],
                         token_index: vec![token_a_index, token_b_index],
-                        amounts: vec![opportunity.amount],
+                        amounts: vec![proposal.amount],
                         operation: Operation::Sell,
-                        predicted_profit: Some(opportunity.profit),
-                        currect_price: Some(opportunity.price),
+                        predicted_profit: Some(proposal.profit),
+                        currect_price: Some(proposal.price),
                         predicted_price: None,
-                        trader_name: opportunity.fund_name.to_owned(),
+                        trader_name: proposal.fund_name.to_owned(),
+                        reason_for_sell: proposal.reason_for_sell,
                     });
                 }
             }
@@ -614,7 +616,7 @@ impl AbstractTrader for ForcastTrader {
             let token_b_name = token_b.symbol_name();
             let current_price = opportunity.currect_price.unwrap();
 
-            let buy_trade = opportunity.operation == Operation::Buy;
+            let is_buy_trade = opportunity.operation == Operation::Buy;
 
             let fund_manager = self
                 .state
@@ -622,15 +624,29 @@ impl AbstractTrader for ForcastTrader {
                 .get_mut(&opportunity.trader_name)
                 .unwrap();
 
-            if buy_trade {
+            if is_buy_trade {
                 let amount_out = amount_in / current_price;
                 fund_manager
-                    .update_position(buy_trade, token_b_name, amount_in, amount_out, &db_client)
+                    .update_position(
+                        is_buy_trade,
+                        opportunity.reason_for_sell.clone().unwrap(),
+                        token_b_name,
+                        amount_in,
+                        amount_out,
+                        &db_client,
+                    )
                     .await;
             } else {
                 let amount_out = amount_in * current_price;
                 fund_manager
-                    .update_position(buy_trade, token_a_name, amount_in, amount_out, &db_client)
+                    .update_position(
+                        is_buy_trade,
+                        opportunity.reason_for_sell.clone().unwrap(),
+                        token_a_name,
+                        amount_in,
+                        amount_out,
+                        &db_client,
+                    )
                     .await;
 
                 if opportunity.predicted_profit.is_some() {

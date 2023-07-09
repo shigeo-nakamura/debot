@@ -1,9 +1,12 @@
 // fund_manager.rs
 
+use ethers_middleware::core::k256::elliptic_curve::bigint::modular::constant_mod::ResidueParams;
 use shared_mongodb::ClientHolder;
 
+use crate::trade::trade_position::State;
 use crate::trade::CounterType;
 
+use super::abstract_trader::ReasonForSell;
 use super::trade_position::StopLossStrategy;
 use super::{PriceHistory, TradePosition, TradingStrategy, TransactionLog};
 use std::collections::HashMap;
@@ -48,6 +51,7 @@ pub struct TradeProposal {
     pub predicted_price: f64,
     pub amount: f64,
     pub fund_name: String,
+    pub reason_for_sell: Option<ReasonForSell>,
 }
 
 impl FundManager {
@@ -183,16 +187,6 @@ impl FundManager {
                     return None;
                 }
 
-                if history.is_flash_crash() {
-                    log::warn!(
-                        "Skip this buy trade as price of {} is crashed({:6.5} --> {:6.5})",
-                        token_name,
-                        price,
-                        predicted_price
-                    );
-                    return None;
-                }
-
                 let profit = (predicted_price - price) * amount;
 
                 return Some(TradeProposal {
@@ -201,6 +195,7 @@ impl FundManager {
                     predicted_price,
                     amount,
                     fund_name: self.config.name.to_owned(),
+                    reason_for_sell: None,
                 });
             }
         }
@@ -223,8 +218,6 @@ impl FundManager {
                 // caliculate unrialized PnL
                 position.print_info(*price);
                 unrealized_pnl += price * position.amount - position.amount_in_base_token;
-
-                // update trailing prices
             }
         }
 
@@ -249,14 +242,16 @@ impl FundManager {
         if let Some(history) = histories.get(token_name) {
             if let Some(position) = self.state.open_positions.get(token_name) {
                 let mut amount = 0.0;
+                let mut reason_for_sell = Some(ReasonForSell::Others);
 
-                if history.is_flash_crash() || *self.state.close_all_position.lock().unwrap() {
+                if *self.state.close_all_position.lock().unwrap() {
                     log::warn!(
-                        "Close the position of {}, as its price{:.6} is crashed, or requested to close",
+                        "Close the position of {}, as its price{:.6} is requested to close",
                         token_name,
                         sell_price
                     );
                     amount = position.amount;
+                    reason_for_sell = Some(ReasonForSell::Liquidated);
                 } else {
                     let current_time = chrono::Utc::now().timestamp();
                     let holding_interval = current_time - position.open_time;
@@ -265,6 +260,7 @@ impl FundManager {
                     {
                         log::warn!("Close the position as it reaches the limit of hold period");
                         amount = position.amount;
+                        reason_for_sell = Some(ReasonForSell::Expired);
                     } else if position.do_take_profit(sell_price)
                         || position.do_cut_loss(sell_price)
                     {
@@ -280,6 +276,7 @@ impl FundManager {
                         predicted_price: sell_price,
                         amount,
                         fund_name: self.config.name.to_owned(),
+                        reason_for_sell,
                     });
                 }
             }
@@ -300,6 +297,7 @@ impl FundManager {
     pub async fn update_position(
         &mut self,
         is_buy_trade: bool,
+        reason_for_sell: ReasonForSell,
         token_name: &str,
         amount_in: f64,
         amount_out: f64,
@@ -359,11 +357,14 @@ impl FundManager {
 
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
                 let sold_price = amount_out / amount_in;
-                position.del(
-                    sold_price,
-                    amount_in,
-                    *self.state.close_all_position.lock().unwrap(),
-                );
+
+                let new_state = match reason_for_sell {
+                    ReasonForSell::Liquidated => State::Liquidated,
+                    ReasonForSell::Expired => State::Expired,
+                    ReasonForSell::Others => State::Closed,
+                };
+
+                position.del(sold_price, amount_in, new_state);
 
                 let position_cloned = position.clone();
                 let amount = position.amount;

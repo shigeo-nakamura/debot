@@ -17,7 +17,7 @@ use ethers::types::Address;
 use ethers_middleware::NonceManagerMiddleware;
 use shared_mongodb::ClientHolder;
 
-use super::abstract_trader::BaseTrader;
+use super::abstract_trader::{BaseTrader, ReasonForSell};
 use super::{AbstractTrader, Operation, TradeOpportunity, TransactionLog};
 pub struct ArbitrageTrader {
     base_trader: BaseTrader,
@@ -270,6 +270,7 @@ impl ArbitrageTrader {
                 currect_price: None,
                 predicted_price: None,
                 trader_name: self.name().to_owned(),
+                reason_for_sell: None,
             };
 
             results.push(opportunity);
