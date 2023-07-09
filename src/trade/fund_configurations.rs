@@ -20,9 +20,9 @@ pub fn get(
 )> {
     let configs = vec![
         (
-            "trend-follow-short-fixed",
+            "trend-follow-short-trailing",
             TradingStrategy::TrendFollowing,
-            StopLossStrategy::FixedThreshold,
+            StopLossStrategy::TrailingStop,
             short_trade_period,
             1.01,  // buy_signal_threshold
             1.005, // take_profit_threshold
@@ -31,9 +31,9 @@ pub fn get(
             1.0,   // 1 day
         ),
         (
-            "trend-follow-short-trailing",
+            "trend-follow-short-fixed",
             TradingStrategy::TrendFollowing,
-            StopLossStrategy::TrailingStop,
+            StopLossStrategy::FixedThreshold,
             short_trade_period,
             1.01,  // buy_signal_threshold
             1.005, // take_profit_threshold

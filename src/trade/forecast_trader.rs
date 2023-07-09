@@ -397,6 +397,10 @@ impl ForcastTrader {
             }
         }
 
+        for fund_manager in self.state.fund_manager_map.values() {
+            let mut fund_state = fund_manager.end_liquidate();
+        }
+
         Ok(opportunities)
     }
 
@@ -431,7 +435,7 @@ impl ForcastTrader {
         self.state.close_all_position = true;
 
         for fund_manager in self.state.fund_manager_map.values_mut() {
-            fund_manager.close_all_positions();
+            fund_manager.begin_liquidate();
         }
 
         self.base_trader.log_liquidate_time().await;

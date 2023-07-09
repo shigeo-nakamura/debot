@@ -17,10 +17,17 @@ use tokio::sync::Mutex;
 const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
 const MOVING_AVERAGE_WINDOW_SIZE: usize = 5;
 
+#[derive(PartialEq)]
+enum FundState {
+    Active,
+    ShouldLiquidate,
+    Liquidated,
+}
+
 pub struct FundManagerState {
     amount: f64,
     open_positions: HashMap<String, TradePosition>,
-    close_all_position: Arc<std::sync::Mutex<bool>>,
+    fund_state: Arc<std::sync::Mutex<FundState>>,
     score: f64,
     past_scores: Vec<f64>,
     transaction_log: Arc<TransactionLog>,
@@ -100,7 +107,7 @@ impl FundManager {
         let state = FundManagerState {
             amount: amount,
             open_positions,
-            close_all_position: Arc::new(std::sync::Mutex::new(false)),
+            fund_state: Arc::new(std::sync::Mutex::new(FundState::Active)),
             score: initial_score,
             past_scores: vec![],
             transaction_log,
@@ -134,9 +141,16 @@ impl FundManager {
         amount
     }
 
-    pub fn close_all_positions(&self) {
-        let mut close_all_position = self.state.close_all_position.lock().unwrap();
-        *close_all_position = true;
+    pub fn begin_liquidate(&self) {
+        let mut fund_state = self.state.fund_state.lock().unwrap();
+        *fund_state = FundState::ShouldLiquidate;
+    }
+
+    pub fn end_liquidate(&self) {
+        let mut fund_state = self.state.fund_state.lock().unwrap();
+        if *fund_state == FundState::ShouldLiquidate {
+            *fund_state = FundState::Liquidated;
+        }
     }
 
     pub fn find_buy_opportunities(
@@ -228,8 +242,7 @@ impl FundManager {
                 self.amount(),
                 unrealized_pnl
             );
-            let mut close_all_position = self.state.close_all_position.lock().unwrap();
-            *close_all_position = true;
+            self.begin_liquidate();
         }
     }
 
@@ -244,7 +257,10 @@ impl FundManager {
                 let mut amount = 0.0;
                 let mut reason_for_sell = Some(ReasonForSell::Others);
 
-                if *self.state.close_all_position.lock().unwrap() {
+                let should_liquidate =
+                    *self.state.fund_state.lock().unwrap() == FundState::ShouldLiquidate;
+
+                if should_liquidate {
                     log::warn!(
                         "Close the position of {}, as its price{:.6} is requested to close",
                         token_name,
