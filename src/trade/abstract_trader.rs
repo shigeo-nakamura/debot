@@ -85,8 +85,16 @@ impl TradeOpportunity {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum TraderState {
+    Active,
+    Liquidated,
+    Paused,
+}
+
 pub struct BaseTrader {
     name: String,
+    state: TraderState,
     leverage: f64,
     initial_amount: f64,
     allowance_factor: f64,
@@ -103,6 +111,7 @@ pub struct BaseTrader {
 impl BaseTrader {
     pub fn new(
         name: String,
+        state: TraderState,
         leverage: f64,
         initial_amount: f64,
         allowance_factor: f64,
@@ -117,6 +126,7 @@ impl BaseTrader {
     ) -> Self {
         Self {
             name,
+            state,
             leverage,
             initial_amount,
             allowance_factor,
@@ -358,6 +368,14 @@ impl BaseTrader {
         self.prev_balance
     }
 
+    pub fn state(&self) -> TraderState {
+        self.state.clone()
+    }
+
+    pub fn set_state(&mut self, state: TraderState) {
+        self.state = state;
+    }
+
     pub fn leverage(&self) -> f64 {
         self.leverage
     }
@@ -411,6 +429,8 @@ pub trait AbstractTrader {
         deadline_secs: u64,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
+    fn state(&self) -> TraderState;
+    fn set_state(&mut self, state: TraderState);
     fn leverage(&self) -> f64;
     fn initial_amount(&self) -> f64;
     fn tokens(&self) -> Arc<Vec<Box<dyn Token>>>;

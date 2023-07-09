@@ -13,6 +13,7 @@ pub use abstract_trader::find_index;
 pub use abstract_trader::AbstractTrader;
 pub use abstract_trader::Operation;
 pub use abstract_trader::TradeOpportunity;
+pub use abstract_trader::TraderState;
 pub use arbitrage_trader::ArbitrageTrader;
 pub use forecast_trader::ForcastTrader;
 pub use fund_manager::FundManager;

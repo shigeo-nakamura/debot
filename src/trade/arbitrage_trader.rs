@@ -17,7 +17,7 @@ use ethers::types::Address;
 use ethers_middleware::NonceManagerMiddleware;
 use shared_mongodb::ClientHolder;
 
-use super::abstract_trader::{BaseTrader, ReasonForSell};
+use super::abstract_trader::{BaseTrader, TraderState};
 use super::{AbstractTrader, Operation, TradeOpportunity, TransactionLog};
 pub struct ArbitrageTrader {
     base_trader: BaseTrader,
@@ -26,6 +26,7 @@ pub struct ArbitrageTrader {
 
 impl ArbitrageTrader {
     pub fn new(
+        trader_state: TraderState,
         leverage: f64,
         initial_amount: f64,
         allowance_factor: f64,
@@ -41,6 +42,7 @@ impl ArbitrageTrader {
         Self {
             base_trader: BaseTrader::new(
                 "Arbitrager".to_string(),
+                trader_state,
                 leverage,
                 initial_amount,
                 allowance_factor,
@@ -378,6 +380,14 @@ impl AbstractTrader for ArbitrageTrader {
         }
 
         Ok(token_pair_prices)
+    }
+
+    fn state(&self) -> TraderState {
+        self.base_trader.state()
+    }
+
+    fn set_state(&mut self, state: TraderState) {
+        self.base_trader.set_state(state)
     }
 
     fn leverage(&self) -> f64 {

@@ -1,6 +1,5 @@
 // algorithm_trader.rs
 
-use ethers::abi::Hash;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
@@ -24,6 +23,7 @@ use shared_mongodb::ClientHolder;
 use tokio::time::{timeout, Duration};
 
 use super::abstract_trader::BaseTrader;
+use super::abstract_trader::TraderState;
 use super::fund_configurations;
 use super::FundManager;
 use super::Operation;
@@ -44,7 +44,6 @@ pub struct ForcastTraderConfig {
 
 pub struct ForcastTraderState {
     amount: f64,
-    close_all_position: bool,
     fund_manager_map: HashMap<String, FundManager>,
     scores: HashMap<String, f64>,
 }
@@ -57,6 +56,7 @@ pub struct ForcastTrader {
 
 impl ForcastTrader {
     pub fn new(
+        trader_state: TraderState,
         leverage: f64,
         initial_amount: f64,
         min_trading_amount: f64,
@@ -94,7 +94,6 @@ impl ForcastTrader {
 
         let mut state = ForcastTraderState {
             amount: initial_amount,
-            close_all_position: false,
             fund_manager_map: HashMap::new(),
             scores: scores.clone(),
         };
@@ -159,6 +158,7 @@ impl ForcastTrader {
         Self {
             base_trader: BaseTrader::new(
                 "AlgoTrader".to_string(),
+                trader_state,
                 leverage,
                 initial_amount,
                 allowance_factor,
@@ -297,10 +297,6 @@ impl ForcastTrader {
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
-        if self.state.close_all_position {
-            log::info!("close_all_position is asserted");
-            return Ok(opportunities);
-        }
 
         for ((token_a_name, token_b_name, dex_name), price) in current_prices {
             if token_b_name != self.base_token().symbol_name() {
@@ -414,11 +410,15 @@ impl ForcastTrader {
         &self,
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
+        let mut results: Vec<TradeOpportunity> = vec![];
+
+        if self.base_trader.state() != TraderState::Active {
+            return Ok(results);
+        }
+
         // Get current prices
         let current_prices: HashMap<(String, String, String), f64> =
             self.get_current_prices(histories).await?;
-
-        let mut results: Vec<TradeOpportunity> = vec![];
 
         self.check_positions(&current_prices);
 
@@ -431,18 +431,13 @@ impl ForcastTrader {
         Ok(results)
     }
 
-    pub async fn close_all_positions(&mut self) {
-        self.state.close_all_position = true;
-
+    pub async fn liquidate(&mut self) {
         for fund_manager in self.state.fund_manager_map.values_mut() {
             fund_manager.begin_liquidate();
         }
 
+        self.base_trader.set_state(TraderState::Liquidated);
         self.base_trader.log_liquidate_time().await;
-    }
-
-    pub fn is_close_all_positions(&self) -> bool {
-        self.state.close_all_position
     }
 
     pub async fn rebalance(&mut self, owner: Address) {
@@ -491,13 +486,18 @@ impl ForcastTrader {
             let mut item = PerformanceLog::default();
             item.id = transaction_log.increment_counter(CounterType::Performance);
             item.scores = self.state.scores.clone();
-            TransactionLog::update_performance(&db.unwrap(), item).await;
+            if let Err(e) = TransactionLog::update_performance(&db.unwrap(), item).await {
+                log::warn!("rebalance: {:?}", e);
+            }
         }
 
         let amount_per_score = self.state.amount / total_score;
 
         for fund_manager in self.state.fund_manager_map.values_mut() {
-            let amount = fund_manager.score() * amount_per_score;
+            let amount = match fund_manager.is_liquidated() {
+                true => 0.0,
+                false => fund_manager.score() * amount_per_score,
+            };
             fund_manager.set_amount(amount);
         }
     }
@@ -721,6 +721,14 @@ impl AbstractTrader for ForcastTrader {
         }
 
         Ok(token_pair_prices)
+    }
+
+    fn state(&self) -> TraderState {
+        self.base_trader.state()
+    }
+
+    fn set_state(&mut self, state: TraderState) {
+        self.base_trader.set_state(state)
     }
 
     fn leverage(&self) -> f64 {

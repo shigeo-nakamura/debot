@@ -153,6 +153,10 @@ impl FundManager {
         }
     }
 
+    pub fn is_liquidated(&self) -> bool {
+        *self.state.fund_state.lock().unwrap() == FundState::Liquidated
+    }
+
     pub fn find_buy_opportunities(
         &self,
         token_name: &str,

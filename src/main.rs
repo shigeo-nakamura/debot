@@ -16,7 +16,7 @@ use trade::transaction_log::get_last_transaction_id;
 use trade::{ForcastTrader, PriceHistory, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
-use crate::trade::AbstractTrader;
+use crate::trade::{AbstractTrader, TraderState};
 use crate::utils::ToDateTimeString;
 use std::collections::HashMap;
 use std::env;
@@ -188,6 +188,7 @@ async fn prepare_algorithm_trader_instance(
         ForcastTrader::get_last_scores(transaction_log.clone(), client_holder.clone()).await;
 
     let mut trader = ForcastTrader::new(
+        TraderState::Active, // todo
         config.leverage,
         config.min_managed_amount,
         config.min_trading_amount,
@@ -280,7 +281,7 @@ async fn main_loop(
 
             if error_manager.get_error_count() >= config.max_error_count {
                 log::error!("Error count reached the limit");
-                trader.close_all_positions().await;
+                trader.liquidate().await;
             }
 
             if let Some(_amount) = manage_token_amount(trader, &wallet_address, config).await {
@@ -320,9 +321,6 @@ async fn main_loop(
                     error_manager.increment_error_count();
                 }
             };
-            if trader.is_close_all_positions() {
-                continue;
-            }
 
             if let Err(e) = handle_sleep_and_signal(interval).await {
                 log::error!("Error handling sleep and signal: {}", e);
