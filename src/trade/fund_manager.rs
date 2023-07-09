@@ -4,6 +4,7 @@ use shared_mongodb::ClientHolder;
 
 use crate::trade::CounterType;
 
+use super::trade_position::StopLossStrategy;
 use super::{PriceHistory, TradePosition, TradingStrategy, TransactionLog};
 use std::collections::HashMap;
 use std::f64;
@@ -25,6 +26,7 @@ pub struct FundManagerState {
 pub struct FundManagerConfig {
     name: String,
     strategy: TradingStrategy,
+    stop_loss_strategy: StopLossStrategy,
     trade_period: usize,
     leverage: f64,
     min_trading_amount: f64,
@@ -53,6 +55,7 @@ impl FundManager {
         fund_name: &str,
         open_positions: Option<HashMap<String, TradePosition>>,
         strategy: TradingStrategy,
+        stop_loss_strategy: StopLossStrategy,
         trade_period: usize,
         leverage: f64,
         initial_amount: f64,
@@ -68,6 +71,7 @@ impl FundManager {
         let config = FundManagerConfig {
             name: fund_name.to_owned(),
             strategy,
+            stop_loss_strategy,
             trade_period,
             leverage,
             min_trading_amount,
@@ -216,8 +220,11 @@ impl FundManager {
             }
 
             if let Some(position) = self.state.open_positions.get(token_a_name) {
+                // caliculate unrialized PnL
                 position.print_info(*price);
                 unrealized_pnl += price * position.amount - position.amount_in_base_token;
+
+                // update trailing prices
             }
         }
 
@@ -328,6 +335,7 @@ impl FundManager {
                 let mut position = TradePosition::new(
                     token_name,
                     self.name(),
+                    self.config.stop_loss_strategy.clone(),
                     average_price,
                     take_profit_price,
                     cut_loss_price,

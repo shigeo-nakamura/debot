@@ -385,6 +385,10 @@ impl BaseTrader {
     pub fn db_client(&self) -> &Arc<Mutex<ClientHolder>> {
         &self.client_holder
     }
+
+    pub fn transaction_log(&self) -> Arc<TransactionLog> {
+        Arc::clone(&self.transaction_log)
+    }
 }
 
 #[async_trait]

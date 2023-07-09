@@ -10,7 +10,9 @@ use crate::dex::dex::TokenPair;
 use crate::dex::Dex;
 use crate::token::Token;
 use crate::trade::find_index;
+use crate::trade::transaction_log::PerformanceLog;
 use crate::trade::AbstractTrader;
+use crate::trade::CounterType;
 
 use async_trait::async_trait;
 use ethers::prelude::{Provider, SignerMiddleware};
@@ -102,7 +104,17 @@ impl ForcastTrader {
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
             .map(
-                |(name, strategy, period, buy_signal, take_profit, cut_loss, score)| {
+                |(
+                    name,
+                    strategy,
+                    stop_loss_strategy,
+                    period,
+                    buy_signal,
+                    take_profit,
+                    cut_loss,
+                    score,
+                    days,
+                )| {
                     let fund_name = format!("{}-{}", dexes[dex_index].name(), name);
 
                     let prev_score = scores.get(&fund_name);
@@ -117,6 +129,7 @@ impl ForcastTrader {
                         &fund_name,
                         open_positions_map.get(&fund_name).cloned(),
                         strategy,
+                        stop_loss_strategy,
                         period,
                         leverage,
                         initial_amount,
@@ -126,7 +139,7 @@ impl ForcastTrader {
                         buy_signal,
                         take_profit,
                         cut_loss,
-                        1.0, // 1 day
+                        days,
                         transaction_log.clone(),
                     )
                 },
@@ -458,6 +471,17 @@ impl ForcastTrader {
 
         if changed {
             log::info!("rebalanced scores: {:?}", self.state.scores);
+            let transaction_log = self.base_trader.transaction_log();
+            let db = transaction_log.get_db(self.base_trader.db_client()).await;
+            if db.is_none() {
+                log::error!("rebalance: no DB");
+                return;
+            }
+
+            let mut item = PerformanceLog::default();
+            item.id = transaction_log.increment_counter(CounterType::Performance);
+            item.scores = self.state.scores.clone();
+            TransactionLog::update_performance(&db.unwrap(), item).await;
         }
 
         let amount_per_score = self.state.amount / total_score;

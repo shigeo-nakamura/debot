@@ -1,12 +1,21 @@
 // open_position.rs
 
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::utils::{DateTimeUtils, ToDateTimeString};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub enum StopLossStrategy {
+    #[default]
+    FixedThreshold,
+    TrailingStop,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct TradePosition {
     pub id: Option<u32>,
+    pub strategy: StopLossStrategy,
     pub state: State,
     pub token_name: String,
     pub fund_name: String,
@@ -15,7 +24,10 @@ pub struct TradePosition {
     pub close_time_str: String,
     pub average_buy_price: f64,
     pub take_profit_price: f64,
-    pub cut_loss_price: f64,
+    #[serde(skip)]
+    pub cut_loss_price: Arc<std::sync::Mutex<f64>>,
+    pub initial_cut_loss_price: f64,
+    pub trailing_distance: f64,
     pub sold_price: Option<f64>,
     pub sold_amount: Option<f64>,
     pub amount: f64,
@@ -29,12 +41,14 @@ pub enum State {
     Open,
     Closed,
     Liquidated,
+    Expired,
 }
 
 impl TradePosition {
     pub fn new(
         token_name: &str,
         fund_name: &str,
+        strategy: StopLossStrategy,
         average_buy_price: f64,
         take_profit_price: f64,
         cut_loss_price: f64,
@@ -50,6 +64,7 @@ impl TradePosition {
 
         Self {
             id: None,
+            strategy,
             state: State::Open,
             token_name: token_name.to_owned(),
             fund_name: fund_name.to_owned(),
@@ -58,7 +73,9 @@ impl TradePosition {
             close_time_str: String::new(),
             average_buy_price,
             take_profit_price,
-            cut_loss_price,
+            cut_loss_price: Arc::new(std::sync::Mutex::new(cut_loss_price)),
+            initial_cut_loss_price: cut_loss_price,
+            trailing_distance: take_profit_price - average_buy_price,
             sold_price: None,
             sold_amount: None,
             amount,
@@ -68,11 +85,24 @@ impl TradePosition {
     }
 
     pub fn do_take_profit(&self, sell_price: f64) -> bool {
-        sell_price >= self.take_profit_price
+        match self.strategy {
+            StopLossStrategy::FixedThreshold => sell_price >= self.take_profit_price,
+            StopLossStrategy::TrailingStop => {
+                let current_distance = sell_price - self.average_buy_price;
+                if current_distance > self.trailing_distance {
+                    let cut_loss_price = sell_price - self.trailing_distance;
+                    let mut cut_loss_price_self = self.cut_loss_price.lock().unwrap();
+                    if cut_loss_price > *cut_loss_price_self {
+                        *cut_loss_price_self = cut_loss_price;
+                    }
+                }
+                false
+            }
+        }
     }
 
     pub fn do_cut_loss(&self, sell_price: f64) -> bool {
-        sell_price <= self.cut_loss_price
+        sell_price <= *self.cut_loss_price.lock().unwrap()
     }
 
     fn update(&mut self, average_price: f64, amount: f64, state: State) {
@@ -82,14 +112,7 @@ impl TradePosition {
                 + average_price * amount)
                 / (self.amount + amount);
 
-            log::info!(
-            "Updated open position for token: {}, amount: {:6.3}, average_buy_price: {:6.3}, take_profit_price: {:6.3}, cut_loss_price: {:6.3}",
-            self.token_name,
-            self.amount,
-            self.average_buy_price,
-            self.take_profit_price,
-            self.cut_loss_price,
-        );
+            log::info!("Updated open position :{:?}", self);
         } else {
             self.amount -= amount;
             self.sold_price = Some(average_price);
@@ -99,19 +122,20 @@ impl TradePosition {
             self.close_time_str = DateTimeUtils::get_current_datetime_string();
             self.state = state;
 
-            log::info!(
-                "Cloes the position for token: {}, amount: {:6.3}, PNL: {:6.3}",
-                self.token_name,
-                amount,
-                pnl
-            );
+            log::info!("Cloes the position: {:?}", self);
         }
     }
 
     pub fn del(&mut self, sold_price: f64, amount: f64, is_liquidated: bool) {
         let state = match is_liquidated {
             true => State::Liquidated,
-            false => State::Closed,
+            false => {
+                if self.state == State::Expired {
+                    State::Expired
+                } else {
+                    State::Closed
+                }
+            }
         };
         self.update(sold_price, amount, state);
     }
@@ -132,8 +156,11 @@ impl TradePosition {
         self.take_profit_price = (self.take_profit_price * self.amount
             + take_profit_price * amount)
             / (self.amount + amount);
-        self.cut_loss_price =
-            (self.cut_loss_price * self.amount + cut_loss_price * amount) / (self.amount + amount);
+
+        let mut self_cut_loss_price = self.cut_loss_price.lock().unwrap();
+        *self_cut_loss_price =
+            (*self_cut_loss_price * self.amount + cut_loss_price * amount) / (self.amount + amount);
+        drop(self_cut_loss_price);
 
         self.update(average_price, amount, State::Open);
     }
@@ -153,7 +180,7 @@ impl TradePosition {
             current_price,
             self.average_buy_price,
             self.take_profit_price,
-            self.cut_loss_price,
+            *self.cut_loss_price.lock().unwrap(),
             self.amount
         );
     }

@@ -46,8 +46,8 @@ pub struct AppState {
     pub liquidated_time: Vec<String>,
 }
 
-impl AppState {
-    pub fn default() -> Self {
+impl Default for AppState {
+    fn default() -> Self {
         Self {
             id: 1,
             last_execution_time: None,
@@ -72,8 +72,8 @@ pub struct PriceLog {
     wmatic: f64,
 }
 
-impl PriceLog {
-    pub fn default() -> Self {
+impl Default for PriceLog {
+    fn default() -> Self {
         Self {
             id: 0,
             system_time: SystemTime::now(),
@@ -92,8 +92,8 @@ pub struct PerformanceLog {
     pub scores: HashMap<String, f64>,
 }
 
-impl PerformanceLog {
-    pub fn default() -> Self {
+impl Default for PerformanceLog {
+    fn default() -> Self {
         let now = SystemTime::now();
         Self {
             id: 0,
@@ -246,5 +246,13 @@ impl TransactionLog {
                 vec![]
             }
         }
+    }
+
+    pub async fn update_performance(
+        db: &Database,
+        item: PerformanceLog,
+    ) -> Result<(), Box<dyn error::Error>> {
+        update_item(db, &item).await?;
+        Ok(())
     }
 }
