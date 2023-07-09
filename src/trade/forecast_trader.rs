@@ -99,8 +99,12 @@ impl ForcastTrader {
             scores: scores.clone(),
         };
 
-        let fund_manager_configurations =
-            fund_configurations::get(short_trade_period, medium_trade_period, long_trade_period);
+        let fund_manager_configurations = fund_configurations::get(
+            dex_index,
+            short_trade_period,
+            medium_trade_period,
+            long_trade_period,
+        );
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
             .map(
