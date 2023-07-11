@@ -438,13 +438,13 @@ impl ForcastTrader {
         Ok(results)
     }
 
-    pub async fn liquidate(&mut self) {
+    pub async fn liquidate(&mut self, chain_name: &str) {
         for fund_manager in self.state.fund_manager_map.values_mut() {
             fund_manager.begin_liquidate();
         }
 
         self.base_trader.set_state(TraderState::Liquidated);
-        self.base_trader.log_liquidate_time().await;
+        self.base_trader.log_liquidate_time(chain_name).await;
     }
 
     pub async fn rebalance(&mut self, owner: Address) {
@@ -793,11 +793,17 @@ impl AbstractTrader for ForcastTrader {
             .await
     }
 
-    async fn log_liquidate_time(&self) {
-        self.base_trader.log_liquidate_time().await
+    async fn log_liquidate_time(&self, chain_name: &str) {
+        self.base_trader.log_liquidate_time(chain_name).await
     }
 
-    async fn log_current_balance(&mut self, wallet_address: &Address) -> Option<f64> {
-        self.base_trader.log_current_balance(wallet_address).await
+    async fn log_current_balance(
+        &mut self,
+        chain_name: &str,
+        wallet_address: &Address,
+    ) -> Option<f64> {
+        self.base_trader
+            .log_current_balance(chain_name, wallet_address)
+            .await
     }
 }

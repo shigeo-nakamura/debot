@@ -307,14 +307,14 @@ impl BaseTrader {
         get_price_futures
     }
 
-    pub async fn log_liquidate_time(&self) {
+    pub async fn log_liquidate_time(&self, chain_name: &str) {
         let db = self
             .transaction_log
             .get_db(&self.client_holder)
             .await
             .unwrap();
 
-        match TransactionLog::update_app_state(&db, None, None, true).await {
+        match TransactionLog::update_app_state(&db, None, chain_name, None, true).await {
             Ok(_) => {}
             Err(e) => {
                 log::warn!("log_liquidate_time: {:?}", e);
@@ -322,7 +322,11 @@ impl BaseTrader {
         }
     }
 
-    pub async fn log_current_balance(&mut self, wallet_address: &Address) -> Option<f64> {
+    pub async fn log_current_balance(
+        &mut self,
+        chain_name: &str,
+        wallet_address: &Address,
+    ) -> Option<f64> {
         let mut total_amount_in_base_token = 0.0;
 
         for token in self.tokens().iter() {
@@ -359,7 +363,7 @@ impl BaseTrader {
             let change = self.prev_balance.unwrap() - total_amount_in_base_token;
 
             if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
-                if let Err(e) = TransactionLog::insert_balance(&db, change).await {
+                if let Err(e) = TransactionLog::insert_balance(&db, chain_name, change).await {
                     log::error!("log_current_balance: {:?}", e);
                 }
             }
@@ -462,7 +466,11 @@ pub trait AbstractTrader {
         amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
-    async fn log_liquidate_time(&self);
+    async fn log_liquidate_time(&self, chain_name: &str);
 
-    async fn log_current_balance(&mut self, wallet_address: &Address) -> Option<f64>;
+    async fn log_current_balance(
+        &mut self,
+        chain_name: &str,
+        wallet_address: &Address,
+    ) -> Option<f64>;
 }

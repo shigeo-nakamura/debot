@@ -40,6 +40,7 @@ use std::{str::FromStr, sync::Mutex};
 #[derive(Clone, Debug)]
 pub struct ChainParams {
     pub chain_id: u64,
+    pub chain_name: &'static str,
     pub rpc_node_urls: &'static [&'static str],
     pub tokens: &'static [(&'static str, &'static str)],
     pub dex_list: &'static [(&'static str, &'static str)],
@@ -52,6 +53,7 @@ pub struct ChainParams {
 lazy_static! {
     pub static ref BSC_CHAIN_PARAMS: ChainParams = ChainParams {
         chain_id: 56,
+        chain_name: "BSC",
         rpc_node_urls: &[
             "https://bsc-dataseed.binance.org/",
             "https://bsc-dataseed1.ninicoin.io/",
@@ -95,6 +97,7 @@ lazy_static! {
 
     pub static ref TESTNET_BSC_CHAIN_PARAMS: ChainParams = ChainParams {
         chain_id: 97, // This is the chain ID for Binance Smart Chain Testnet
+        chain_name: "BSC_TESTNET",
         rpc_node_urls: &["https://data-seed-prebsc-1-s1.binance.org:8545/"],
         tokens: &[
             ("WBNB", TESTNET_BSC_WBNB_ADDRESS),
@@ -113,6 +116,7 @@ lazy_static! {
 
     pub static ref POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
         chain_id: 137,
+        chain_name: "POLYGON",
         rpc_node_urls: &[
             "https://rpc-mainnet.maticvigil.com/",
             "https://polygon-rpc.com",
@@ -148,6 +152,7 @@ lazy_static! {
 
     pub static ref TESTNET_POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
         chain_id: 80001, // This is the chain ID for Mumbai Testnet
+        chain_name: "POLYGON_TESTNET",
         rpc_node_urls: &["https://rpc-mumbai.maticvigil.com"],
         tokens: &[
             ("USDC", TESTNET_POLYGON_USDC_ADDRESS),

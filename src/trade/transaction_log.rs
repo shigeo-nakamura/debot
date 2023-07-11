@@ -42,7 +42,7 @@ pub async fn get_last_transaction_id(db: &Database) -> u32 {
 pub struct AppState {
     pub id: u32,
     pub last_execution_time: Option<SystemTime>,
-    pub prev_balance: Option<f64>,
+    pub prev_balance: HashMap<String, Option<f64>>,
     pub liquidated_time: Vec<String>,
 }
 
@@ -51,7 +51,7 @@ impl Default for AppState {
         Self {
             id: 1,
             last_execution_time: None,
-            prev_balance: None,
+            prev_balance: HashMap::new(),
             liquidated_time: vec![],
         }
     }
@@ -60,7 +60,7 @@ impl Default for AppState {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct BalanceLog {
     pub date: String,
-    pub change: f64,
+    pub change: HashMap<String, f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -188,10 +188,14 @@ impl TransactionLog {
         Ok(())
     }
 
-    pub async fn insert_balance(db: &Database, change: f64) -> Result<(), Box<dyn error::Error>> {
+    pub async fn insert_balance(
+        db: &Database,
+        chain_name: &str,
+        change: f64,
+    ) -> Result<(), Box<dyn error::Error>> {
         let mut item = BalanceLog::default();
         item.date = DateTimeUtils::get_current_date_string();
-        item.change = change;
+        item.change.insert(chain_name.to_owned(), change);
 
         insert_item(db, &item).await?;
         Ok(())
@@ -211,6 +215,7 @@ impl TransactionLog {
     pub async fn update_app_state(
         db: &Database,
         last_execution_time: Option<SystemTime>,
+        chain_name: &str,
         prev_balance: Option<f64>,
         is_liquidated: bool,
     ) -> Result<(), Box<dyn error::Error>> {
@@ -225,7 +230,8 @@ impl TransactionLog {
         }
 
         if prev_balance.is_some() {
-            item.prev_balance = prev_balance;
+            item.prev_balance
+                .insert(chain_name.to_owned(), prev_balance);
         }
 
         if is_liquidated {

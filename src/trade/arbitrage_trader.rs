@@ -445,12 +445,18 @@ impl AbstractTrader for ArbitrageTrader {
             .await
     }
 
-    async fn log_liquidate_time(&self) {
-        self.base_trader.log_liquidate_time().await
+    async fn log_liquidate_time(&self, chain_name: &str) {
+        self.base_trader.log_liquidate_time(chain_name).await
     }
 
-    async fn log_current_balance(&mut self, wallet_address: &Address) -> Option<f64> {
-        self.base_trader.log_current_balance(wallet_address).await
+    async fn log_current_balance(
+        &mut self,
+        chain_name: &str,
+        wallet_address: &Address,
+    ) -> Option<f64> {
+        self.base_trader
+            .log_current_balance(chain_name, wallet_address)
+            .await
     }
 }
 

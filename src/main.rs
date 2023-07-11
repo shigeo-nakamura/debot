@@ -12,7 +12,7 @@ use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
-use trade::transaction_log::get_last_transaction_id;
+use trade::transaction_log::{get_last_transaction_id, AppState};
 use trade::{ForcastTrader, PriceHistory, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
@@ -105,7 +105,7 @@ async fn prepare_trader_instances(
     configs: &[EnvConfig],
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
-    prev_balance: Option<f64>,
+    prev_balance: HashMap<String, Option<f64>>,
 ) -> Vec<(
     ForcastTrader,
     WalletAndProvider,
@@ -121,7 +121,7 @@ async fn prepare_trader_instances(
             config,
             client_holder.clone(),
             transaction_log.clone(),
-            prev_balance,
+            prev_balance.clone(),
         )
         .await;
         trader_instances.push(trader_instance);
@@ -134,7 +134,7 @@ async fn prepare_algorithm_trader_instance(
     config: &EnvConfig,
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
-    prev_balance: Option<f64>,
+    prev_balance: HashMap<String, Option<f64>>,
 ) -> (
     ForcastTrader,
     WalletAndProvider,
@@ -187,6 +187,8 @@ async fn prepare_algorithm_trader_instance(
     let scores =
         ForcastTrader::get_last_scores(transaction_log.clone(), client_holder.clone()).await;
 
+    let prev_balance = prev_balance.get(config.chain_params.chain_name).unwrap();
+
     let mut trader = ForcastTrader::new(
         TraderState::Active, // todo
         config.leverage,
@@ -210,7 +212,7 @@ async fn prepare_algorithm_trader_instance(
         config.dex_index,
         config.slippage,
         open_positions_map,
-        prev_balance,
+        *prev_balance,
         scores,
     );
 
@@ -267,12 +269,15 @@ async fn main_loop(
             trader_instances.iter_mut()
         {
             if now.duration_since(last_execution_time).unwrap() > one_day {
-                let prev_balance = trader.log_current_balance(wallet_address).await;
+                let prev_balance = trader
+                    .log_current_balance(config.chain_params.chain_name, wallet_address)
+                    .await;
                 last_execution_time = now;
                 update_app_state(
                     &transaction_log,
                     &client_holder,
                     Some(last_execution_time),
+                    config.chain_params.chain_name,
                     prev_balance,
                     false,
                 )
@@ -281,7 +286,7 @@ async fn main_loop(
 
             if error_manager.get_error_count() >= config.max_error_count {
                 log::error!("Error count reached the limit");
-                trader.liquidate().await;
+                trader.liquidate(config.chain_params.chain_name).await;
             }
 
             if let Some(_amount) = manage_token_amount(trader, &wallet_address, config).await {
@@ -393,6 +398,7 @@ async fn update_app_state(
     transaction_log: &Arc<TransactionLog>,
     client_holder: &Arc<Mutex<ClientHolder>>,
     last_execution_time: Option<SystemTime>,
+    chain_name: &str,
     prev_balance: Option<f64>,
     is_liquidated: bool,
 ) {
@@ -401,8 +407,14 @@ async fn update_app_state(
         .await
         .unwrap();
 
-    match TransactionLog::update_app_state(&db, last_execution_time, prev_balance, is_liquidated)
-        .await
+    match TransactionLog::update_app_state(
+        &db,
+        last_execution_time,
+        chain_name,
+        prev_balance,
+        is_liquidated,
+    )
+    .await
     {
         Ok(_) => {}
         Err(e) => {
