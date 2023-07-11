@@ -371,10 +371,16 @@ async fn manage_token_amount<T: AbstractTrader>(
 
 async fn handle_sleep_and_signal(interval: f64) -> Result<(), &'static str> {
     let sleep_fut = tokio::time::sleep(Duration::from_secs_f64(interval));
+    let mut sigterm_stream =
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
     let ctrl_c_fut = tokio::signal::ctrl_c();
     tokio::select! {
         _ = sleep_fut => {
             // continue to the next iteration of loop
+        },
+        _ = sigterm_stream.recv() => {
+            log::info!("SIGTERM received. Shutting down...");
+            return Err("SIGTERM received");
         },
         _ = ctrl_c_fut => {
             log::info!("SIGINT received. Shutting down...");
