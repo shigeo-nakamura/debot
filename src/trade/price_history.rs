@@ -57,7 +57,6 @@ impl PriceHistory {
     }
 
     pub fn add_price(&mut self, timestamp: i64, price: f64) {
-        log::info!("add_price: len = {}", self.prices.len());
         if self.prices.len() == self.max_size {
             self.prices.remove(0);
             self.timestamps.remove(0);
