@@ -271,7 +271,13 @@ impl ForcastTrader {
         Ok(token_pair_prices)
     }
 
-    fn is_price_impacted(buy_price: f64, sell_price: f64, amount_in: f64, slippage: f64) -> bool {
+    fn is_price_impacted(
+        token_name: &str,
+        buy_price: f64,
+        sell_price: f64,
+        amount_in: f64,
+        slippage: f64,
+    ) -> bool {
         let amount_out = (buy_price * amount_in) * sell_price;
         if amount_out >= amount_in {
             return false;
@@ -280,7 +286,8 @@ impl ForcastTrader {
         let diff = amount_in - amount_out;
         if diff / amount_in > slippage {
             log::info!(
-                "Price impact is too high: amount_in = {:6.6}, amount_out = {:6.6}, diff = {:3.3}",
+                "Price impact is high:{} amount_in = {:6.6}, amount_out = {:6.6}, diff = {:3.3}",
+                token_name,
                 amount_in,
                 amount_out,
                 diff
@@ -326,6 +333,7 @@ impl ForcastTrader {
                         continue;
                     }
                     if Self::is_price_impacted(
+                        token_a_name,
                         *buy_price.unwrap(),
                         opportunity.price,
                         opportunity.amount,
@@ -374,8 +382,7 @@ impl ForcastTrader {
                 find_index(&self.dexes(), |dex| dex.name() == dex_name).ok_or("Dex not found")?;
 
             for fund_manager in self.state.fund_manager_map.values() {
-                let proposal =
-                    fund_manager.find_sell_opportunities(token_a_name, *price);
+                let proposal = fund_manager.find_sell_opportunities(token_a_name, *price);
 
                 if let Some(proposal) = proposal {
                     opportunities.push(TradeOpportunity {

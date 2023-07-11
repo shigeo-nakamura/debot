@@ -255,49 +255,46 @@ impl FundManager {
         token_name: &str,
         sell_price: f64,
     ) -> Option<TradeProposal> {
-            if let Some(position) = self.state.open_positions.get(token_name) {
-                let mut amount = 0.0;
-                let mut reason_for_sell = Some(ReasonForSell::Others);
+        if let Some(position) = self.state.open_positions.get(token_name) {
+            let mut amount = 0.0;
+            let mut reason_for_sell = Some(ReasonForSell::Others);
 
-                let should_liquidate =
-                    *self.state.fund_state.lock().unwrap() == FundState::ShouldLiquidate;
+            let should_liquidate =
+                *self.state.fund_state.lock().unwrap() == FundState::ShouldLiquidate;
 
-                if should_liquidate {
-                    log::warn!(
-                        "Close the position of {}, as its price{:.6} is requested to close",
-                        token_name,
-                        sell_price
-                    );
+            if should_liquidate {
+                log::warn!(
+                    "Close the position of {}, as its price{:.6} is requested to close",
+                    token_name,
+                    sell_price
+                );
+                amount = position.amount;
+                reason_for_sell = Some(ReasonForSell::Liquidated);
+            } else {
+                let current_time = chrono::Utc::now().timestamp();
+                let holding_interval = current_time - position.open_time;
+
+                if holding_interval > self.config.max_hold_interval_in_secs.try_into().unwrap() {
+                    log::warn!("Close the position as it reaches the limit of hold period");
                     amount = position.amount;
-                    reason_for_sell = Some(ReasonForSell::Liquidated);
-                } else {
-                    let current_time = chrono::Utc::now().timestamp();
-                    let holding_interval = current_time - position.open_time;
-
-                    if holding_interval > self.config.max_hold_interval_in_secs.try_into().unwrap()
-                    {
-                        log::warn!("Close the position as it reaches the limit of hold period");
-                        amount = position.amount;
-                        reason_for_sell = Some(ReasonForSell::Expired);
-                    } else if position.do_take_profit(sell_price)
-                        || position.do_cut_loss(sell_price)
-                    {
-                        amount = position.amount;
-                    }
-                }
-
-                if amount > 0.0 {
-                    let profit = (sell_price - position.average_buy_price) * amount;
-                    return Some(TradeProposal {
-                        profit,
-                        price: sell_price,
-                        predicted_price: sell_price,
-                        amount,
-                        fund_name: self.config.name.to_owned(),
-                        reason_for_sell,
-                    });
+                    reason_for_sell = Some(ReasonForSell::Expired);
+                } else if position.do_take_profit(sell_price) || position.do_cut_loss(sell_price) {
+                    amount = position.amount;
                 }
             }
+
+            if amount > 0.0 {
+                let profit = (sell_price - position.average_buy_price) * amount;
+                return Some(TradeProposal {
+                    profit,
+                    price: sell_price,
+                    predicted_price: sell_price,
+                    amount,
+                    fund_name: self.config.name.to_owned(),
+                    reason_for_sell,
+                });
+            }
+        }
         None
     }
 
