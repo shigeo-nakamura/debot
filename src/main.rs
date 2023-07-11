@@ -323,7 +323,6 @@ async fn main_loop(
             };
 
             if let Err(e) = handle_sleep_and_signal(interval).await {
-                log::error!("Error handling sleep and signal: {}", e);
                 return Ok(());
             }
         }
