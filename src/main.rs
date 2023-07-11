@@ -187,7 +187,10 @@ async fn prepare_algorithm_trader_instance(
     let scores =
         ForcastTrader::get_last_scores(transaction_log.clone(), client_holder.clone()).await;
 
-    let prev_balance = prev_balance.get(config.chain_params.chain_name).unwrap();
+    let prev_balance = match prev_balance.get(config.chain_params.chain_name) {
+        Some(balance) => *balance,
+        None => None,
+    };
 
     let mut trader = ForcastTrader::new(
         TraderState::Active, // todo
@@ -212,7 +215,7 @@ async fn prepare_algorithm_trader_instance(
         config.dex_index,
         config.slippage,
         open_positions_map,
-        *prev_balance,
+        prev_balance,
         scores,
     );
 

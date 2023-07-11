@@ -206,7 +206,7 @@ impl TransactionLog {
         match search_item(db, &item).await {
             Ok(item) => item,
             Err(e) => {
-                log::error!("get_app_state: {:?}", e);
+                log::warn!("get_app_state: {:?}", e);
                 item
             }
         }
