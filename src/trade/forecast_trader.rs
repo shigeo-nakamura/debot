@@ -375,7 +375,7 @@ impl ForcastTrader {
 
             for fund_manager in self.state.fund_manager_map.values() {
                 let proposal =
-                    fund_manager.find_sell_opportunities(token_a_name, *price, histories);
+                    fund_manager.find_sell_opportunities(token_a_name, *price);
 
                 if let Some(proposal) = proposal {
                     opportunities.push(TradeOpportunity {

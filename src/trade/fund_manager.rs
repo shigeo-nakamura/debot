@@ -254,9 +254,7 @@ impl FundManager {
         &self,
         token_name: &str,
         sell_price: f64,
-        histories: &HashMap<String, PriceHistory>,
     ) -> Option<TradeProposal> {
-        if let Some(history) = histories.get(token_name) {
             if let Some(position) = self.state.open_positions.get(token_name) {
                 let mut amount = 0.0;
                 let mut reason_for_sell = Some(ReasonForSell::Others);
@@ -300,7 +298,6 @@ impl FundManager {
                     });
                 }
             }
-        }
         None
     }
 
