@@ -1,1 +1,1 @@
-web: ./target/release/debot
+worker: ./target/release/debot
