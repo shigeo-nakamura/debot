@@ -279,7 +279,7 @@ async fn main_loop(
         for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
             trader_instances.iter_mut()
         {
-            let last_execution_time = last_execution_time_map
+            let mut last_execution_time = last_execution_time_map
                 .get(config.chain_params.chain_name)
                 .unwrap()
                 .unwrap();
@@ -288,8 +288,11 @@ async fn main_loop(
                 let prev_balance = trader
                     .log_current_balance(config.chain_params.chain_name, wallet_address)
                     .await;
-                last_execution_time_map
-                    .insert(config.chain_params.chain_name.to_owned(), Some(now));
+                last_execution_time = now;
+                last_execution_time_map.insert(
+                    config.chain_params.chain_name.to_owned(),
+                    Some(last_execution_time),
+                );
                 update_app_state(
                     &transaction_log,
                     &client_holder,
