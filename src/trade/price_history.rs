@@ -11,9 +11,14 @@ const RSI_OVERSOLD: f64 = 30.0;
 const RSI_FLASH_CRASH: f64 = 85.0;
 
 #[derive(Debug, Clone)]
+pub struct PricePoint {
+    pub timestamp: i64,
+    pub price: f64,
+}
+
+#[derive(Debug, Clone)]
 pub struct PriceHistory {
-    prices: Vec<f64>,
-    timestamps: Vec<i64>,
+    prices: Vec<PricePoint>,
     last_price: f64,
     ema_short: f64,
     ema_medium: f64,
@@ -43,7 +48,6 @@ impl PriceHistory {
     ) -> PriceHistory {
         PriceHistory {
             prices: Vec::with_capacity(max_size),
-            timestamps: Vec::with_capacity(max_size),
             last_price: 0.0,
             ema_short: 0.0,
             ema_medium: 0.0,
@@ -59,10 +63,8 @@ impl PriceHistory {
     pub fn add_price(&mut self, timestamp: i64, price: f64) {
         if self.prices.len() == self.max_size {
             self.prices.remove(0);
-            self.timestamps.remove(0);
         }
-        self.prices.push(price);
-        self.timestamps.push(timestamp);
+        self.prices.push(PricePoint { timestamp, price });
         self.update_ema(price);
         self.last_price = price;
     }
@@ -70,9 +72,9 @@ impl PriceHistory {
     pub fn predict_next_price_ema(&self, period: usize) -> f64 {
         let predict = |len, ema| {
             if self.prices.len() >= len {
-                2.0 * ema - self.prices[self.prices.len() - 1]
+                2.0 * ema - self.prices[self.prices.len() - 1].price
             } else {
-                self.prices[self.prices.len() - 1]
+                self.prices[self.prices.len() - 1].price
             }
         };
 
@@ -94,7 +96,7 @@ impl PriceHistory {
     pub fn predict_next_price_macd(&self) -> f64 {
         if self.prices.len() < self.short_period + 1 {
             log::trace!("Not enough data for MACD prediction, returning last known price.");
-            return *self.prices.last().unwrap();
+            return self.prices.last().unwrap().price;
         }
 
         let compute_macd = |short_period, long_period| {
@@ -104,7 +106,7 @@ impl PriceHistory {
             let macd_lines = self.calculate_macd_lines(short_period, long_period, SIGNAL_PERIOD);
             let signal_line = self.calculate_ema(macd_lines.len() - 1, SIGNAL_PERIOD);
             let histogram = macd_line - signal_line;
-            let predicted_price = self.prices[self.prices.len() - 1] + histogram;
+            let predicted_price = self.prices[self.prices.len() - 1].price + histogram;
 
             log::trace!("Short EMA: {}, Long EMA: {}, MACD Line: {}, Signal Line: {}, Histogram: {}, Predicted Price: {}", 
                 short_ema, long_ema, macd_line, signal_line, histogram, predicted_price);
@@ -114,7 +116,7 @@ impl PriceHistory {
 
         let predicted_price = compute_macd(self.short_period, self.long_period * 2);
 
-        let last_price = *self.prices.last().unwrap();
+        let last_price = self.prices.last().unwrap().price;
 
         if (predicted_price - last_price).abs() > MACD_THRESHOLD {
             last_price
@@ -124,15 +126,17 @@ impl PriceHistory {
     }
 
     pub fn predict_next_price_regression(&self, next_timestamp: i64) -> f64 {
-        let x_mean: f64 = self.timestamps.iter().sum::<i64>() as f64 / self.timestamps.len() as f64;
-        let y_mean: f64 = self.prices.iter().sum::<f64>() / self.prices.len() as f64;
+        let x_mean: f64 =
+            self.prices.iter().map(|p| p.timestamp).sum::<i64>() as f64 / self.prices.len() as f64;
+        let y_mean: f64 =
+            self.prices.iter().map(|p| p.price).sum::<f64>() / self.prices.len() as f64;
 
         let mut numerator: f64 = 0.0;
         let mut denominator: f64 = 0.0;
 
-        for i in 0..self.prices.len() {
-            numerator += (self.timestamps[i] as f64 - x_mean) * (self.prices[i] - y_mean);
-            denominator += (self.timestamps[i] as f64 - x_mean).powi(2);
+        for price_point in &self.prices {
+            numerator += (price_point.timestamp as f64 - x_mean) * (price_point.price - y_mean);
+            denominator += (price_point.timestamp as f64 - x_mean).powi(2);
         }
 
         let slope: f64 = if denominator != 0.0 {
@@ -148,18 +152,18 @@ impl PriceHistory {
     pub fn predict_next_price_rsi(&self, period: usize) -> f64 {
         let rsi = self.calculate_rsi(period);
         if rsi > RSI_OVERBOUGHT {
-            self.prices.last().unwrap() * 0.99 // assume a 1% price drop
+            self.prices.last().unwrap().price * 0.99 // assume a 1% price drop
         } else if rsi < RSI_OVERSOLD {
-            self.prices.last().unwrap() * 1.01 // assume a 1% price rise
+            self.prices.last().unwrap().price * 1.01 // assume a 1% price rise
         } else {
-            *self.prices.last().unwrap() // no clear signal, return last price
+            self.prices.last().unwrap().price // no clear signal, return last price
         }
     }
 
     pub fn predict_next_price_bollinger(&mut self, period: usize) -> f64 {
-        self.update_ema(*self.prices.last().unwrap());
+        self.update_ema(self.prices.last().unwrap().price);
         let (lower_band, _, upper_band) = self.calculate_bollinger_bands(period);
-        let last_price = *self.prices.last().unwrap();
+        let last_price = self.prices.last().unwrap().price;
         if last_price > upper_band {
             (last_price + last_price * 0.99) / 2.0 // take the average of the last price and the price assuming a 1% drop
         } else if last_price < lower_band {
@@ -170,9 +174,9 @@ impl PriceHistory {
     }
 
     pub fn predict_next_price_fibonacci(&mut self) -> f64 {
-        self.update_ema(*self.prices.last().unwrap());
+        self.update_ema(self.prices.last().unwrap().price);
         let (level1, level2, level3, _low) = self.calculate_fibonacci_retracement();
-        let last_price = *self.prices.last().unwrap();
+        let last_price = self.prices.last().unwrap().price;
         if last_price < level1 {
             last_price * 1.01 // assume a 1% price rise
         } else if last_price < level2 {
@@ -185,13 +189,17 @@ impl PriceHistory {
     }
 
     pub fn predict_next_price_sdg(&self, period: usize) -> f64 {
-        *self.prices.last().unwrap()
+        self.prices.last().unwrap().price
     }
 
     pub fn calculate_std_dev(&self) -> f64 {
-        let mean = self.prices.iter().sum::<f64>() / self.prices.len() as f64;
-        let variance =
-            self.prices.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / self.prices.len() as f64;
+        let mean = self.prices.iter().map(|p| p.price).sum::<f64>() / self.prices.len() as f64;
+        let variance = self
+            .prices
+            .iter()
+            .map(|p| (p.price - mean).powi(2))
+            .sum::<f64>()
+            / self.prices.len() as f64;
         variance.sqrt()
     }
 
@@ -227,7 +235,12 @@ impl PriceHistory {
     fn calculate_ema(&self, current_index: usize, period: usize) -> f64 {
         if current_index < period {
             // When there are fewer data points than the period, return SMA
-            let sum: f64 = self.prices.iter().take(current_index).sum();
+            let sum: f64 = self
+                .prices
+                .iter()
+                .take(current_index)
+                .map(|p| p.price)
+                .sum();
             return sum / current_index as f64;
         }
         // Calculate SMA for the period as the seed of EMA
@@ -236,6 +249,7 @@ impl PriceHistory {
             .iter()
             .skip(current_index - period)
             .take(period)
+            .map(|p| p.price)
             .sum::<f64>()
             / period as f64;
         let multiplier = 2.0 / (period as f64 + 1.0);
@@ -246,7 +260,9 @@ impl PriceHistory {
             .enumerate()
             .skip(current_index - period + 1)
             .take(period)
-            .fold(sma, |ema, (_i, &price)| (price - ema) * multiplier + ema);
+            .fold(sma, |ema, (_i, price)| {
+                (price.price - ema) * multiplier + ema
+            });
 
         ema
     }
@@ -268,9 +284,14 @@ impl PriceHistory {
 
     fn calculate_sma(&self, period: usize) -> f64 {
         if self.prices.len() < period {
-            return self.prices[self.prices.len() - 1];
+            return self.prices[self.prices.len() - 1].price;
         }
-        let sum: f64 = self.prices.iter().skip(self.prices.len() - period).sum();
+        let sum: f64 = self
+            .prices
+            .iter()
+            .skip(self.prices.len() - period)
+            .map(|p| p.price)
+            .sum();
         let sma = sum / period as f64;
         sma
     }
@@ -285,14 +306,14 @@ impl PriceHistory {
 
     fn calculate_rsi(&self, period: usize) -> f64 {
         if self.prices.len() < period + 1 {
-            return *self.prices.last().unwrap();
+            return self.prices.last().unwrap().price;
         }
 
         let mut gains = 0.0;
         let mut losses = 0.0;
 
         for i in (self.prices.len() - period)..self.prices.len() {
-            let change = self.prices[i] - self.prices[i - 1];
+            let change = self.prices[i].price - self.prices[i - 1].price;
             if change >= 0.0 {
                 gains += change;
             } else {
@@ -316,9 +337,13 @@ impl PriceHistory {
         let high = self
             .prices
             .iter()
-            .cloned()
+            .map(|p| p.price)
             .fold(f64::NEG_INFINITY, f64::max);
-        let low = self.prices.iter().cloned().fold(f64::INFINITY, f64::min);
+        let low = self
+            .prices
+            .iter()
+            .map(|p| p.price)
+            .fold(f64::INFINITY, f64::min);
         let diff = high - low;
 
         let level1 = high - 0.236 * diff;
@@ -336,7 +361,7 @@ impl PriceHistory {
                 let sma = self.predict_next_price_sma(period);
                 let ema = self.predict_next_price_ema(period);
                 let regression_prediction =
-                    self.predict_next_price_regression(self.timestamps.last().unwrap() + 1);
+                    self.predict_next_price_regression(self.prices.last().unwrap().timestamp + 1);
                 predictions.push(sma);
                 predictions.push(ema);
                 predictions.push(regression_prediction);
@@ -371,7 +396,7 @@ impl PriceHistory {
             }
         }
 
-        let last_price = self.prices.last().unwrap();
+        let last_price = self.prices.last().unwrap().price;
 
         let mut up_votes = 0;
         let mut down_votes = 0;
@@ -379,7 +404,7 @@ impl PriceHistory {
         let mut down_sum = 0.0;
 
         for prediction in predictions {
-            if prediction > *last_price {
+            if prediction > last_price {
                 up_votes += 1;
                 up_sum += prediction;
             } else {
@@ -392,15 +417,15 @@ impl PriceHistory {
             if up_votes != 0 {
                 up_sum / up_votes as f64
             } else {
-                *last_price
+                last_price
             }
         } else if up_votes == down_votes {
-            *last_price
+            last_price
         } else {
             if down_votes != 0 {
                 down_sum / down_votes as f64
             } else {
-                *last_price
+                last_price
             }
         }
     }
