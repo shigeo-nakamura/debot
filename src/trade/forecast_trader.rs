@@ -640,7 +640,7 @@ impl AbstractTrader for ForcastTrader {
                 fund_manager
                     .update_position(
                         is_buy_trade,
-                        opportunity.reason_for_sell.clone().unwrap(),
+                        None,
                         token_b_name,
                         amount_in,
                         amount_out,
