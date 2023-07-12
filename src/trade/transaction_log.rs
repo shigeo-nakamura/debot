@@ -59,8 +59,9 @@ impl Default for AppState {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct BalanceLog {
+    pub chain_name: String,
     pub date: String,
-    pub change: HashMap<String, f64>,
+    pub change: f64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -194,8 +195,9 @@ impl TransactionLog {
         change: f64,
     ) -> Result<(), Box<dyn error::Error>> {
         let mut item = BalanceLog::default();
+        item.chain_name = chain_name.to_owned();
         item.date = DateTimeUtils::get_current_date_string();
-        item.change.insert(chain_name.to_owned(), change);
+        item.change = change;
 
         insert_item(db, &item).await?;
         Ok(())
