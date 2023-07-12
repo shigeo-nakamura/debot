@@ -117,6 +117,7 @@ impl ForcastTrader {
                     cut_loss,
                     score,
                     days,
+                    hours,
                 )| {
                     let fund_name = format!("{}-{}", dexes[dex_index].name(), name);
 
@@ -143,6 +144,7 @@ impl ForcastTrader {
                         take_profit,
                         cut_loss,
                         days,
+                        hours,
                         transaction_log.clone(),
                     )
                 },

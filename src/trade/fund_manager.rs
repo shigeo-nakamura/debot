@@ -15,6 +15,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
+const SECONDS_PER_HOUR: u64 = 60;
 const MOVING_AVERAGE_WINDOW_SIZE: usize = 5;
 
 #[derive(PartialEq)]
@@ -45,6 +46,7 @@ pub struct FundManagerConfig {
     take_profit_threshold: f64,
     cut_loss_threshold: f64,
     max_hold_interval_in_secs: u64,
+    prediction_interval_secs: u64,
 }
 
 pub struct FundManager {
@@ -77,6 +79,7 @@ impl FundManager {
         take_profit_threshold: f64,
         cut_loss_threshold: f64,
         max_hold_interval_in_days: f64,
+        prediction_interval_hours: f64,
         transaction_log: Arc<TransactionLog>,
     ) -> Self {
         let config = FundManagerConfig {
@@ -92,6 +95,7 @@ impl FundManager {
             cut_loss_threshold,
             max_hold_interval_in_secs: (max_hold_interval_in_days * (SECONDS_PER_DAY as f64))
                 as u64,
+            prediction_interval_secs: (prediction_interval_hours * SECONDS_PER_HOUR as f64) as u64,
         };
 
         let open_positions = match open_positions {
@@ -164,8 +168,11 @@ impl FundManager {
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Option<TradeProposal> {
         if let Some(history) = histories.get_mut(token_name) {
-            let predicted_price =
-                history.majority_vote_predictions(self.config.trade_period, self.config.strategy);
+            let predicted_price = history.majority_vote_predictions(
+                self.config.trade_period,
+                self.config.prediction_interval_secs,
+                self.config.strategy,
+            );
             let profit_ratio = (predicted_price - price) * 100.0 / price;
 
             let color = match profit_ratio {

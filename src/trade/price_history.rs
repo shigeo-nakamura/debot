@@ -353,15 +353,21 @@ impl PriceHistory {
         (level1, level2, level3, low)
     }
 
-    pub fn majority_vote_predictions(&mut self, period: usize, strategy: TradingStrategy) -> f64 {
+    pub fn majority_vote_predictions(
+        &mut self,
+        period: usize,
+        prediction_interval_secs: u64,
+        strategy: TradingStrategy,
+    ) -> f64 {
         let mut predictions = vec![];
 
         match strategy {
             TradingStrategy::TrendFollowing => {
                 let sma = self.predict_next_price_sma(period);
                 let ema = self.predict_next_price_ema(period);
-                let regression_prediction =
-                    self.predict_next_price_regression(self.prices.last().unwrap().timestamp + 1);
+                let regression_prediction = self.predict_next_price_regression(
+                    self.prices.last().unwrap().timestamp + prediction_interval_secs as i64,
+                );
                 predictions.push(sma);
                 predictions.push(ema);
                 predictions.push(regression_prediction);

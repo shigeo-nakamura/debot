@@ -17,6 +17,7 @@ pub fn get(
     f64,
     f64,
     f64,
+    f64,
 )> {
     let configs = vec![
         vec![
@@ -30,6 +31,7 @@ pub fn get(
                 0.95, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
+                0.1,  // Predict the price in 0.1 hour
             ),
             (
                 "trend-follow-medium-trailing",
@@ -41,6 +43,7 @@ pub fn get(
                 0.95, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
+                1.0,  // Predict the price in 1.0 hour
             ),
             (
                 "trend-follow-long-trailing",
@@ -52,6 +55,7 @@ pub fn get(
                 0.95, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
+                3.0,  // Predict the price in 3.0 hour
             ),
         ],
         vec![
@@ -65,6 +69,7 @@ pub fn get(
                 0.95, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
+                0.1,  // Predict the price in 0.1 hour
             ),
             (
                 "trend-follow-medium-fixed",
@@ -76,6 +81,7 @@ pub fn get(
                 0.95, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
+                1.0,  // Predict the price in 1.0 hour
             ),
             (
                 "trend-follow-long-fixed",
@@ -87,6 +93,7 @@ pub fn get(
                 0.95, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
+                3.0,  // Predict the price in 3.0 hour
             ),
         ],
     ];
