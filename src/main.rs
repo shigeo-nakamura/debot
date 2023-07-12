@@ -247,12 +247,31 @@ async fn main_loop(
         ErrorManager,
     )>,
     configs: &[EnvConfig],
-    last_execution_time: HashMap<String, Option<SystemTime>>,
+    mut last_execution_time_map: HashMap<String, Option<SystemTime>>,
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
 ) -> std::io::Result<()> {
     let one_day = Duration::from_secs(24 * 60 * 60);
     let interval = configs[0].interval as f64 / trader_instances.len() as f64;
+
+    for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
+        trader_instances.iter_mut()
+    {
+        let last_execution_time = last_execution_time_map
+            .get(config.chain_params.chain_name)
+            .unwrap_or(&None)
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+        last_execution_time_map.insert(
+            config.chain_params.chain_name.to_owned(),
+            Some(last_execution_time),
+        );
+
+        log::warn!(
+            "main_loop() starts for {}, last_execution_time = {}",
+            config.chain_params.chain_name,
+            last_execution_time.to_datetime_string()
+        );
+    }
 
     loop {
         let now = SystemTime::now();
@@ -260,22 +279,17 @@ async fn main_loop(
         for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
             trader_instances.iter_mut()
         {
-            let mut last_execution_time = last_execution_time
+            let last_execution_time = last_execution_time_map
                 .get(config.chain_params.chain_name)
-                .unwrap_or(&None)
-                .unwrap_or(SystemTime::UNIX_EPOCH);
-
-            log::warn!(
-                "main_loop() starts for {}, last_execution_time = {}",
-                config.chain_params.chain_name,
-                last_execution_time.to_datetime_string()
-            );
+                .unwrap()
+                .unwrap();
 
             if now.duration_since(last_execution_time).unwrap() > one_day {
                 let prev_balance = trader
                     .log_current_balance(config.chain_params.chain_name, wallet_address)
                     .await;
-                last_execution_time = now;
+                last_execution_time_map
+                    .insert(config.chain_params.chain_name.to_owned(), Some(now));
                 update_app_state(
                     &transaction_log,
                     &client_holder,
