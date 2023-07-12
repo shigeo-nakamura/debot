@@ -6,7 +6,7 @@ use mongodb::options::*;
 use mongodb::Database;
 use mongodb::{Collection, IndexModel};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::error;
 use std::io::{Error, ErrorKind};
 
@@ -232,7 +232,7 @@ impl Entity for PriceLog {
 
     async fn search(&self, db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
         let mut query = doc! { "id": { "$gt": 0 }};
-        if self.id != 0 {
+        if self.id != None {
             query = doc! { "id": self.id };
         }
         let collection = self.get_collection(db);
@@ -270,7 +270,7 @@ impl Entity for PerformanceLog {
 
     async fn search(&self, db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
         let mut query = doc! { "id": { "$gt": 0 }};
-        if self.id != 0 {
+        if self.id != None {
             query = doc! { "id": self.id };
         }
         let collection = self.get_collection(db);

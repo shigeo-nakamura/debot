@@ -1,14 +1,11 @@
 // fund_manager.rs
 
-use ethers_middleware::core::k256::elliptic_curve::bigint::modular::constant_mod::ResidueParams;
-use shared_mongodb::ClientHolder;
-
+use crate::db::CounterType;
 use crate::trade::trade_position::State;
-use crate::trade::CounterType;
 
 use super::abstract_trader::ReasonForSell;
 use super::trade_position::StopLossStrategy;
-use super::{PriceHistory, TradePosition, TradingStrategy, TransactionLog};
+use super::{DBHandler, PriceHistory, TradePosition, TradingStrategy};
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;
@@ -31,7 +28,7 @@ pub struct FundManagerState {
     fund_state: Arc<std::sync::Mutex<FundState>>,
     score: f64,
     past_scores: Vec<f64>,
-    transaction_log: Arc<TransactionLog>,
+    db_handler: Arc<Mutex<DBHandler>>,
 }
 
 pub struct FundManagerConfig {
@@ -80,7 +77,7 @@ impl FundManager {
         cut_loss_threshold: f64,
         max_hold_interval_in_days: f64,
         prediction_interval_hours: f64,
-        transaction_log: Arc<TransactionLog>,
+        db_handler: Arc<Mutex<DBHandler>>,
     ) -> Self {
         let config = FundManagerConfig {
             name: fund_name.to_owned(),
@@ -114,7 +111,7 @@ impl FundManager {
             fund_state: Arc::new(std::sync::Mutex::new(FundState::Active)),
             score: initial_score,
             past_scores: vec![],
-            transaction_log,
+            db_handler,
         };
 
         Self { config, state }
@@ -322,7 +319,6 @@ impl FundManager {
         token_name: &str,
         amount_in: f64,
         amount_out: f64,
-        db_client: &Arc<Mutex<ClientHolder>>,
     ) {
         log::debug!(
             "update_position: amount_in = {:6.6}, amount_out = {:6.6}",
@@ -347,7 +343,11 @@ impl FundManager {
                 );
 
                 let position_cloned = position.clone();
-                self.update_transaction_log(db_client, &position_cloned)
+                self.state
+                    .db_handler
+                    .lock()
+                    .await
+                    .log_transaction(&position_cloned)
                     .await;
             } else {
                 // else, create a new position
@@ -361,13 +361,18 @@ impl FundManager {
                     amount_out,
                     amount_in,
                 );
-                position.id = Some(
-                    self.state
-                        .transaction_log
-                        .increment_counter(CounterType::Transaction),
-                );
+                position.id = self
+                    .state
+                    .db_handler
+                    .lock()
+                    .await
+                    .increment_counter(CounterType::Position);
                 let position_cloned = position.clone();
-                self.update_transaction_log(db_client, &position_cloned)
+                self.state
+                    .db_handler
+                    .lock()
+                    .await
+                    .log_transaction(&position_cloned)
                     .await;
                 self.state
                     .open_positions
@@ -389,7 +394,11 @@ impl FundManager {
 
                 let position_cloned = position.clone();
                 let amount = position.amount;
-                self.update_transaction_log(db_client, &position_cloned)
+                self.state
+                    .db_handler
+                    .lock()
+                    .await
+                    .log_transaction(&position_cloned)
                     .await;
 
                 if amount > 0.0 {
@@ -405,26 +414,6 @@ impl FundManager {
                     token_name
                 );
             }
-        }
-    }
-
-    async fn update_transaction_log(
-        &self,
-        db_client: &Arc<Mutex<ClientHolder>>,
-        position: &TradePosition,
-    ) {
-        log::debug!("update_transaction_log");
-
-        let db = self.state.transaction_log.get_db(db_client).await;
-        if db.is_none() {
-            log::error!("The DB access it no possible");
-            return;
-        }
-
-        let db = db.unwrap();
-
-        if let Err(e) = TransactionLog::update_transaction(&db, position).await {
-            log::error!("update_transaction_log: {:?}", e);
         }
     }
 

@@ -5,6 +5,8 @@ use std::sync::Arc;
 
 use crate::utils::{DateTimeUtils, ToDateTimeString};
 
+use super::HasId;
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub enum StopLossStrategy {
     #[default]
@@ -42,6 +44,12 @@ pub enum State {
     Closed,
     Liquidated,
     Expired,
+}
+
+impl HasId for TradePosition {
+    fn id(&self) -> Option<u32> {
+        self.id
+    }
 }
 
 impl TradePosition {

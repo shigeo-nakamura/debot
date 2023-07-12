@@ -18,7 +18,7 @@ use ethers_middleware::NonceManagerMiddleware;
 use shared_mongodb::ClientHolder;
 
 use super::abstract_trader::{BaseTrader, TraderState};
-use super::{AbstractTrader, Operation, TradeOpportunity, TransactionLog};
+use super::{AbstractTrader, DBHandler, Operation, TradeOpportunity, TransactionLog};
 pub struct ArbitrageTrader {
     base_trader: BaseTrader,
     num_swaps: usize,
@@ -39,6 +39,11 @@ impl ArbitrageTrader {
         db_client: Arc<Mutex<ClientHolder>>,
         transaction_log: Arc<TransactionLog>,
     ) -> Self {
+        let db_handler = Arc::new(Mutex::new(DBHandler::new(
+            db_client.clone(),
+            transaction_log.clone(),
+        )));
+
         Self {
             base_trader: BaseTrader::new(
                 "Arbitrager".to_string(),
@@ -51,8 +56,7 @@ impl ArbitrageTrader {
                 dexes,
                 skip_write,
                 gas,
-                db_client,
-                transaction_log,
+                db_handler,
                 None,
             ),
             num_swaps,
@@ -386,8 +390,8 @@ impl AbstractTrader for ArbitrageTrader {
         self.base_trader.state()
     }
 
-    fn set_state(&mut self, state: TraderState) {
-        self.base_trader.set_state(state)
+    async fn set_state(&mut self, state: TraderState) {
+        self.base_trader.set_state(state).await;
     }
 
     fn leverage(&self) -> f64 {
@@ -414,8 +418,8 @@ impl AbstractTrader for ArbitrageTrader {
         self.base_trader.name()
     }
 
-    fn db_client(&self) -> &Arc<Mutex<ClientHolder>> {
-        self.base_trader.db_client()
+    fn db_handler(&self) -> &Arc<Mutex<DBHandler>> {
+        self.base_trader.db_handler()
     }
 
     async fn init(
@@ -445,17 +449,13 @@ impl AbstractTrader for ArbitrageTrader {
             .await
     }
 
-    async fn log_liquidate_time(&self, chain_name: &str) {
-        self.base_trader.log_liquidate_time(chain_name).await
-    }
-
-    async fn log_current_balance(
+    async fn calculate_and_log_balance(
         &mut self,
         chain_name: &str,
         wallet_address: &Address,
     ) -> Option<f64> {
         self.base_trader
-            .log_current_balance(chain_name, wallet_address)
+            .calculate_and_log_balance(chain_name, wallet_address)
             .await
     }
 }

@@ -1,5 +1,7 @@
 // price_history.rs
 
+use serde::{Deserialize, Serialize};
+
 const SIGNAL_PERIOD: usize = 9;
 const MACD_THRESHOLD: f64 = 0.1;
 
@@ -10,13 +12,13 @@ const RSI_OVERSOLD: f64 = 30.0;
 // Threshold for detecting flash crash based on RSI
 const RSI_FLASH_CRASH: f64 = 85.0;
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PricePoint {
     pub timestamp: i64,
     pub price: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PriceHistory {
     prices: Vec<PricePoint>,
     last_price: f64,
@@ -30,6 +32,7 @@ pub struct PriceHistory {
     flash_crash_threshold: f64,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub enum TradingStrategy {
     TrendFollowing,
@@ -203,6 +206,7 @@ impl PriceHistory {
         variance.sqrt()
     }
 
+    #[allow(dead_code)]
     pub fn is_flash_crash(&self) -> bool {
         if self.last_price < (self.ema_short * self.flash_crash_threshold)
             && self.calculate_rsi(SIGNAL_PERIOD) > RSI_FLASH_CRASH

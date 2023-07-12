@@ -1,7 +1,6 @@
 // main.rs
 
 use blockchain_factory::create_dexes;
-use chrono::{DateTime, Utc};
 use config::EnvConfig;
 use db::create_unique_index;
 use error_manager::ErrorManager;
@@ -12,11 +11,11 @@ use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
-use trade::transaction_log::{get_last_transaction_id, AppState};
+use trade::transaction_log::get_last_transaction_id;
 use trade::{ForcastTrader, PriceHistory, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
-use crate::trade::{AbstractTrader, TraderState};
+use crate::trade::{AbstractTrader, DBHandler, TraderState};
 use crate::utils::ToDateTimeString;
 use std::collections::HashMap;
 use std::env;
@@ -70,12 +69,15 @@ async fn main() -> std::io::Result<()> {
         .expect("Error creating unique index");
 
     // Set up the transaction log
-    let last_transaction_id = get_last_transaction_id(&db).await;
+    let last_position_counter = get_last_transaction_id(&db, db::CounterType::Position).await;
+    let last_price_counter = get_last_transaction_id(&db, db::CounterType::Price).await;
+    let last_performance_counter = get_last_transaction_id(&db, db::CounterType::Performance).await;
+
     let transaction_log = Arc::new(TransactionLog::new(
         configs[0].log_limit,
-        last_transaction_id,
-        0, // todo
-        0, // todo
+        last_position_counter,
+        last_price_counter,
+        last_performance_counter,
         &db_name,
     ));
 
@@ -88,6 +90,7 @@ async fn main() -> std::io::Result<()> {
         client_holder.clone(),
         transaction_log.clone(),
         app_state.prev_balance,
+        app_state.trader_state,
     )
     .await;
 
@@ -95,8 +98,6 @@ async fn main() -> std::io::Result<()> {
         &mut trader_instances,
         &configs,
         app_state.last_execution_time,
-        client_holder,
-        transaction_log.clone(),
     )
     .await
 }
@@ -106,6 +107,7 @@ async fn prepare_trader_instances(
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
     prev_balance: HashMap<String, Option<f64>>,
+    trader_state: HashMap<String, TraderState>,
 ) -> Vec<(
     ForcastTrader,
     WalletAndProvider,
@@ -122,6 +124,7 @@ async fn prepare_trader_instances(
             client_holder.clone(),
             transaction_log.clone(),
             prev_balance.clone(),
+            trader_state.clone(),
         )
         .await;
         trader_instances.push(trader_instance);
@@ -135,6 +138,7 @@ async fn prepare_algorithm_trader_instance(
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
     prev_balance: HashMap<String, Option<f64>>,
+    trader_state: HashMap<String, TraderState>,
 ) -> (
     ForcastTrader,
     WalletAndProvider,
@@ -181,19 +185,20 @@ async fn prepare_algorithm_trader_instance(
 
     // Read open positions from the DB
     let open_positions_map =
-        ForcastTrader::get_open_positions_map(transaction_log.clone(), client_holder.clone()).await;
+        DBHandler::get_open_positions_map(transaction_log.clone(), client_holder.clone()).await;
 
     // Read the last scores from the DB
-    let scores =
-        ForcastTrader::get_last_scores(transaction_log.clone(), client_holder.clone()).await;
+    let scores = DBHandler::get_last_scores(transaction_log.clone(), client_holder.clone()).await;
 
+    // Get the prev_balance
     let prev_balance = match prev_balance.get(config.chain_params.chain_name) {
         Some(balance) => *balance,
         None => None,
     };
 
     let mut trader = ForcastTrader::new(
-        TraderState::Active, // todo
+        config.chain_params.chain_name,
+        trader_state.clone(),
         config.leverage,
         config.min_managed_amount,
         config.min_trading_amount,
@@ -219,7 +224,7 @@ async fn prepare_algorithm_trader_instance(
         scores,
     );
 
-    trader.rebalance(wallet.address()).await;
+    trader.rebalance(wallet.address(), true).await;
 
     // Do some initialization
     trader
@@ -248,13 +253,11 @@ async fn main_loop(
     )>,
     configs: &[EnvConfig],
     mut last_execution_time_map: HashMap<String, Option<SystemTime>>,
-    client_holder: Arc<Mutex<ClientHolder>>,
-    transaction_log: Arc<TransactionLog>,
 ) -> std::io::Result<()> {
     let one_day = Duration::from_secs(24 * 60 * 60);
     let interval = configs[0].interval as f64 / trader_instances.len() as f64;
 
-    for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
+    for (_trader, _wallet_and_provider, _wallet_address, config, _histories, _error_manager) in
         trader_instances.iter_mut()
     {
         let last_execution_time = last_execution_time_map
@@ -273,12 +276,26 @@ async fn main_loop(
         );
     }
 
+    let mut paused = false;
+
     loop {
         let now = SystemTime::now();
 
         for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
             trader_instances.iter_mut()
         {
+            if trader.is_any_fund_liquidated() {
+                paused = true;
+            }
+
+            if paused {
+                trader.pause().await;
+            }
+
+            if trader.state() != TraderState::Active {
+                continue;
+            }
+
             let mut last_execution_time = last_execution_time_map
                 .get(config.chain_params.chain_name)
                 .unwrap()
@@ -286,22 +303,24 @@ async fn main_loop(
 
             if now.duration_since(last_execution_time).unwrap() > one_day {
                 let prev_balance = trader
-                    .log_current_balance(config.chain_params.chain_name, wallet_address)
+                    .calculate_and_log_balance(config.chain_params.chain_name, wallet_address)
                     .await;
                 last_execution_time = now;
                 last_execution_time_map.insert(
                     config.chain_params.chain_name.to_owned(),
                     Some(last_execution_time),
                 );
-                update_app_state(
-                    &transaction_log,
-                    &client_holder,
-                    Some(last_execution_time),
-                    config.chain_params.chain_name,
-                    prev_balance,
-                    false,
-                )
-                .await;
+                trader
+                    .db_handler()
+                    .lock()
+                    .await
+                    .log_app_state(
+                        Some(last_execution_time),
+                        config.chain_params.chain_name,
+                        prev_balance,
+                        false,
+                    )
+                    .await;
             }
 
             if error_manager.get_error_count() >= config.max_error_count {
@@ -310,7 +329,7 @@ async fn main_loop(
             }
 
             if let Some(_amount) = manage_token_amount(trader, &wallet_address, config).await {
-                trader.rebalance(*wallet_address).await;
+                trader.rebalance(*wallet_address, true).await;
             }
 
             let mut opportunities = match trader.find_opportunities(histories).await {
@@ -347,7 +366,7 @@ async fn main_loop(
                 }
             };
 
-            if let Err(e) = handle_sleep_and_signal(interval).await {
+            if let Err(_) = handle_sleep_and_signal(interval).await {
                 return Ok(());
             }
         }
@@ -412,33 +431,4 @@ async fn handle_sleep_and_signal(interval: f64) -> Result<(), &'static str> {
         }
     }
     Ok(())
-}
-
-async fn update_app_state(
-    transaction_log: &Arc<TransactionLog>,
-    client_holder: &Arc<Mutex<ClientHolder>>,
-    last_execution_time: Option<SystemTime>,
-    chain_name: &str,
-    prev_balance: Option<f64>,
-    is_liquidated: bool,
-) {
-    let db = transaction_log
-        .get_db(&client_holder.clone())
-        .await
-        .unwrap();
-
-    match TransactionLog::update_app_state(
-        &db,
-        last_execution_time,
-        chain_name,
-        prev_balance,
-        is_liquidated,
-    )
-    .await
-    {
-        Ok(_) => {}
-        Err(e) => {
-            log::warn!("update_app_state: {:?}", e);
-        }
-    }
 }

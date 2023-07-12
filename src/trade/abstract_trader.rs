@@ -9,15 +9,16 @@ use ethers_middleware::{
     providers::{Http, Provider},
     NonceManagerMiddleware, SignerMiddleware,
 };
-use shared_mongodb::ClientHolder;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, error::Error, sync::Arc};
 use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::{
     dex::{dex::TokenPair, Dex},
     token::Token,
-    trade::TransactionLog,
 };
+
+use super::DBHandler;
 
 pub fn find_index<T, F>(list: &[T], predicate: F) -> Option<usize>
 where
@@ -53,6 +54,7 @@ pub struct TradeOpportunity {
 }
 
 impl TradeOpportunity {
+    #[allow(dead_code)]
     pub fn print_info(&self, dexes: &[Box<dyn Dex>], tokens: &[Box<dyn Token>]) {
         let num_paths = self.dex_index.len();
         if let Some(profit) = self.predicted_profit {
@@ -85,7 +87,7 @@ impl TradeOpportunity {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum TraderState {
     Active,
     Liquidated,
@@ -103,9 +105,8 @@ pub struct BaseTrader {
     dexes: Arc<Vec<Box<dyn Dex>>>,
     skip_write: bool,
     gas: f64,
-    client_holder: Arc<Mutex<ClientHolder>>,
-    transaction_log: Arc<TransactionLog>,
     prev_balance: Option<f64>,
+    db_handler: Arc<Mutex<DBHandler>>,
 }
 
 impl BaseTrader {
@@ -120,8 +121,7 @@ impl BaseTrader {
         dexes: Arc<Vec<Box<dyn Dex>>>,
         skip_write: bool,
         gas: f64,
-        client_holder: Arc<Mutex<ClientHolder>>,
-        transaction_log: Arc<TransactionLog>,
+        db_handler: Arc<Mutex<DBHandler>>,
         prev_balance: Option<f64>,
     ) -> Self {
         Self {
@@ -135,9 +135,8 @@ impl BaseTrader {
             dexes,
             skip_write,
             gas,
-            client_holder,
-            transaction_log,
             prev_balance,
+            db_handler,
         }
     }
 
@@ -307,22 +306,7 @@ impl BaseTrader {
         get_price_futures
     }
 
-    pub async fn log_liquidate_time(&self, chain_name: &str) {
-        let db = self
-            .transaction_log
-            .get_db(&self.client_holder)
-            .await
-            .unwrap();
-
-        match TransactionLog::update_app_state(&db, None, chain_name, None, true).await {
-            Ok(_) => {}
-            Err(e) => {
-                log::warn!("log_liquidate_time: {:?}", e);
-            }
-        }
-    }
-
-    pub async fn log_current_balance(
+    pub async fn calculate_and_log_balance(
         &mut self,
         chain_name: &str,
         wallet_address: &Address,
@@ -357,27 +341,27 @@ impl BaseTrader {
 
         log::info!("log_current_balance: {:6.6}", total_amount_in_base_token);
 
-        if self.prev_balance.is_none() {
-            self.prev_balance = Some(total_amount_in_base_token);
-        } else {
-            let change = self.prev_balance.unwrap() - total_amount_in_base_token;
+        self.db_handler
+            .lock()
+            .await
+            .log_current_balance(chain_name, total_amount_in_base_token, self.prev_balance)
+            .await;
 
-            if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
-                if let Err(e) = TransactionLog::insert_balance(&db, chain_name, change).await {
-                    log::error!("log_current_balance: {:?}", e);
-                }
-            }
-        }
-
-        self.prev_balance
+        Some(total_amount_in_base_token)
     }
 
     pub fn state(&self) -> TraderState {
         self.state.clone()
     }
 
-    pub fn set_state(&mut self, state: TraderState) {
+    pub async fn set_state(&mut self, state: TraderState) {
         self.state = state;
+
+        self.db_handler
+            .lock()
+            .await
+            .log_trader_state(&self.name, self.state.clone())
+            .await;
     }
 
     pub fn leverage(&self) -> f64 {
@@ -404,6 +388,7 @@ impl BaseTrader {
         self.skip_write
     }
 
+    #[allow(dead_code)]
     pub fn gas(&self) -> f64 {
         self.gas
     }
@@ -412,12 +397,8 @@ impl BaseTrader {
         &self.name
     }
 
-    pub fn db_client(&self) -> &Arc<Mutex<ClientHolder>> {
-        &self.client_holder
-    }
-
-    pub fn transaction_log(&self) -> Arc<TransactionLog> {
-        Arc::clone(&self.transaction_log)
+    pub fn db_handler(&self) -> &Arc<Mutex<DBHandler>> {
+        &self.db_handler
     }
 }
 
@@ -434,14 +415,14 @@ pub trait AbstractTrader {
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
     fn state(&self) -> TraderState;
-    fn set_state(&mut self, state: TraderState);
+    async fn set_state(&mut self, state: TraderState);
     fn leverage(&self) -> f64;
     fn initial_amount(&self) -> f64;
     fn tokens(&self) -> Arc<Vec<Box<dyn Token>>>;
     fn base_token(&self) -> Arc<Box<dyn Token>>;
     fn dexes(&self) -> Arc<Vec<Box<dyn Dex>>>;
     fn name(&self) -> &str;
-    fn db_client(&self) -> &Arc<Mutex<ClientHolder>>;
+    fn db_handler(&self) -> &Arc<Mutex<DBHandler>>;
 
     async fn init(
         &mut self,
@@ -466,9 +447,7 @@ pub trait AbstractTrader {
         amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>>;
 
-    async fn log_liquidate_time(&self, chain_name: &str);
-
-    async fn log_current_balance(
+    async fn calculate_and_log_balance(
         &mut self,
         chain_name: &str,
         wallet_address: &Address,

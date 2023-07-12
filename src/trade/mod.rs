@@ -2,6 +2,7 @@
 
 pub mod abstract_trader;
 pub mod arbitrage_trader;
+pub mod db_handler;
 pub mod forecast_trader;
 mod fund_configurations;
 pub mod fund_manager;
@@ -15,11 +16,12 @@ pub use abstract_trader::Operation;
 pub use abstract_trader::TradeOpportunity;
 pub use abstract_trader::TraderState;
 pub use arbitrage_trader::ArbitrageTrader;
+pub use db_handler::DBHandler;
 pub use forecast_trader::ForcastTrader;
 pub use fund_manager::FundManager;
 pub use price_history::PriceHistory;
 pub use price_history::TradingStrategy;
 pub use trade_position::TradePosition;
 pub use transaction_log::BalanceLog;
-pub use transaction_log::CounterType;
+pub use transaction_log::HasId;
 pub use transaction_log::TransactionLog;

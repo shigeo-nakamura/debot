@@ -5,13 +5,13 @@ use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use crate::db::CounterType;
 use crate::dex::dex::TokenPair;
 use crate::dex::Dex;
 use crate::token::Token;
 use crate::trade::find_index;
 use crate::trade::transaction_log::PerformanceLog;
 use crate::trade::AbstractTrader;
-use crate::trade::CounterType;
 
 use async_trait::async_trait;
 use ethers::prelude::{Provider, SignerMiddleware};
@@ -25,6 +25,7 @@ use tokio::time::{timeout, Duration};
 use super::abstract_trader::BaseTrader;
 use super::abstract_trader::TraderState;
 use super::fund_configurations;
+use super::DBHandler;
 use super::FundManager;
 use super::Operation;
 use super::TradePosition;
@@ -32,6 +33,7 @@ use super::TransactionLog;
 use super::{PriceHistory, TradeOpportunity};
 
 pub struct ForcastTraderConfig {
+    chain_name: String,
     short_trade_period: usize,
     medium_trade_period: usize,
     long_trade_period: usize,
@@ -56,7 +58,8 @@ pub struct ForcastTrader {
 
 impl ForcastTrader {
     pub fn new(
-        trader_state: TraderState,
+        chain_name: &str,
+        trader_state: HashMap<String, TraderState>,
         leverage: f64,
         initial_amount: f64,
         min_trading_amount: f64,
@@ -82,6 +85,7 @@ impl ForcastTrader {
         scores: HashMap<String, f64>,
     ) -> Self {
         let config = ForcastTraderConfig {
+            chain_name: chain_name.to_owned(),
             short_trade_period,
             medium_trade_period,
             long_trade_period,
@@ -104,6 +108,12 @@ impl ForcastTrader {
             medium_trade_period,
             long_trade_period,
         );
+
+        let db_handler = Arc::new(Mutex::new(DBHandler::new(
+            db_client.clone(),
+            transaction_log.clone(),
+        )));
+
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
             .map(
@@ -145,7 +155,7 @@ impl ForcastTrader {
                         cut_loss,
                         days,
                         hours,
-                        transaction_log.clone(),
+                        db_handler.clone(),
                     )
                 },
             )
@@ -157,10 +167,17 @@ impl ForcastTrader {
                 .insert(fund_manager.name().to_owned(), fund_manager);
         }
 
+        let name = format!("{}-AlgoTrader", chain_name);
+
+        let trader_state = match trader_state.get(&name) {
+            Some(state) => state,
+            None => &TraderState::Active,
+        };
+
         Self {
             base_trader: BaseTrader::new(
-                "AlgoTrader".to_string(),
-                trader_state,
+                name,
+                trader_state.clone(),
                 leverage,
                 initial_amount,
                 allowance_factor,
@@ -169,72 +186,12 @@ impl ForcastTrader {
                 dexes,
                 skip_write,
                 gas,
-                db_client,
-                transaction_log,
+                db_handler,
                 prev_balance,
             ),
             config,
             state,
         }
-    }
-
-    pub async fn get_open_positions_map(
-        transaction_log: Arc<TransactionLog>,
-        db_client: Arc<Mutex<ClientHolder>>,
-    ) -> HashMap<String, HashMap<String, TradePosition>> {
-        let db = transaction_log.get_db(&db_client).await;
-        if db.is_none() {
-            log::error!("get_open_positions_map: no DB");
-            return HashMap::new();
-        }
-
-        let db = db.unwrap();
-
-        let open_positions_vec = TransactionLog::get_all_open_positions(&db).await;
-        let mut open_positions_map = HashMap::new();
-
-        // Populate the open_positions_map
-        for position in open_positions_vec {
-            // Ensure a HashMap exists for this fund_name
-            open_positions_map
-                .entry(position.fund_name.clone())
-                .or_insert_with(HashMap::new)
-                .insert(position.token_name.clone(), position);
-        }
-
-        for (fund_name, positions) in &open_positions_map {
-            log::info!("Fund name: {}", fund_name);
-            for (token_name, position) in positions {
-                log::info!("Token name: {}", token_name);
-                log::info!("Position: {:?}", position);
-            }
-        }
-
-        open_positions_map
-    }
-
-    pub async fn get_last_scores(
-        transaction_log: Arc<TransactionLog>,
-        db_client: Arc<Mutex<ClientHolder>>,
-    ) -> HashMap<String, f64> {
-        let db = transaction_log.get_db(&db_client).await;
-        if db.is_none() {
-            log::error!("get_last_scores: no DB");
-            return HashMap::new();
-        }
-
-        let db = db.unwrap();
-
-        let mut last_performance_vec = TransactionLog::get_performance(&db).await;
-        if last_performance_vec.len() == 0 {
-            return HashMap::new();
-        }
-
-        let scores = last_performance_vec.pop().unwrap().scores;
-
-        log::debug!("Las score = {:?}", scores);
-
-        scores
     }
 
     async fn get_current_prices(
@@ -365,7 +322,6 @@ impl ForcastTrader {
     fn find_sell_opportunities(
         &self,
         current_prices: &HashMap<(String, String, String), f64>,
-        histories: &HashMap<String, PriceHistory>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
 
@@ -403,7 +359,7 @@ impl ForcastTrader {
         }
 
         for fund_manager in self.state.fund_manager_map.values() {
-            let mut fund_state = fund_manager.end_liquidate();
+            fund_manager.end_liquidate();
         }
 
         Ok(opportunities)
@@ -415,6 +371,21 @@ impl ForcastTrader {
         }
     }
 
+    pub fn is_any_fund_liquidated(&self) -> bool {
+        for fund_manager in self.state.fund_manager_map.values() {
+            if fund_manager.is_liquidated() {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub async fn pause(&mut self) {
+        if self.state() == TraderState::Active {
+            self.set_state(TraderState::Paused).await;
+        }
+    }
+
     pub async fn find_opportunities(
         &self,
         histories: &mut HashMap<String, PriceHistory>,
@@ -422,6 +393,7 @@ impl ForcastTrader {
         let mut results: Vec<TradeOpportunity> = vec![];
 
         if self.base_trader.state() != TraderState::Active {
+            log::warn!("{}'s state {:?}", self.name(), self.state());
             return Ok(results);
         }
 
@@ -434,7 +406,7 @@ impl ForcastTrader {
         let mut result_for_open = self.find_buy_opportunities(&current_prices, histories)?;
         results.append(&mut result_for_open);
 
-        let mut result_for_close = self.find_sell_opportunities(&current_prices, histories)?;
+        let mut result_for_close = self.find_sell_opportunities(&current_prices)?;
         results.append(&mut result_for_close);
 
         Ok(results)
@@ -445,11 +417,16 @@ impl ForcastTrader {
             fund_manager.begin_liquidate();
         }
 
-        self.base_trader.set_state(TraderState::Liquidated);
-        self.base_trader.log_liquidate_time(chain_name).await;
+        self.base_trader.set_state(TraderState::Liquidated).await;
+        self.base_trader
+            .db_handler()
+            .lock()
+            .await
+            .log_liquidate_time(chain_name)
+            .await;
     }
 
-    pub async fn rebalance(&mut self, owner: Address) {
+    pub async fn rebalance(&mut self, owner: Address, force_rebalance: bool) {
         let base_token_amount = match self.get_amount_of_token(owner, &self.base_token()).await {
             Ok(amount) => amount,
             Err(e) => {
@@ -459,7 +436,7 @@ impl ForcastTrader {
         };
 
         if base_token_amount == 0.0 {
-            log::warn!("No balance left");
+            log::warn!("rebalance: No balance left in {}", self.config.chain_name);
             return;
         }
 
@@ -485,19 +462,25 @@ impl ForcastTrader {
 
         if changed {
             log::info!("rebalanced scores: {:?}", self.state.scores);
-            let transaction_log = self.base_trader.transaction_log();
-            let db = transaction_log.get_db(self.base_trader.db_client()).await;
-            if db.is_none() {
-                log::error!("rebalance: no DB");
-                return;
-            }
 
             let mut item = PerformanceLog::default();
-            item.id = transaction_log.increment_counter(CounterType::Performance);
+            item.id = self
+                .base_trader
+                .db_handler()
+                .lock()
+                .await
+                .increment_counter(CounterType::Performance);
             item.scores = self.state.scores.clone();
-            if let Err(e) = TransactionLog::update_performance(&db.unwrap(), item).await {
-                log::warn!("rebalance: {:?}", e);
-            }
+            self.base_trader
+                .db_handler()
+                .lock()
+                .await
+                .log_performance(item)
+                .await;
+        }
+
+        if !changed && !force_rebalance {
+            return;
         }
 
         let amount_per_score = self.state.amount / total_score;
@@ -618,7 +601,6 @@ impl AbstractTrader for ForcastTrader {
         }
 
         // update the position of each fund managers
-        let db_client = self.db_client().clone();
 
         for opportunity in opportunities {
             let token_a = &self.tokens()[opportunity.token_index[0]];
@@ -640,14 +622,7 @@ impl AbstractTrader for ForcastTrader {
             if is_buy_trade {
                 let amount_out = amount_in / current_price;
                 fund_manager
-                    .update_position(
-                        is_buy_trade,
-                        None,
-                        token_b_name,
-                        amount_in,
-                        amount_out,
-                        &db_client,
-                    )
+                    .update_position(is_buy_trade, None, token_b_name, amount_in, amount_out)
                     .await;
             } else {
                 let amount_out = amount_in * current_price;
@@ -658,7 +633,6 @@ impl AbstractTrader for ForcastTrader {
                         token_a_name,
                         amount_in,
                         amount_out,
-                        &db_client,
                     )
                     .await;
 
@@ -672,7 +646,7 @@ impl AbstractTrader for ForcastTrader {
             }
         }
 
-        self.rebalance(address).await;
+        self.rebalance(address, false).await;
 
         Ok(())
     }
@@ -736,8 +710,8 @@ impl AbstractTrader for ForcastTrader {
         self.base_trader.state()
     }
 
-    fn set_state(&mut self, state: TraderState) {
-        self.base_trader.set_state(state)
+    async fn set_state(&mut self, state: TraderState) {
+        self.base_trader.set_state(state).await;
     }
 
     fn leverage(&self) -> f64 {
@@ -764,8 +738,8 @@ impl AbstractTrader for ForcastTrader {
         self.base_trader.name()
     }
 
-    fn db_client(&self) -> &Arc<Mutex<ClientHolder>> {
-        self.base_trader.db_client()
+    fn db_handler(&self) -> &Arc<Mutex<DBHandler>> {
+        self.base_trader.db_handler()
     }
 
     async fn init(
@@ -795,17 +769,13 @@ impl AbstractTrader for ForcastTrader {
             .await
     }
 
-    async fn log_liquidate_time(&self, chain_name: &str) {
-        self.base_trader.log_liquidate_time(chain_name).await
-    }
-
-    async fn log_current_balance(
+    async fn calculate_and_log_balance(
         &mut self,
         chain_name: &str,
         wallet_address: &Address,
     ) -> Option<f64> {
         self.base_trader
-            .log_current_balance(chain_name, wallet_address)
+            .calculate_and_log_balance(chain_name, wallet_address)
             .await
     }
 }

@@ -1,3 +1,13 @@
+// transaction_log.rs
+
+use super::{TradePosition, TraderState};
+use crate::db::{
+    insert_item,
+    item::{search_items, update_item},
+    Entity,
+};
+use crate::db::{search_item, Counter, CounterType};
+use crate::utils::{DateTimeUtils, ToDateTimeString};
 use mongodb::Database;
 use serde::{Deserialize, Serialize};
 use shared_mongodb::{database, ClientHolder};
@@ -6,36 +16,27 @@ use std::error;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use crate::db::search_item;
-use crate::db::{
-    insert_item,
-    item::{search_items, update_item},
-};
-use crate::utils::{DateTimeUtils, ToDateTimeString};
-
-use super::TradePosition;
-
-pub enum CounterType {
-    Transaction,
-    Price,
-    Performance,
+pub trait HasId {
+    fn id(&self) -> Option<u32>;
 }
 
-pub async fn get_last_transaction_id(db: &Database) -> u32 {
-    let mut last_counter = 0;
-    let item = TradePosition::default();
+async fn get_last_id<T: Default + Entity + HasId>(db: &Database) -> u32 {
+    let item = T::default();
     match search_items(db, &item).await {
-        Ok(mut items) => {
-            if items.len() > 0 {
-                let last_transaction = items.pop();
-                last_counter = last_transaction.unwrap().id.unwrap();
-            }
-        }
+        Ok(mut items) => items.pop().and_then(|item| item.id()).unwrap_or(0),
         Err(e) => {
-            log::warn!(" get_last_transaction_id: {:?}", e);
+            log::warn!("get_last_transaction_id: {:?}", e);
+            0
         }
-    };
-    last_counter
+    }
+}
+
+pub async fn get_last_transaction_id(db: &Database, counter_type: CounterType) -> u32 {
+    match counter_type {
+        CounterType::Position => get_last_id::<TradePosition>(db).await,
+        CounterType::Price => get_last_id::<PriceLog>(db).await,
+        CounterType::Performance => get_last_id::<PerformanceLog>(db).await,
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -44,6 +45,7 @@ pub struct AppState {
     pub last_execution_time: HashMap<String, Option<SystemTime>>,
     pub prev_balance: HashMap<String, Option<f64>>,
     pub liquidated_time: Vec<String>,
+    pub trader_state: HashMap<String, TraderState>,
 }
 
 impl Default for AppState {
@@ -53,6 +55,7 @@ impl Default for AppState {
             last_execution_time: HashMap::new(),
             prev_balance: HashMap::new(),
             liquidated_time: vec![],
+            trader_state: HashMap::new(),
         }
     }
 }
@@ -66,7 +69,7 @@ pub struct BalanceLog {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PriceLog {
-    pub id: u32,
+    pub id: Option<u32>,
     pub system_time: SystemTime,
     weth: f64,
     wbtc: f64,
@@ -76,7 +79,7 @@ pub struct PriceLog {
 impl Default for PriceLog {
     fn default() -> Self {
         Self {
-            id: 0,
+            id: None,
             system_time: SystemTime::now(),
             weth: 0.0,
             wbtc: 0.0,
@@ -85,9 +88,15 @@ impl Default for PriceLog {
     }
 }
 
+impl HasId for PriceLog {
+    fn id(&self) -> Option<u32> {
+        self.id
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PerformanceLog {
-    pub id: u32,
+    pub id: Option<u32>,
     pub system_time: SystemTime,
     pub date: String,
     pub scores: HashMap<String, f64>,
@@ -97,7 +106,7 @@ impl Default for PerformanceLog {
     fn default() -> Self {
         let now = SystemTime::now();
         Self {
-            id: 0,
+            id: None,
             system_time: now,
             date: now.to_datetime_string(),
             scores: HashMap::new(),
@@ -105,11 +114,14 @@ impl Default for PerformanceLog {
     }
 }
 
+impl HasId for PerformanceLog {
+    fn id(&self) -> Option<u32> {
+        self.id
+    }
+}
+
 pub struct TransactionLog {
-    max_counter: u32,
-    transaction_counter: std::sync::Mutex<u32>,
-    price_counter: std::sync::Mutex<u32>,
-    performance_counter: std::sync::Mutex<u32>,
+    counter: Counter,
     db_name: String,
 }
 
@@ -121,35 +133,25 @@ impl TransactionLog {
         performance_counter: u32,
         db_name: &str,
     ) -> Self {
-        TransactionLog {
+        let counter = Counter::new(
             max_counter,
-            transaction_counter: std::sync::Mutex::new(transaction_counter),
-            price_counter: std::sync::Mutex::new(price_counter),
-            performance_counter: std::sync::Mutex::new(performance_counter),
+            transaction_counter,
+            price_counter,
+            performance_counter,
+        );
+
+        TransactionLog {
+            counter,
             db_name: db_name.to_owned(),
         }
     }
 
-    pub fn db_name(&self) -> &str {
-        &self.db_name
+    pub fn increment_counter(&self, counter_type: CounterType) -> u32 {
+        self.counter.increment(counter_type)
     }
 
-    pub fn increment_counter(&self, counter_type: CounterType) -> u32 {
-        let counter = match counter_type {
-            CounterType::Transaction => &self.transaction_counter,
-            CounterType::Price => &self.price_counter,
-            CounterType::Performance => &self.performance_counter,
-        };
-
-        let mut counter = counter.lock().unwrap();
-        *counter += 1;
-        let mut id = *counter % (self.max_counter + 1);
-        if id == 0 {
-            id = 1;
-        }
-        *counter = id;
-        drop(counter);
-        id
+    pub fn db_name(&self) -> &str {
+        &self.db_name
     }
 
     pub async fn get_db(
@@ -173,7 +175,7 @@ impl TransactionLog {
                 .into_iter()
                 .filter(|position| position.sold_amount == None)
                 .collect(),
-            Err(e) => {
+            Err(_) => {
                 vec![]
             }
         };
@@ -220,6 +222,7 @@ impl TransactionLog {
         chain_name: &str,
         prev_balance: Option<f64>,
         is_liquidated: bool,
+        trader_state: Option<(String, TraderState)>,
     ) -> Result<(), Box<dyn error::Error>> {
         let item = AppState::default();
         let mut item = match search_item(db, &item).await {
@@ -240,6 +243,10 @@ impl TransactionLog {
         if is_liquidated {
             let date_string = DateTimeUtils::get_current_datetime_string();
             item.liquidated_time.push(date_string);
+        }
+
+        if let Some((name, state)) = trader_state {
+            item.trader_state.insert(name, state);
         }
 
         update_item(db, &item).await?;
@@ -263,5 +270,21 @@ impl TransactionLog {
     ) -> Result<(), Box<dyn error::Error>> {
         update_item(db, &item).await?;
         Ok(())
+    }
+
+    pub async fn update_liquidate_time(
+        db: &Database,
+        chain_name: &str,
+    ) -> Result<(), Box<dyn error::Error>> {
+        TransactionLog::update_app_state(&db, None, chain_name, None, true, None).await
+    }
+
+    pub async fn update_trader_state(
+        db: &Database,
+        name: String,
+        state: TraderState,
+    ) -> Result<(), Box<dyn error::Error>> {
+        TransactionLog::update_app_state(&db, None, &String::new(), None, true, Some((name, state)))
+            .await
     }
 }
