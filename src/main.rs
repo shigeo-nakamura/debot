@@ -247,23 +247,12 @@ async fn main_loop(
         ErrorManager,
     )>,
     configs: &[EnvConfig],
-    last_execution_time: Option<SystemTime>,
+    last_execution_time: HashMap<String, Option<SystemTime>>,
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
 ) -> std::io::Result<()> {
     let one_day = Duration::from_secs(24 * 60 * 60);
     let interval = configs[0].interval as f64 / trader_instances.len() as f64;
-
-    let mut last_execution_time = if last_execution_time.is_none() {
-        SystemTime::UNIX_EPOCH
-    } else {
-        last_execution_time.unwrap()
-    };
-
-    log::warn!(
-        "main_loop() starts, last_execution_time = {}",
-        last_execution_time.to_datetime_string()
-    );
 
     loop {
         let now = SystemTime::now();
@@ -271,6 +260,17 @@ async fn main_loop(
         for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
             trader_instances.iter_mut()
         {
+            let mut last_execution_time = last_execution_time
+                .get(config.chain_params.chain_name)
+                .unwrap_or(&None)
+                .unwrap_or(SystemTime::UNIX_EPOCH);
+
+            log::warn!(
+                "main_loop() starts for {}, last_execution_time = {}",
+                config.chain_params.chain_name,
+                last_execution_time.to_datetime_string()
+            );
+
             if now.duration_since(last_execution_time).unwrap() > one_day {
                 let prev_balance = trader
                     .log_current_balance(config.chain_params.chain_name, wallet_address)

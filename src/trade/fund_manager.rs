@@ -311,7 +311,7 @@ impl FundManager {
     pub async fn update_position(
         &mut self,
         is_buy_trade: bool,
-        reason_for_sell: ReasonForSell,
+        reason_for_sell: Option<ReasonForSell>,
         token_name: &str,
         amount_in: f64,
         amount_out: f64,
@@ -372,7 +372,7 @@ impl FundManager {
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
                 let sold_price = amount_out / amount_in;
 
-                let new_state = match reason_for_sell {
+                let new_state = match reason_for_sell.unwrap() {
                     ReasonForSell::Liquidated => State::Liquidated,
                     ReasonForSell::Expired => State::Expired,
                     ReasonForSell::Others => State::Closed,

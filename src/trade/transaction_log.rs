@@ -38,23 +38,12 @@ pub async fn get_last_transaction_id(db: &Database) -> u32 {
     last_counter
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct AppState {
     pub id: u32,
-    pub last_execution_time: Option<SystemTime>,
+    pub last_execution_time: HashMap<String, Option<SystemTime>>,
     pub prev_balance: HashMap<String, Option<f64>>,
     pub liquidated_time: Vec<String>,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        Self {
-            id: 1,
-            last_execution_time: None,
-            prev_balance: HashMap::new(),
-            liquidated_time: vec![],
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -226,7 +215,8 @@ impl TransactionLog {
         };
 
         if last_execution_time.is_some() {
-            item.last_execution_time = last_execution_time;
+            item.last_execution_time
+                .insert(chain_name.to_owned(), last_execution_time);
         }
 
         if prev_balance.is_some() {
