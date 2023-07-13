@@ -18,6 +18,15 @@ pub struct PricePoint {
     pub price: f64,
 }
 
+impl Default for PricePoint {
+    fn default() -> Self {
+        Self {
+            timestamp: chrono::Utc::now().timestamp(),
+            price: 0.0,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PriceHistory {
     prices: Vec<PricePoint>,
@@ -63,13 +72,19 @@ impl PriceHistory {
         }
     }
 
-    pub fn add_price(&mut self, timestamp: i64, price: f64) {
+    pub fn add_price(&mut self, price: f64, timestamp: Option<i64>) -> PricePoint {
         if self.prices.len() == self.max_size {
             self.prices.remove(0);
         }
-        self.prices.push(PricePoint { timestamp, price });
+        let mut price_point = PricePoint::default();
+        price_point.price = price;
+        if let Some(timestamp) = timestamp {
+            price_point.timestamp = timestamp;
+        }
+        self.prices.push(price_point.clone());
         self.update_ema(price);
         self.last_price = price;
+        price_point
     }
 
     pub fn predict_next_price_ema(&self, period: usize) -> f64 {

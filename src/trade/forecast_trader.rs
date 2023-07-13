@@ -224,16 +224,16 @@ impl ForcastTrader {
             // Update the price history and predict next prices
             if token_b_name == self.base_token().symbol_name() {
                 // sell price
-                let history = histories.entry(token_a_name.clone()).or_insert_with(|| {
-                    PriceHistory::new(
-                        self.config.short_trade_period,
-                        self.config.medium_trade_period,
-                        self.config.long_trade_period,
-                        self.config.max_price_size as usize,
-                        self.config.flash_crash_threshold,
-                    )
-                });
-                history.add_price(chrono::Utc::now().timestamp(), *price);
+                let history = histories
+                    .entry(token_a_name.clone())
+                    .or_insert_with(|| self.create_price_history());
+                let price_point = history.add_price(*price, None);
+                self.base_trader
+                    .db_handler()
+                    .lock()
+                    .await
+                    .log_price(self.name(), token_a_name, price_point)
+                    .await;
             }
         }
 
@@ -506,6 +506,16 @@ impl ForcastTrader {
             };
             fund_manager.set_amount(amount);
         }
+    }
+
+    pub fn create_price_history(&self) -> PriceHistory {
+        PriceHistory::new(
+            self.config.short_trade_period,
+            self.config.medium_trade_period,
+            self.config.long_trade_period,
+            self.config.max_price_size as usize,
+            self.config.flash_crash_threshold,
+        )
     }
 }
 

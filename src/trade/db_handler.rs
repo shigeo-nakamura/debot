@@ -9,7 +9,11 @@ use shared_mongodb::ClientHolder;
 use std::{collections::HashMap, sync::Arc, time::SystemTime};
 use tokio::sync::Mutex;
 
-use super::{transaction_log::PerformanceLog, TradePosition, TraderState};
+use super::{
+    price_history::PricePoint,
+    transaction_log::{PerformanceLog, PriceLog},
+    TradePosition, TraderState,
+};
 
 pub struct DBHandler {
     client_holder: Arc<Mutex<ClientHolder>>,
@@ -98,16 +102,29 @@ impl DBHandler {
         }
     }
 
+    pub async fn log_price(&self, trader_name: &str, token_name: &str, price_point: PricePoint) {
+        if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
+            let mut item = PriceLog::default();
+            item.id = self.increment_counter(CounterType::Price);
+            item.trader_name = trader_name.to_owned();
+            item.token_name = token_name.to_owned();
+            item.price_point = price_point;
+            if let Err(e) = TransactionLog::update_price(&db, item).await {
+                log::error!("log_price: {:?}", e);
+            }
+        }
+    }
+
     pub fn increment_counter(&self, counter_type: CounterType) -> Option<u32> {
         Some(self.transaction_log.increment_counter(counter_type))
     }
 
     pub async fn log_performance(&self, trader_name: &str, scores: HashMap<String, f64>) {
-        let mut item = PerformanceLog::default();
-        item.id = self.increment_counter(CounterType::Performance);
-        item.trader_name = trader_name.to_owned();
-        item.scores = scores;
         if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
+            let mut item = PerformanceLog::default();
+            item.id = self.increment_counter(CounterType::Performance);
+            item.trader_name = trader_name.to_owned();
+            item.scores = scores;
             if let Err(e) = TransactionLog::update_performance(&db, item).await {
                 log::error!("log_performance: {:?}", e);
             }

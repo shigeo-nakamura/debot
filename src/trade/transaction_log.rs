@@ -1,6 +1,6 @@
 // transaction_log.rs
 
-use super::{TradePosition, TraderState};
+use super::{price_history::PricePoint, TradePosition, TraderState};
 use crate::db::{
     insert_item,
     item::{search_items, update_item},
@@ -28,15 +28,6 @@ async fn get_last_id<T: Default + Entity + HasId>(db: &Database) -> u32 {
             log::warn!("get_last_transaction_id: {:?}", e);
             0
         }
-    }
-}
-
-pub async fn get_last_transaction_id(db: &Database, counter_type: CounterType) -> u32 {
-    match counter_type {
-        CounterType::Position => get_last_id::<TradePosition>(db).await,
-        CounterType::Price => get_last_id::<PriceLog>(db).await,
-        CounterType::Performance => get_last_id::<PerformanceLog>(db).await,
-        CounterType::Balance => get_last_id::<BalanceLog>(db).await,
     }
 }
 
@@ -77,25 +68,12 @@ impl HasId for BalanceLog {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PriceLog {
     pub id: Option<u32>,
-    pub system_time: SystemTime,
-    weth: f64,
-    wbtc: f64,
-    wmatic: f64,
-}
-
-impl Default for PriceLog {
-    fn default() -> Self {
-        Self {
-            id: None,
-            system_time: SystemTime::now(),
-            weth: 0.0,
-            wbtc: 0.0,
-            wmatic: 0.0,
-        }
-    }
+    pub trader_name: String,
+    pub token_name: String,
+    pub price_point: PricePoint,
 }
 
 impl HasId for PriceLog {
@@ -170,6 +148,15 @@ impl TransactionLog {
         self.counter.increment(counter_type)
     }
 
+    pub async fn get_last_transaction_id(db: &Database, counter_type: CounterType) -> u32 {
+        match counter_type {
+            CounterType::Position => get_last_id::<TradePosition>(db).await,
+            CounterType::Price => get_last_id::<PriceLog>(db).await,
+            CounterType::Performance => get_last_id::<PerformanceLog>(db).await,
+            CounterType::Balance => get_last_id::<BalanceLog>(db).await,
+        }
+    }
+
     pub fn db_name(&self) -> &str {
         &self.db_name
     }
@@ -209,6 +196,51 @@ impl TransactionLog {
     ) -> Result<(), Box<dyn error::Error>> {
         update_item(db, item).await?;
         Ok(())
+    }
+
+    pub async fn update_performance(
+        db: &Database,
+        item: PerformanceLog,
+    ) -> Result<(), Box<dyn error::Error>> {
+        update_item(db, &item).await?;
+        Ok(())
+    }
+
+    pub async fn update_price(db: &Database, item: PriceLog) -> Result<(), Box<dyn error::Error>> {
+        update_item(db, &item).await?;
+        Ok(())
+    }
+
+    pub async fn get_price_histories(
+        db: &Database,
+    ) -> HashMap<String, HashMap<String, Vec<PricePoint>>> {
+        let item = PriceLog::default();
+        let items = match search_items(db, &item).await {
+            Ok(items) => items,
+            Err(e) => {
+                log::warn!("get_price_histories: {:?}", e);
+                return HashMap::new();
+            }
+        };
+
+        let mut result = HashMap::new();
+
+        for price_log in items {
+            result
+                .entry(price_log.trader_name)
+                .or_insert_with(HashMap::new)
+                .entry(price_log.token_name)
+                .or_insert_with(Vec::new)
+                .push(price_log.price_point);
+        }
+
+        for (_, token_map) in &mut result {
+            for (_, price_points) in token_map {
+                price_points.sort_by_key(|pp| pp.timestamp);
+            }
+        }
+
+        result
     }
 
     pub async fn insert_balance(
@@ -268,14 +300,6 @@ impl TransactionLog {
             item.latest_scores.insert(trader_name, scores);
         }
 
-        update_item(db, &item).await?;
-        Ok(())
-    }
-
-    pub async fn update_performance(
-        db: &Database,
-        item: PerformanceLog,
-    ) -> Result<(), Box<dyn error::Error>> {
         update_item(db, &item).await?;
         Ok(())
     }

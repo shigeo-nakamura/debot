@@ -11,7 +11,7 @@ use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
-use trade::transaction_log::get_last_transaction_id;
+use trade::price_history::PricePoint;
 use trade::{ForcastTrader, PriceHistory, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
@@ -69,14 +69,18 @@ async fn main() -> std::io::Result<()> {
         .expect("Error creating unique index");
 
     // Set up the transaction log
-    let last_position_counter = get_last_transaction_id(&db, db::CounterType::Position).await;
-    let last_price_counter = get_last_transaction_id(&db, db::CounterType::Price).await;
-    let last_performance_counter = get_last_transaction_id(&db, db::CounterType::Performance).await;
-    let last_balance_counter = get_last_transaction_id(&db, db::CounterType::Balance).await;
+    let last_position_counter =
+        TransactionLog::get_last_transaction_id(&db, db::CounterType::Position).await;
+    let last_price_counter =
+        TransactionLog::get_last_transaction_id(&db, db::CounterType::Price).await;
+    let last_performance_counter =
+        TransactionLog::get_last_transaction_id(&db, db::CounterType::Performance).await;
+    let last_balance_counter =
+        TransactionLog::get_last_transaction_id(&db, db::CounterType::Balance).await;
 
     let transaction_log = Arc::new(TransactionLog::new(
         configs[0].log_limit,
-        configs[0].max_price_size,
+        configs[0].max_price_size * configs.len() as u32,
         configs[0].log_limit,
         configs[0].log_limit,
         last_position_counter,
@@ -89,6 +93,9 @@ async fn main() -> std::io::Result<()> {
     // Read the last App state
     let app_state = TransactionLog::get_app_state(&db).await;
 
+    // Read the price histories
+    let price_histories = TransactionLog::get_price_histories(&db).await;
+
     // Initialize an empty vector to hold trader instances
     let mut trader_instances = prepare_trader_instances(
         &configs,
@@ -96,6 +103,7 @@ async fn main() -> std::io::Result<()> {
         transaction_log.clone(),
         app_state.prev_balance,
         app_state.trader_state,
+        price_histories,
     )
     .await;
 
@@ -113,6 +121,7 @@ async fn prepare_trader_instances(
     transaction_log: Arc<TransactionLog>,
     prev_balance: HashMap<String, Option<f64>>,
     trader_state: HashMap<String, TraderState>,
+    price_histories: HashMap<String, HashMap<String, Vec<PricePoint>>>,
 ) -> Vec<(
     ForcastTrader,
     WalletAndProvider,
@@ -130,6 +139,7 @@ async fn prepare_trader_instances(
             transaction_log.clone(),
             prev_balance.clone(),
             trader_state.clone(),
+            price_histories.clone(),
         )
         .await;
         trader_instances.push(trader_instance);
@@ -144,6 +154,7 @@ async fn prepare_algorithm_trader_instance(
     transaction_log: Arc<TransactionLog>,
     prev_balance: HashMap<String, Option<f64>>,
     trader_state: HashMap<String, TraderState>,
+    price_histories: HashMap<String, HashMap<String, Vec<PricePoint>>>,
 ) -> (
     ForcastTrader,
     WalletAndProvider,
@@ -181,9 +192,6 @@ async fn prepare_algorithm_trader_instance(
     let usdt_token = create_base_token(wallet_and_provider.clone(), &config.chain_params)
         .await
         .expect("Error creating a base token");
-
-    // Create price histories
-    let histories: HashMap<String, PriceHistory> = HashMap::new();
 
     // Create an error manager
     let error_manager = ErrorManager::new();
@@ -230,9 +238,13 @@ async fn prepare_algorithm_trader_instance(
         scores,
     );
 
-    trader.rebalance(wallet.address(), true).await;
+    // Create and restore the price histories
+    let mut histories: HashMap<String, PriceHistory> = HashMap::new();
+    restore_histories(&mut histories, &trader, &price_histories);
 
     // Do some initialization
+    trader.rebalance(wallet.address(), true).await;
+
     trader
         .init(wallet.address(), config.min_managed_amount)
         .await
@@ -276,10 +288,9 @@ async fn main_loop(
         );
 
         log::info!(
-            "main_loop() starts for {}-{}, last_execution_time = {}",
+            "main_loop() starts for {}-{}",
             config.chain_params.chain_name,
             config.dex_index,
-            last_execution_time.to_datetime_string()
         );
     }
 
@@ -438,4 +449,26 @@ async fn handle_sleep_and_signal(interval: f64) -> Result<(), &'static str> {
         }
     }
     Ok(())
+}
+
+fn restore_histories(
+    histories: &mut HashMap<String, PriceHistory>,
+    trader: &ForcastTrader,
+    price_histories: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
+) {
+    let price_pionts_map = match price_histories.get(trader.name()) {
+        Some(map) => map,
+        None => return,
+    };
+
+    for (token_name, price_point_vec) in price_pionts_map {
+        let history = histories
+            .entry(token_name.clone())
+            .or_insert_with(|| trader.create_price_history());
+        for price_point in price_point_vec {
+            history.add_price(price_point.price, Some(price_point.timestamp));
+        }
+
+        log::trace!("{}'s {} price histories: {:?}", trader.name(), token_name, history);
+    }
 }
