@@ -129,7 +129,7 @@ impl ForcastTrader {
                     days,
                     hours,
                 )| {
-                    let fund_name = format!("{}-{}", dexes[dex_index].name(), name);
+                    let fund_name = format!("{}-{}-{}", chain_name, dexes[dex_index].name(), name);
 
                     let prev_score = scores.get(&fund_name);
                     let intial_score = match prev_score {

@@ -247,17 +247,8 @@ impl PriceHistory {
                 .sum();
             return sum / current_index as f64;
         }
-        // Calculate SMA for the period as the seed of EMA
-        let sma: f64 = self
-            .prices
-            .iter()
-            .skip(current_index - period)
-            .take(period)
-            .map(|p| p.price)
-            .sum::<f64>()
-            / period as f64;
+        let sma: f64 = self.calculate_sma(period);
         let multiplier = 2.0 / (period as f64 + 1.0);
-
         let ema = self
             .prices
             .iter()
