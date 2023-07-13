@@ -68,7 +68,7 @@ impl ForcastTrader {
         tokens: Arc<Vec<Box<dyn Token>>>,
         base_token: Arc<Box<dyn Token>>,
         dexes: Arc<Vec<Box<dyn Dex>>>,
-        skip_write: bool,
+        dry_run: bool,
         gas: f64,
         short_trade_period: usize,
         medium_trade_period: usize,
@@ -187,7 +187,7 @@ impl ForcastTrader {
                 tokens,
                 base_token,
                 dexes,
-                skip_write,
+                dry_run,
                 gas,
                 db_handler,
                 prev_balance,
@@ -443,7 +443,7 @@ impl ForcastTrader {
             return;
         }
 
-        if !self.base_trader.skip_write() {
+        if !self.base_trader.dry_run() {
             self.state.amount = base_token_amount / self.dexes().len() as f64;
         }
 
@@ -555,7 +555,7 @@ impl AbstractTrader for ForcastTrader {
             let net_amount = total_buy_amount - total_sell_amount;
 
             // execute swap operation
-            if !self.base_trader.skip_write() {
+            if !self.base_trader.dry_run() {
                 let new_token_pair = match net_amount > 0.0 {
                     true => token_pair,
                     false => token_pair.swap(),

@@ -25,7 +25,7 @@ pub struct EnvConfig {
     pub allowance_factor: f64,
     pub deadline_secs: u64,
     pub log_limit: u32,
-    pub skip_write: bool,
+    pub dry_run: bool,
     pub num_swaps: usize,
     pub short_trade_period: usize,
     pub medium_trade_period: usize,
@@ -101,16 +101,19 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
     for chain_name in chain_names {
         let mut rpc_node_index = 0;
         let mut dex_index = 0;
+        let mut dry_run = false;
 
         let chain_name = chain_name.trim(); // To handle spaces after the comma
         let chain_params: &'static ChainParams = match chain_name {
             "BSC" => {
+                dry_run = get_bool_env_var("BSC_DRY_RUN", true);
                 rpc_node_index = bsc_index;
                 dex_index = bsc_index;
                 bsc_index += 1;
                 &BSC_CHAIN_PARAMS
             }
             "POLYGON" => {
+                dry_run = get_bool_env_var("POLYGON_DRY_RUN", true);
                 rpc_node_index = polygon_index;
                 dex_index = polygon_index;
                 polygon_index += 1;
@@ -132,7 +135,6 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
         let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
-        let skip_write = get_bool_env_var("SKIP_WRITE", true);
         let num_swaps = get_env_var("NUM_SWAPS", "3")?;
         let short_trade_period = get_env_var("SHORT_TRADE_PEREIOD", "60")?; // 600sec = 10min
         let medium_trade_period = get_env_var("MEDIUM_TRADE_PEREIOD", "420")?; // 4200sec = 70min
@@ -164,7 +166,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             allowance_factor,
             deadline_secs,
             log_limit,
-            skip_write,
+            dry_run,
             num_swaps,
             short_trade_period,
             medium_trade_period,

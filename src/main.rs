@@ -163,7 +163,7 @@ async fn prepare_algorithm_trader_instance(
         .await
         .unwrap();
     log::info!("gas token amount: {:3.3}", gas_token_amount);
-    if !config.skip_write && gas_token_amount < config.chain_params.min_gas_token_amount {
+    if !config.dry_run && gas_token_amount < config.chain_params.min_gas_token_amount {
         panic!("No enough gas token: {:3.3}", gas_token_amount);
     }
 
@@ -211,7 +211,7 @@ async fn prepare_algorithm_trader_instance(
         tokens.clone(),
         usdt_token.clone(),
         dexes.clone(),
-        config.skip_write,
+        config.dry_run,
         config.chain_params.gas,
         config.short_trade_period,
         config.medium_trade_period,
@@ -384,7 +384,7 @@ async fn manage_token_amount<T: AbstractTrader>(
     wallet_address: &Address,
     config: &EnvConfig,
 ) -> Option<f64> {
-    if config.skip_write {
+    if config.dry_run {
         return None;
     }
 

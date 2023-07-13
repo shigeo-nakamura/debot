@@ -103,7 +103,7 @@ pub struct BaseTrader {
     tokens: Arc<Vec<Box<dyn Token>>>,
     base_token: Arc<Box<dyn Token>>,
     dexes: Arc<Vec<Box<dyn Dex>>>,
-    skip_write: bool,
+    dry_run: bool,
     gas: f64,
     prev_balance: Option<f64>,
     db_handler: Arc<Mutex<DBHandler>>,
@@ -119,7 +119,7 @@ impl BaseTrader {
         tokens: Arc<Vec<Box<dyn Token>>>,
         base_token: Arc<Box<dyn Token>>,
         dexes: Arc<Vec<Box<dyn Dex>>>,
-        skip_write: bool,
+        dry_run: bool,
         gas: f64,
         db_handler: Arc<Mutex<DBHandler>>,
         prev_balance: Option<f64>,
@@ -133,7 +133,7 @@ impl BaseTrader {
             tokens,
             base_token,
             dexes,
-            skip_write,
+            dry_run,
             gas,
             prev_balance,
             db_handler,
@@ -175,7 +175,7 @@ impl BaseTrader {
             if token.symbol_name() == self.base_token.symbol_name() {
                 let base_token_amount = self.get_amount_of_token(owner, token).await?;
                 if base_token_amount < min_managed_amount {
-                    if !self.skip_write {
+                    if !self.dry_run {
                         panic!("Not enough amount of base token");
                     }
                 }
@@ -197,7 +197,7 @@ impl BaseTrader {
                     dex.name(),
                 );
 
-                if self.skip_write {
+                if self.dry_run {
                     continue;
                 }
 
@@ -384,8 +384,8 @@ impl BaseTrader {
         Arc::clone(&self.dexes)
     }
 
-    pub fn skip_write(&self) -> bool {
-        self.skip_write
+    pub fn dry_run(&self) -> bool {
+        self.dry_run
     }
 
     #[allow(dead_code)]
