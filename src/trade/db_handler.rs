@@ -91,7 +91,11 @@ impl DBHandler {
         Some(self.transaction_log.increment_counter(counter_type))
     }
 
-    pub async fn log_performance(&self, item: PerformanceLog) {
+    pub async fn log_performance(&self, trader_name: &str, scores: HashMap<String, f64>) {
+        let id = self.increment_counter(CounterType::Performance);
+        let mut item = PerformanceLog::default();
+        item.trader_name = trader_name.to_owned();
+        item.scores = scores;
         if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
             if let Err(e) = TransactionLog::update_performance(&db, item).await {
                 log::error!("log_performance: {:?}", e);

@@ -107,6 +107,7 @@ pub struct PerformanceLog {
     pub id: Option<u32>,
     pub system_time: SystemTime,
     pub date: String,
+    pub trader_name: String,
     pub scores: HashMap<String, f64>,
 }
 
@@ -117,6 +118,7 @@ impl Default for PerformanceLog {
             id: None,
             system_time: now,
             date: now.to_datetime_string(),
+            trader_name: String::new(),
             scores: HashMap::new(),
         }
     }

@@ -466,19 +466,11 @@ impl ForcastTrader {
         if changed {
             log::info!("rebalanced scores: {:?}", self.state.scores);
 
-            let mut item = PerformanceLog::default();
-            item.id = self
-                .base_trader
-                .db_handler()
-                .lock()
-                .await
-                .increment_counter(CounterType::Performance);
-            item.scores = self.state.scores.clone();
             self.base_trader
                 .db_handler()
                 .lock()
                 .await
-                .log_performance(item)
+                .log_performance(self.name(), self.state.scores.clone())
                 .await;
         }
 
