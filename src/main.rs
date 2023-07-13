@@ -16,7 +16,6 @@ use trade::{ForcastTrader, PriceHistory, TradePosition, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
 use crate::trade::{AbstractTrader, DBHandler, TraderState};
-use crate::utils::ToDateTimeString;
 use std::collections::HashMap;
 use std::env;
 use std::net::TcpListener;

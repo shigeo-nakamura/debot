@@ -208,7 +208,7 @@ impl PriceHistory {
         }
     }
 
-    pub fn predict_next_price_sdg(&self, period: usize) -> f64 {
+    pub fn predict_next_price_sdg(&self, _period: usize) -> f64 {
         self.prices.last().unwrap().price
     }
 

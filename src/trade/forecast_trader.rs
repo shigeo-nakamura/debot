@@ -1,17 +1,14 @@
 // algorithm_trader.rs
 
-use ethers::abi::Hash;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::db::CounterType;
 use crate::dex::dex::TokenPair;
 use crate::dex::Dex;
 use crate::token::Token;
 use crate::trade::find_index;
-use crate::trade::transaction_log::PerformanceLog;
 use crate::trade::AbstractTrader;
 
 use async_trait::async_trait;

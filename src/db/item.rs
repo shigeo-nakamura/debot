@@ -60,10 +60,12 @@ pub async fn update_item<T: Entity>(db: &Database, item: &T) -> Result<(), Box<d
     item.update(db).await
 }
 
+#[allow(dead_code)]
 pub async fn delete_item<T: Entity>(db: &Database, item: &T) -> Result<(), Box<dyn error::Error>> {
     item.delete(db).await
 }
 
+#[allow(dead_code)]
 pub async fn delete_item_all<T: Entity>(
     db: &Database,
     item: &T,

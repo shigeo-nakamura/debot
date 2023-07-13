@@ -25,6 +25,7 @@ pub struct ArbitrageTrader {
 }
 
 impl ArbitrageTrader {
+    #[allow(dead_code)]
     pub fn new(
         trader_state: TraderState,
         leverage: f64,
@@ -65,6 +66,7 @@ impl ArbitrageTrader {
         }
     }
 
+    #[allow(dead_code)]
     fn find_arbitrage_paths_recursive(
         tokens: &Arc<Vec<Box<dyn Token>>>,
         dexes: &Arc<Vec<Box<dyn Dex>>>,
@@ -146,6 +148,7 @@ impl ArbitrageTrader {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn find_arbitrage_paths(
         &self,
     ) -> Result<Vec<Vec<(Box<dyn Token>, Box<dyn Dex>)>>, Box<dyn Error>> {
@@ -173,6 +176,7 @@ impl ArbitrageTrader {
         Ok(paths)
     }
 
+    #[allow(dead_code)]
     fn calculate_arbitrage_profit(
         path: &Vec<(Box<dyn Token>, Box<dyn Dex>)>,
         amount: f64,
@@ -216,6 +220,7 @@ impl ArbitrageTrader {
         Some(profit)
     }
 
+    #[allow(dead_code)]
     pub async fn find_opportunities(
         &self,
         paths: &Vec<Vec<(Box<dyn Token>, Box<dyn Dex>)>>,
