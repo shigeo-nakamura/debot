@@ -4,6 +4,7 @@ pub enum CounterType {
     Position,
     Price,
     Performance,
+    Balance,
 }
 pub struct CounterData {
     max: u32,
@@ -14,6 +15,7 @@ pub struct Counter {
     position: CounterData,
     price: CounterData,
     performance: CounterData,
+    balance: CounterData,
 }
 
 impl Counter {
@@ -21,9 +23,11 @@ impl Counter {
         max_position_counter: u32,
         max_price_counter: u32,
         max_performance_counter: u32,
+        max_balance_counter: u32,
         position_counter: u32,
         price_counter: u32,
         performance_counter: u32,
+        balance_counter: u32,
     ) -> Self {
         Self {
             position: CounterData {
@@ -38,6 +42,10 @@ impl Counter {
                 max: max_performance_counter,
                 counter: std::sync::Mutex::new(performance_counter),
             },
+            balance: CounterData {
+                max: max_balance_counter,
+                counter: std::sync::Mutex::new(balance_counter),
+            },
         }
     }
 
@@ -46,6 +54,7 @@ impl Counter {
             CounterType::Position => &self.position,
             CounterType::Price => &self.price,
             CounterType::Performance => &self.performance,
+            CounterType::Balance => &self.balance,
         };
 
         let mut counter = counter_data.counter.lock().unwrap();

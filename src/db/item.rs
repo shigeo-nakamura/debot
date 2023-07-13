@@ -103,6 +103,9 @@ pub async fn create_unique_index(db: &Database) -> Result<(), Box<dyn error::Err
     let item = PerformanceLog::default();
     item.create_unique_index(db).await?;
 
+    let item = BalanceLog::default();
+    item.create_unique_index(db).await?;
+
     Ok(())
 }
 
@@ -164,8 +167,13 @@ impl Entity for BalanceLog {
         panic!("Not implemented")
     }
 
-    async fn search(&self, _db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
-        panic!("Not implemented")
+    async fn search(&self, db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
+        let mut query = doc! { "id": { "$gt": 0 }};
+        if self.id != None {
+            query = doc! { "id": self.id.unwrap() };
+        }
+        let collection = self.get_collection(db);
+        collection.search(query).await
     }
 
     fn get_collection_name(&self) -> &str {
@@ -233,7 +241,7 @@ impl Entity for PriceLog {
     async fn search(&self, db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
         let mut query = doc! { "id": { "$gt": 0 }};
         if self.id != None {
-            query = doc! { "id": self.id };
+            query = doc! { "id": self.id.unwrap() };
         }
         let collection = self.get_collection(db);
         collection.search(query).await

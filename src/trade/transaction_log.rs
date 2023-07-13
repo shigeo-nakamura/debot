@@ -36,6 +36,7 @@ pub async fn get_last_transaction_id(db: &Database, counter_type: CounterType) -
         CounterType::Position => get_last_id::<TradePosition>(db).await,
         CounterType::Price => get_last_id::<PriceLog>(db).await,
         CounterType::Performance => get_last_id::<PerformanceLog>(db).await,
+        CounterType::Balance => get_last_id::<BalanceLog>(db).await,
     }
 }
 
@@ -62,9 +63,16 @@ impl Default for AppState {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct BalanceLog {
+    pub id: Option<u32>,
     pub chain_name: String,
     pub date: String,
     pub change: f64,
+}
+
+impl HasId for BalanceLog {
+    fn id(&self) -> Option<u32> {
+        self.id
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -130,18 +138,22 @@ impl TransactionLog {
         max_position_counter: u32,
         max_price_couner: u32,
         max_performance_counter: u32,
+        max_balance_counter: u32,
         position_counter: u32,
         price_counter: u32,
         performance_counter: u32,
+        balance_counter: u32,
         db_name: &str,
     ) -> Self {
         let counter = Counter::new(
             max_position_counter,
             max_price_couner,
             max_performance_counter,
+            max_balance_counter,
             position_counter,
             price_counter,
             performance_counter,
+            balance_counter,
         );
 
         TransactionLog {
