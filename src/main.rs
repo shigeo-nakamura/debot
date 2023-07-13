@@ -12,7 +12,7 @@ use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
 use trade::price_history::PricePoint;
-use trade::{ForcastTrader, PriceHistory, TransactionLog};
+use trade::{ForcastTrader, PriceHistory, TradePosition, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
 use crate::trade::{AbstractTrader, DBHandler, TraderState};
@@ -80,7 +80,9 @@ async fn main() -> std::io::Result<()> {
 
     let transaction_log = Arc::new(TransactionLog::new(
         configs[0].log_limit,
-        configs[0].max_price_size * configs.len() as u32 *configs[0].chain_params.tokens.len() as u32,
+        configs[0].max_price_size
+            * configs.len() as u32
+            * configs[0].chain_params.tokens.len() as u32,
         configs[0].log_limit,
         configs[0].log_limit,
         last_position_counter,
@@ -130,6 +132,13 @@ async fn prepare_trader_instances(
     HashMap<String, PriceHistory>,
     ErrorManager,
 )> {
+    // Read open positions from the DB
+    let open_positions_map =
+        DBHandler::get_open_positions_map(transaction_log.clone(), client_holder.clone()).await;
+
+    // Read the last scores from the DB
+    let scores = DBHandler::get_last_scores(transaction_log.clone(), client_holder.clone()).await;
+
     let mut trader_instances = Vec::new();
 
     for config in configs {
@@ -140,6 +149,8 @@ async fn prepare_trader_instances(
             prev_balance.clone(),
             trader_state.clone(),
             price_histories.clone(),
+            open_positions_map.clone(),
+            scores.clone(),
         )
         .await;
         trader_instances.push(trader_instance);
@@ -155,6 +166,8 @@ async fn prepare_algorithm_trader_instance(
     prev_balance: HashMap<String, Option<f64>>,
     trader_state: HashMap<String, TraderState>,
     price_histories: HashMap<String, HashMap<String, Vec<PricePoint>>>,
+    open_positions_map: HashMap<String, HashMap<String, TradePosition>>,
+    scores: HashMap<String, HashMap<String, f64>>,
 ) -> (
     ForcastTrader,
     WalletAndProvider,
@@ -195,13 +208,6 @@ async fn prepare_algorithm_trader_instance(
 
     // Create an error manager
     let error_manager = ErrorManager::new();
-
-    // Read open positions from the DB
-    let open_positions_map =
-        DBHandler::get_open_positions_map(transaction_log.clone(), client_holder.clone()).await;
-
-    // Read the last scores from the DB
-    let scores = DBHandler::get_last_scores(transaction_log.clone(), client_holder.clone()).await;
 
     // Get the prev_balance
     let prev_balance = match prev_balance.get(config.chain_params.chain_name) {
