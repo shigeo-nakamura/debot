@@ -80,10 +80,10 @@ impl DBHandler {
         }
     }
 
-    pub async fn log_transaction(&self, position: &TradePosition) {
+    pub async fn log_position(&self, position: &TradePosition) {
         if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
             if let Err(e) = TransactionLog::update_transaction(&db, position).await {
-                log::error!("log_transaction: {:?}", e);
+                log::error!("log_position: {:?}", e);
             }
         }
     }

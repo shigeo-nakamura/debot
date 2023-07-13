@@ -347,7 +347,7 @@ impl FundManager {
                     .db_handler
                     .lock()
                     .await
-                    .log_transaction(&position_cloned)
+                    .log_position(&position_cloned)
                     .await;
             } else {
                 // else, create a new position
@@ -372,7 +372,7 @@ impl FundManager {
                     .db_handler
                     .lock()
                     .await
-                    .log_transaction(&position_cloned)
+                    .log_position(&position_cloned)
                     .await;
                 self.state
                     .open_positions
@@ -398,7 +398,7 @@ impl FundManager {
                     .db_handler
                     .lock()
                     .await
-                    .log_transaction(&position_cloned)
+                    .log_position(&position_cloned)
                     .await;
 
                 if amount > 0.0 {
