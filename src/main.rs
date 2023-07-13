@@ -211,6 +211,7 @@ async fn prepare_algorithm_trader_instance(
         config.short_trade_period,
         config.medium_trade_period,
         config.long_trade_period,
+        config.max_price_size,
         config.flash_crash_threshold,
         config.position_creation_inteval_period * config.interval,
         config.reward_multiplier,

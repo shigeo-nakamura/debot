@@ -37,6 +37,7 @@ pub struct ForcastTraderConfig {
     short_trade_period: usize,
     medium_trade_period: usize,
     long_trade_period: usize,
+    max_price_size: usize,
     flash_crash_threshold: f64,
     reward_multiplier: f64,
     penalty_multiplier: f64,
@@ -72,6 +73,7 @@ impl ForcastTrader {
         short_trade_period: usize,
         medium_trade_period: usize,
         long_trade_period: usize,
+        max_price_size: usize,
         flash_crash_threshold: f64,
         position_creation_inteval: u64,
         reward_multiplier: f64,
@@ -89,6 +91,7 @@ impl ForcastTrader {
             short_trade_period,
             medium_trade_period,
             long_trade_period,
+            max_price_size,
             flash_crash_threshold,
             reward_multiplier,
             penalty_multiplier,
@@ -219,7 +222,7 @@ impl ForcastTrader {
                         self.config.short_trade_period,
                         self.config.medium_trade_period,
                         self.config.long_trade_period,
-                        self.config.long_trade_period,
+                        self.config.max_price_size,
                         self.config.flash_crash_threshold,
                     )
                 });
