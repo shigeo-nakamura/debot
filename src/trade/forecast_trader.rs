@@ -450,9 +450,21 @@ impl ForcastTrader {
             return;
         }
 
-        if !self.base_trader.dry_run() {
+        if self.base_trader.dry_run() {
+            let mut amount = 0.0;
+            for fund_manager in self.state.fund_manager_map.values() {
+                amount += fund_manager.amount();
+            }
+            self.state.amount = amount;
+        } else {
             self.state.amount = base_token_amount / self.dexes().len() as f64;
         }
+
+        log::info!(
+            "{}: available amount = {:6.3}",
+            self.name(),
+            self.state.amount
+        );
 
         let mut total_score = 0.0;
         let mut changed = false;
