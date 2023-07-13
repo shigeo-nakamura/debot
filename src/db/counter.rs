@@ -5,38 +5,52 @@ pub enum CounterType {
     Price,
     Performance,
 }
+pub struct CounterData {
+    max: u32,
+    counter: std::sync::Mutex<u32>,
+}
+
 pub struct Counter {
-    max_counter: u32,
-    position_counter: std::sync::Mutex<u32>,
-    price_counter: std::sync::Mutex<u32>,
-    performance_counter: std::sync::Mutex<u32>,
+    position: CounterData,
+    price: CounterData,
+    performance: CounterData,
 }
 
 impl Counter {
     pub fn new(
-        max_counter: u32,
+        max_position_counter: u32,
+        max_price_counter: u32,
+        max_performance_counter: u32,
         position_counter: u32,
         price_counter: u32,
         performance_counter: u32,
     ) -> Self {
         Self {
-            max_counter,
-            position_counter: std::sync::Mutex::new(position_counter),
-            price_counter: std::sync::Mutex::new(price_counter),
-            performance_counter: std::sync::Mutex::new(performance_counter),
+            position: CounterData {
+                max: max_position_counter,
+                counter: std::sync::Mutex::new(position_counter),
+            },
+            price: CounterData {
+                max: max_price_counter,
+                counter: std::sync::Mutex::new(price_counter),
+            },
+            performance: CounterData {
+                max: max_performance_counter,
+                counter: std::sync::Mutex::new(performance_counter),
+            },
         }
     }
 
     pub fn increment(&self, counter_type: CounterType) -> u32 {
-        let counter = match counter_type {
-            CounterType::Position => &self.position_counter,
-            CounterType::Price => &self.price_counter,
-            CounterType::Performance => &self.performance_counter,
+        let counter_data = match counter_type {
+            CounterType::Position => &self.position,
+            CounterType::Price => &self.price,
+            CounterType::Performance => &self.performance,
         };
 
-        let mut counter = counter.lock().unwrap();
+        let mut counter = counter_data.counter.lock().unwrap();
         *counter += 1;
-        let mut id = *counter % (self.max_counter + 1);
+        let mut id = *counter % (counter_data.max + 1);
         if id == 0 {
             id = 1;
         }

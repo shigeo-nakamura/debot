@@ -30,7 +30,7 @@ pub struct EnvConfig {
     pub short_trade_period: usize,
     pub medium_trade_period: usize,
     pub long_trade_period: usize,
-    pub max_price_size: usize,
+    pub max_price_size: u32,
     pub position_creation_inteval_period: u64,
     pub flash_crash_threshold: f64,
     pub max_error_count: u32,

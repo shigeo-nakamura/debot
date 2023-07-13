@@ -127,15 +127,19 @@ pub struct TransactionLog {
 
 impl TransactionLog {
     pub fn new(
-        max_counter: u32,
-        transaction_counter: u32,
+        max_position_counter: u32,
+        max_price_couner: u32,
+        max_performance_counter: u32,
+        position_counter: u32,
         price_counter: u32,
         performance_counter: u32,
         db_name: &str,
     ) -> Self {
         let counter = Counter::new(
-            max_counter,
-            transaction_counter,
+            max_position_counter,
+            max_price_couner,
+            max_performance_counter,
+            position_counter,
             price_counter,
             performance_counter,
         );
