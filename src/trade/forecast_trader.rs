@@ -173,7 +173,9 @@ impl ForcastTrader {
             )
             .collect();
 
+        let mut total_fund_amount = 0.0;
         for fund_manager in fund_managers {
+            total_fund_amount += fund_manager.amount();
             state
                 .fund_manager_map
                 .insert(fund_manager.name().to_owned(), fund_manager);
@@ -189,7 +191,7 @@ impl ForcastTrader {
                 name,
                 trader_state.clone(),
                 leverage,
-                initial_amount,
+                total_fund_amount,
                 allowance_factor,
                 tokens,
                 base_token,
@@ -381,6 +383,14 @@ impl ForcastTrader {
         }
     }
 
+    fn total_fund_amount(&self) -> f64 {
+        let mut amount = 0.0;
+        for fund_manager in self.state.fund_manager_map.values() {
+            amount += fund_manager.amount();
+        }
+        amount
+    }
+
     pub fn is_any_fund_liquidated(&self) -> bool {
         for fund_manager in self.state.fund_manager_map.values() {
             if fund_manager.is_liquidated() {
@@ -451,11 +461,7 @@ impl ForcastTrader {
         }
 
         if self.base_trader.dry_run() {
-            let mut amount = 0.0;
-            for fund_manager in self.state.fund_manager_map.values() {
-                amount += fund_manager.amount();
-            }
-            self.state.amount = amount;
+            self.state.amount = self.total_fund_amount();
         } else {
             self.state.amount = base_token_amount / self.dexes().len() as f64;
         }
