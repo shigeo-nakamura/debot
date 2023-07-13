@@ -38,6 +38,7 @@ pub struct PriceHistory {
     medium_period: usize,
     long_period: usize,
     max_size: usize,
+    interval: u64,
     flash_crash_threshold: f64,
 }
 
@@ -56,6 +57,7 @@ impl PriceHistory {
         medium_period: usize,
         long_period: usize,
         max_size: usize,
+        interval: u64,
         flash_crash_threshold: f64,
     ) -> PriceHistory {
         PriceHistory {
@@ -67,7 +69,8 @@ impl PriceHistory {
             short_period,
             medium_period,
             long_period,
-            max_size: max_size,
+            max_size,
+            interval,
             flash_crash_threshold,
         }
     }
@@ -81,8 +84,9 @@ impl PriceHistory {
         if let Some(timestamp) = timestamp {
             price_point.timestamp = timestamp;
         }
+        let prev_timestamp = self.prices.last().map(|p| p.timestamp);
         self.prices.push(price_point.clone());
-        self.update_ema(price);
+        self.update_ema(price, price_point.timestamp, prev_timestamp);
         self.last_price = price;
         price_point
     }
@@ -179,7 +183,6 @@ impl PriceHistory {
     }
 
     pub fn predict_next_price_bollinger(&mut self, period: usize) -> f64 {
-        self.update_ema(self.prices.last().unwrap().price);
         let (lower_band, _, upper_band) = self.calculate_bollinger_bands(period);
         let last_price = self.prices.last().unwrap().price;
         if last_price > upper_band {
@@ -192,7 +195,6 @@ impl PriceHistory {
     }
 
     pub fn predict_next_price_fibonacci(&mut self) -> f64 {
-        self.update_ema(self.prices.last().unwrap().price);
         let (level1, level2, level3, _low) = self.calculate_fibonacci_retracement();
         let last_price = self.prices.last().unwrap().price;
         if last_price < level1 {
@@ -231,23 +233,34 @@ impl PriceHistory {
         false
     }
 
-    fn update_ema(&mut self, price: f64) {
+    fn update_ema(&mut self, price: f64, timestamp: i64, prev_timestamp: Option<i64>) {
         let weight_short = 2.0 / (self.short_period as f64 + 1.0);
         let weight_medium = 2.0 / (self.medium_period as f64 + 1.0);
         let weight_long = 2.0 / (self.long_period as f64 + 1.0);
 
-        if self.prices.len() == 1 {
+        let time_difference = match prev_timestamp {
+            Some(prev_timestamp) => (timestamp - prev_timestamp) as f64 / self.interval as f64,
+            None => 1.0,
+        };
+
+        if self.ema_short == 0.0 {
             self.ema_short = price;
-            self.ema_medium = price;
-            self.ema_long = price;
         } else {
-            self.ema_short = (price - self.ema_short) * weight_short + self.ema_short;
-            if self.prices.len() >= self.medium_period {
-                self.ema_medium = (price - self.ema_medium) * weight_medium + self.ema_medium;
-            }
-            if self.prices.len() >= self.long_period {
-                self.ema_long = (price - self.ema_long) * weight_long + self.ema_long;
-            }
+            self.ema_short =
+                (price - self.ema_short) * weight_short * time_difference + self.ema_short;
+        }
+
+        if self.ema_medium == 0.0 {
+            self.ema_medium = price;
+        } else if self.prices.len() >= self.medium_period {
+            self.ema_medium =
+                (price - self.ema_medium) * weight_medium * time_difference + self.ema_medium;
+        }
+
+        if self.ema_long == 0.0 {
+            self.ema_long = price;
+        } else if self.prices.len() >= self.long_period {
+            self.ema_long = (price - self.ema_long) * weight_long * time_difference + self.ema_long;
         }
     }
 
