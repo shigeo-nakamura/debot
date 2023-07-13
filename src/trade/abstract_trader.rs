@@ -107,6 +107,7 @@ pub struct BaseTrader {
     gas: f64,
     prev_balance: Option<f64>,
     db_handler: Arc<Mutex<DBHandler>>,
+    save_prices: bool,
 }
 
 impl BaseTrader {
@@ -123,6 +124,7 @@ impl BaseTrader {
         gas: f64,
         db_handler: Arc<Mutex<DBHandler>>,
         prev_balance: Option<f64>,
+        save_prices: bool,
     ) -> Self {
         Self {
             name,
@@ -137,6 +139,7 @@ impl BaseTrader {
             gas,
             prev_balance,
             db_handler,
+            save_prices,
         }
     }
 
@@ -399,6 +402,10 @@ impl BaseTrader {
 
     pub fn db_handler(&self) -> &Arc<Mutex<DBHandler>> {
         &self.db_handler
+    }
+
+    pub fn save_prices(&self) -> bool {
+        self.save_prices
     }
 }
 

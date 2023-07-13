@@ -38,6 +38,7 @@ impl ArbitrageTrader {
         gas: f64,
         db_client: Arc<Mutex<ClientHolder>>,
         transaction_log: Arc<TransactionLog>,
+        save_prices: bool,
     ) -> Self {
         let db_handler = Arc::new(Mutex::new(DBHandler::new(
             db_client.clone(),
@@ -58,6 +59,7 @@ impl ArbitrageTrader {
                 gas,
                 db_handler,
                 None,
+                save_prices,
             ),
             num_swaps,
         }

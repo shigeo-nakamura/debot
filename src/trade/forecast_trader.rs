@@ -88,6 +88,7 @@ impl ForcastTrader {
         open_positions_map: HashMap<String, HashMap<String, TradePosition>>,
         prev_balance: Option<f64>,
         latest_scores: HashMap<String, HashMap<String, f64>>,
+        save_prices: bool,
     ) -> Self {
         let config = ForcastTraderConfig {
             chain_name: chain_name.to_owned(),
@@ -203,6 +204,7 @@ impl ForcastTrader {
                 gas,
                 db_handler,
                 prev_balance,
+                save_prices,
             ),
             config,
             state,
@@ -233,12 +235,15 @@ impl ForcastTrader {
                     .entry(token_a_name.clone())
                     .or_insert_with(|| self.create_price_history());
                 let price_point = history.add_price(*price, None);
-                self.base_trader
-                    .db_handler()
-                    .lock()
-                    .await
-                    .log_price(self.name(), token_a_name, price_point)
-                    .await;
+
+                if self.base_trader.save_prices() {
+                    self.base_trader
+                        .db_handler()
+                        .lock()
+                        .await
+                        .log_price(self.name(), token_a_name, price_point)
+                        .await;
+                }
             }
         }
 

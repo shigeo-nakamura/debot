@@ -37,6 +37,7 @@ pub struct EnvConfig {
     pub reward_multiplier: f64,
     pub penalty_multiplier: f64,
     pub slippage: f64,
+    pub save_prices: bool,
     pub treasury: Option<Address>,
 }
 
@@ -147,6 +148,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let reward_multiplier = get_env_var("REWARD_MULTIPLIER", "1.5")?;
         let penalty_multiplier = get_env_var("PENALTY_MULTIPLIER", "0.9")?;
         let slippage = get_env_var("SLIPPAGE", "0.03")?;
+        let save_prices = get_bool_env_var("SAVE_PRICES", false);
 
         let treasury_str = env::var("TREASURY").unwrap_or_default();
         let treasury: Option<Address> = Some(Address::from_str(&treasury_str).unwrap_or_default());
@@ -178,6 +180,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             reward_multiplier,
             penalty_multiplier,
             slippage,
+            save_prices,
             treasury,
         };
 
