@@ -100,7 +100,7 @@ impl ForcastTrader {
             slippage,
         };
 
-        let name = format!("{}-AlgoTrader", chain_name);
+        let name = format!("{}-{}-AlgoTrader", chain_name, dex_index);
 
         let binding = HashMap::new();
         let scores = match latest_scores.get(&name) {
