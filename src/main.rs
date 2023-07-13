@@ -275,9 +275,10 @@ async fn main_loop(
             Some(last_execution_time),
         );
 
-        log::warn!(
-            "main_loop() starts for {}, last_execution_time = {}",
+        log::info!(
+            "main_loop() starts for {}-{}, last_execution_time = {}",
             config.chain_params.chain_name,
+            config.dex_index,
             last_execution_time.to_datetime_string()
         );
     }
