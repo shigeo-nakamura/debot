@@ -47,6 +47,7 @@ pub struct AppState {
     pub prev_balance: HashMap<String, Option<f64>>,
     pub liquidated_time: Vec<String>,
     pub trader_state: HashMap<String, TraderState>,
+    pub latest_scores: HashMap<String, HashMap<String, f64>>,
 }
 
 impl Default for AppState {
@@ -57,6 +58,7 @@ impl Default for AppState {
             prev_balance: HashMap::new(),
             liquidated_time: vec![],
             trader_state: HashMap::new(),
+            latest_scores: HashMap::new(),
         }
     }
 }
@@ -241,6 +243,7 @@ impl TransactionLog {
         prev_balance: Option<f64>,
         is_liquidated: bool,
         trader_state: Option<(String, TraderState)>,
+        scores: Option<(String, HashMap<String, f64>)>,
     ) -> Result<(), Box<dyn error::Error>> {
         let item = AppState::default();
         let mut item = match search_item(db, &item).await {
@@ -267,19 +270,12 @@ impl TransactionLog {
             item.trader_state.insert(name, state);
         }
 
+        if let Some((trader_name, scores)) = scores {
+            item.latest_scores.insert(trader_name, scores);
+        }
+
         update_item(db, &item).await?;
         Ok(())
-    }
-
-    pub async fn get_performance(db: &Database) -> Vec<PerformanceLog> {
-        let item = PerformanceLog::default();
-        match search_items(db, &item).await {
-            Ok(items) => items,
-            Err(e) => {
-                log::warn!("get_performance: {:?}", e);
-                vec![]
-            }
-        }
     }
 
     pub async fn update_performance(
@@ -294,7 +290,7 @@ impl TransactionLog {
         db: &Database,
         chain_name: &str,
     ) -> Result<(), Box<dyn error::Error>> {
-        TransactionLog::update_app_state(&db, None, chain_name, None, true, None).await
+        TransactionLog::update_app_state(&db, None, chain_name, None, true, None, None).await
     }
 
     pub async fn update_trader_state(
@@ -302,7 +298,15 @@ impl TransactionLog {
         name: String,
         state: TraderState,
     ) -> Result<(), Box<dyn error::Error>> {
-        TransactionLog::update_app_state(&db, None, &String::new(), None, true, Some((name, state)))
-            .await
+        TransactionLog::update_app_state(
+            &db,
+            None,
+            &String::new(),
+            None,
+            true,
+            Some((name, state)),
+            None,
+        )
+        .await
     }
 }

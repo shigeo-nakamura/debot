@@ -71,6 +71,7 @@ impl DBHandler {
                 prev_balance,
                 is_liquidated,
                 None,
+                None,
             )
             .await
             {
@@ -114,21 +115,11 @@ impl DBHandler {
     pub async fn get_last_scores(
         transaction_log: Arc<TransactionLog>,
         client_holder: Arc<Mutex<ClientHolder>>,
-    ) -> HashMap<String, f64> {
+    ) -> HashMap<String, HashMap<String, f64>> {
         if let Some(db) = transaction_log.get_db(&client_holder).await {
-            let mut last_performance_vec = TransactionLog::get_performance(&db).await;
-            if last_performance_vec.len() == 0 {
-                return HashMap::new();
-            }
-
-            let scores = last_performance_vec.pop().unwrap().scores;
-
-            log::debug!("Las score = {:?}", scores);
-
-            scores
-        } else {
-            HashMap::new()
+            return TransactionLog::get_app_state(&db).await.latest_scores;
         }
+        HashMap::new()
     }
 
     pub async fn get_open_positions_map(

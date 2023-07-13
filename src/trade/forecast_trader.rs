@@ -1,5 +1,6 @@
 // algorithm_trader.rs
 
+use ethers::abi::Hash;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
@@ -84,7 +85,7 @@ impl ForcastTrader {
         slippage: f64,
         open_positions_map: HashMap<String, HashMap<String, TradePosition>>,
         prev_balance: Option<f64>,
-        scores: HashMap<String, f64>,
+        latest_scores: HashMap<String, HashMap<String, f64>>,
     ) -> Self {
         let config = ForcastTraderConfig {
             chain_name: chain_name.to_owned(),
@@ -97,6 +98,14 @@ impl ForcastTrader {
             penalty_multiplier,
             dex_index,
             slippage,
+        };
+
+        let name = format!("{}-AlgoTrader", chain_name);
+
+        let binding = HashMap::new();
+        let scores = match latest_scores.get(&name) {
+            Some(scores) => scores,
+            None => &binding,
         };
 
         let mut state = ForcastTraderState {
@@ -169,8 +178,6 @@ impl ForcastTrader {
                 .fund_manager_map
                 .insert(fund_manager.name().to_owned(), fund_manager);
         }
-
-        let name = format!("{}-AlgoTrader", chain_name);
 
         let trader_state = match trader_state.get(&name) {
             Some(state) => state,
