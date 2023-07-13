@@ -213,14 +213,8 @@ impl TransactionLog {
 
     pub async fn insert_balance(
         db: &Database,
-        chain_name: &str,
-        change: f64,
+        item: BalanceLog,
     ) -> Result<(), Box<dyn error::Error>> {
-        let mut item = BalanceLog::default();
-        item.chain_name = chain_name.to_owned();
-        item.date = DateTimeUtils::get_current_date_string();
-        item.change = change;
-
         insert_item(db, &item).await?;
         Ok(())
     }

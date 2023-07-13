@@ -1,6 +1,10 @@
 // db_operations.rs
 
-use crate::{db::CounterType, trade::TransactionLog};
+use crate::{
+    db::CounterType,
+    trade::{BalanceLog, TransactionLog},
+    utils::DateTimeUtils,
+};
 use shared_mongodb::ClientHolder;
 use std::{collections::HashMap, sync::Arc, time::SystemTime};
 use tokio::sync::Mutex;
@@ -50,7 +54,13 @@ impl DBHandler {
                 None => 0.0,
             };
 
-            if let Err(e) = TransactionLog::insert_balance(&db, chain_name, change).await {
+            let mut item = BalanceLog::default();
+            item.id = self.increment_counter(CounterType::Balance);
+            item.chain_name = chain_name.to_owned();
+            item.date = DateTimeUtils::get_current_date_string();
+            item.change = change;
+
+            if let Err(e) = TransactionLog::insert_balance(&db, item).await {
                 log::error!("log_current_balance: {:?}", e);
             }
         }
@@ -93,8 +103,8 @@ impl DBHandler {
     }
 
     pub async fn log_performance(&self, trader_name: &str, scores: HashMap<String, f64>) {
-        let id = self.increment_counter(CounterType::Performance);
         let mut item = PerformanceLog::default();
+        item.id = self.increment_counter(CounterType::Performance);
         item.trader_name = trader_name.to_owned();
         item.scores = scores;
         if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
