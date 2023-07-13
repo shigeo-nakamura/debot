@@ -468,7 +468,5 @@ fn restore_histories(
         for price_point in price_point_vec {
             history.add_price(price_point.price, Some(price_point.timestamp));
         }
-
-        log::trace!("{}'s {} price histories: {:?}", trader.name(), token_name, history);
     }
 }
