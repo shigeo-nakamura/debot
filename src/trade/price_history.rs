@@ -15,13 +15,25 @@ const RSI_FLASH_CRASH: f64 = 85.0;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PricePoint {
     pub timestamp: i64,
+    relative_timestamp: Option<i64>,
     pub price: f64,
+}
+
+impl PricePoint {
+    pub fn new(price: f64, timestamp: Option<i64>) -> Self {
+        Self {
+            timestamp: timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp()),
+            relative_timestamp: None,
+            price,
+        }
+    }
 }
 
 impl Default for PricePoint {
     fn default() -> Self {
         Self {
-            timestamp: chrono::Utc::now().timestamp(),
+            timestamp: 0,
+            relative_timestamp: None,
             price: 0.0,
         }
     }
@@ -40,6 +52,7 @@ pub struct PriceHistory {
     max_size: usize,
     interval: u64,
     flash_crash_threshold: f64,
+    first_timestamp: Option<i64>,
 }
 
 #[allow(dead_code)]
@@ -72,6 +85,7 @@ impl PriceHistory {
             max_size,
             interval,
             flash_crash_threshold,
+            first_timestamp: None,
         }
     }
 
@@ -79,12 +93,20 @@ impl PriceHistory {
         if self.prices.len() == self.max_size {
             self.prices.remove(0);
         }
-        let mut price_point = PricePoint::default();
-        price_point.price = price;
-        if let Some(timestamp) = timestamp {
-            price_point.timestamp = timestamp;
-        }
+
+        let mut price_point = PricePoint::new(price, timestamp);
+
         let prev_timestamp = self.prices.last().map(|p| p.timestamp);
+
+        if let Some(prev_timestamp) = prev_timestamp {
+            let relative_time = price_point.timestamp - prev_timestamp;
+            price_point.relative_timestamp = Some(relative_time);
+        }
+
+        if self.first_timestamp.is_none() {
+            self.first_timestamp = Some(price_point.timestamp);
+        }
+
         self.prices.push(price_point.clone());
         self.update_ema(price, price_point.timestamp, prev_timestamp);
         self.last_price = price;
@@ -147,9 +169,17 @@ impl PriceHistory {
         }
     }
 
-    pub fn predict_next_price_regression(&self, next_timestamp: i64) -> f64 {
-        let x_mean: f64 =
-            self.prices.iter().map(|p| p.timestamp).sum::<i64>() as f64 / self.prices.len() as f64;
+    fn predict_next_price_regression(&self, next_relative_timestamp: i64) -> f64 {
+        if self.first_timestamp.is_none() {
+            return self.prices.last().unwrap().price;
+        }
+
+        let x_mean: f64 = self
+            .prices
+            .iter()
+            .map(|p| p.relative_timestamp.unwrap())
+            .sum::<i64>() as f64
+            / self.prices.len() as f64;
         let y_mean: f64 =
             self.prices.iter().map(|p| p.price).sum::<f64>() / self.prices.len() as f64;
 
@@ -157,8 +187,9 @@ impl PriceHistory {
         let mut denominator: f64 = 0.0;
 
         for price_point in &self.prices {
-            numerator += (price_point.timestamp as f64 - x_mean) * (price_point.price - y_mean);
-            denominator += (price_point.timestamp as f64 - x_mean).powi(2);
+            numerator += (price_point.relative_timestamp.unwrap() as f64 - x_mean)
+                * (price_point.price - y_mean);
+            denominator += (price_point.relative_timestamp.unwrap() as f64 - x_mean).powi(2);
         }
 
         let slope: f64 = if denominator != 0.0 {
@@ -168,7 +199,8 @@ impl PriceHistory {
         };
         let intercept: f64 = y_mean - slope * x_mean;
 
-        return slope * next_timestamp as f64 + intercept;
+        return slope * (next_relative_timestamp + self.prices.last().unwrap().relative_timestamp.unwrap()) as f64
+            + intercept;
     }
 
     pub fn predict_next_price_rsi(&self, period: usize) -> f64 {
@@ -388,9 +420,8 @@ impl PriceHistory {
             TradingStrategy::TrendFollowing => {
                 let sma = self.predict_next_price_sma(period);
                 let ema = self.predict_next_price_ema(period);
-                let regression_prediction = self.predict_next_price_regression(
-                    self.prices.last().unwrap().timestamp + prediction_interval_secs as i64,
-                );
+                let regression_prediction =
+                    self.predict_next_price_regression(prediction_interval_secs as i64);
                 predictions.push(sma);
                 predictions.push(ema);
                 predictions.push(regression_prediction);
