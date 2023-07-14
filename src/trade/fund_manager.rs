@@ -38,7 +38,7 @@ pub struct FundManagerConfig {
     trade_period: usize,
     leverage: f64,
     min_trading_amount: f64,
-    position_creation_inteval: u64,
+    position_creation_inteval: Option<u64>,
     buy_signal_threshold: f64,
     take_profit_threshold: f64,
     cut_loss_threshold: f64,
@@ -71,7 +71,7 @@ impl FundManager {
         initial_amount: f64,
         min_trading_amount: f64,
         initial_score: f64,
-        position_creation_inteval: u64,
+        position_creation_inteval: Option<u64>,
         buy_signal_threshold: f64,
         take_profit_threshold: f64,
         cut_loss_threshold: f64,
@@ -304,10 +304,14 @@ impl FundManager {
 
     fn can_create_new_position(&self, token_name: &str) -> bool {
         if let Some(position) = self.state.open_positions.get(token_name) {
+            if self.config.position_creation_inteval.is_none() {
+                return false;
+            }
             let current_time = chrono::Utc::now().timestamp();
             let time_since_last_creation = current_time - position.open_time;
 
-            return time_since_last_creation > (self.config.position_creation_inteval as i64);
+            return time_since_last_creation
+                > (self.config.position_creation_inteval.unwrap() as i64);
         }
         true
     }

@@ -214,6 +214,11 @@ async fn prepare_algorithm_trader_instance(
         None => None,
     };
 
+    let position_creation_inteval_period = match config.position_creation_inteval_period {
+        Some(period) => Some(period * config.interval),
+        None => None,
+    };
+
     let mut trader = ForcastTrader::new(
         config.chain_params.chain_name,
         trader_state.clone(),
@@ -232,7 +237,7 @@ async fn prepare_algorithm_trader_instance(
         config.max_price_size,
         config.interval,
         config.flash_crash_threshold,
-        config.position_creation_inteval_period * config.interval,
+        position_creation_inteval_period,
         config.reward_multiplier,
         config.penalty_multiplier,
         client_holder.clone(),

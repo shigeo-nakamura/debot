@@ -75,7 +75,7 @@ impl ForcastTrader {
         max_price_size: u32,
         interval: u64,
         flash_crash_threshold: f64,
-        position_creation_inteval: u64,
+        position_creation_inteval: Option<u64>,
         reward_multiplier: f64,
         penalty_multiplier: f64,
         db_client: Arc<Mutex<ClientHolder>>,

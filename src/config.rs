@@ -31,7 +31,7 @@ pub struct EnvConfig {
     pub medium_trade_period: usize,
     pub long_trade_period: usize,
     pub max_price_size: u32,
-    pub position_creation_inteval_period: u64,
+    pub position_creation_inteval_period: Option<u64>,
     pub flash_crash_threshold: f64,
     pub max_error_count: u32,
     pub reward_multiplier: f64,
@@ -141,8 +141,12 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let medium_trade_period = get_env_var("MEDIUM_TRADE_PEREIOD", "420")?; // 4200sec = 70min
         let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "1260")?; // 12600sec = 210min
         let max_price_size = get_env_var("MAX_PRICE_SIZE", "8640")?; // 86400sec = 1day
-        let position_creation_inteval_period =
-            get_env_var("POSITION_CREATION_INVERVAL_PERIOD", "360")?; // 1h
+
+        let position_creation_inteval_period_str =
+            env::var("POSITION_CREATION_INVERVAL_PERIOD").unwrap_or_default();
+        let position_creation_inteval_period: Option<u64> =
+            Some(u64::from_str(&position_creation_inteval_period_str).unwrap_or_default());
+
         let flash_crash_threshold = get_env_var("FLASH_CRASH_THRESHOLD", "0.95")?;
         let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;
         let reward_multiplier = get_env_var("REWARD_MULTIPLIER", "1.5")?;
