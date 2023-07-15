@@ -4,7 +4,7 @@ use crate::db::CounterType;
 use crate::trade::trade_position::State;
 
 use super::abstract_trader::ReasonForSell;
-use super::trade_position::StopLossStrategy;
+use super::trade_position::TakeProfitStrategy;
 use super::{DBHandler, PriceHistory, TradePosition, TradingStrategy};
 use std::collections::HashMap;
 use std::f64;
@@ -34,7 +34,7 @@ pub struct FundManagerState {
 pub struct FundManagerConfig {
     name: String,
     strategy: TradingStrategy,
-    stop_loss_strategy: StopLossStrategy,
+    stop_loss_strategy: TakeProfitStrategy,
     trade_period: usize,
     leverage: f64,
     min_trading_amount: f64,
@@ -65,7 +65,7 @@ impl FundManager {
         fund_name: &str,
         open_positions: Option<HashMap<String, TradePosition>>,
         strategy: TradingStrategy,
-        stop_loss_strategy: StopLossStrategy,
+        stop_loss_strategy: TakeProfitStrategy,
         trade_period: usize,
         leverage: f64,
         initial_amount: f64,

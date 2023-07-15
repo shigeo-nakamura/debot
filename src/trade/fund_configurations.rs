@@ -1,4 +1,4 @@
-use crate::trade::trade_position::StopLossStrategy;
+use crate::trade::trade_position::TakeProfitStrategy;
 
 use super::TradingStrategy;
 
@@ -10,7 +10,7 @@ pub fn get(
 ) -> Vec<(
     &'static str,
     TradingStrategy,
-    StopLossStrategy,
+    TakeProfitStrategy,
     usize,
     f64,
     f64,
@@ -24,7 +24,7 @@ pub fn get(
             (
                 "trend-follow-short-trailing",
                 TradingStrategy::TrendFollowing,
-                StopLossStrategy::TrailingStop,
+                TakeProfitStrategy::TrailingStop,
                 short_trade_period,
                 1.01, // buy_signal_threshold
                 1.01, // take_profit_threshold
@@ -36,7 +36,7 @@ pub fn get(
             (
                 "trend-follow-medium-trailing",
                 TradingStrategy::TrendFollowing,
-                StopLossStrategy::TrailingStop,
+                TakeProfitStrategy::TrailingStop,
                 medium_trade_period,
                 1.01, // buy_signal_threshold
                 1.01, // take_profit_threshold
@@ -48,7 +48,7 @@ pub fn get(
             (
                 "trend-follow-long-trailing",
                 TradingStrategy::TrendFollowing,
-                StopLossStrategy::TrailingStop,
+                TakeProfitStrategy::TrailingStop,
                 long_trade_period,
                 1.01, // buy_signal_threshold
                 1.01, // take_profit_threshold
@@ -62,7 +62,7 @@ pub fn get(
             (
                 "trend-follow-short-fixed",
                 TradingStrategy::TrendFollowing,
-                StopLossStrategy::FixedThreshold,
+                TakeProfitStrategy::FixedThreshold,
                 short_trade_period,
                 1.01, // buy_signal_threshold
                 1.01, // take_profit_threshold
@@ -74,7 +74,7 @@ pub fn get(
             (
                 "trend-follow-medium-fixed",
                 TradingStrategy::TrendFollowing,
-                StopLossStrategy::FixedThreshold,
+                TakeProfitStrategy::FixedThreshold,
                 medium_trade_period,
                 1.01, // buy_signal_threshold
                 1.01, // take_profit_threshold
@@ -86,7 +86,7 @@ pub fn get(
             (
                 "trend-follow-long-fixed",
                 TradingStrategy::TrendFollowing,
-                StopLossStrategy::FixedThreshold,
+                TakeProfitStrategy::FixedThreshold,
                 long_trade_period,
                 1.01, // buy_signal_threshold
                 1.01, // take_profit_threshold

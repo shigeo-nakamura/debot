@@ -8,7 +8,7 @@ use crate::utils::{DateTimeUtils, ToDateTimeString};
 use super::HasId;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub enum StopLossStrategy {
+pub enum TakeProfitStrategy {
     #[default]
     FixedThreshold,
     TrailingStop,
@@ -17,7 +17,7 @@ pub enum StopLossStrategy {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct TradePosition {
     pub id: Option<u32>,
-    pub strategy: StopLossStrategy,
+    pub strategy: TakeProfitStrategy,
     pub state: State,
     pub token_name: String,
     pub fund_name: String,
@@ -56,7 +56,7 @@ impl TradePosition {
     pub fn new(
         token_name: &str,
         fund_name: &str,
-        strategy: StopLossStrategy,
+        strategy: TakeProfitStrategy,
         average_buy_price: f64,
         take_profit_price: f64,
         cut_loss_price: f64,
@@ -94,8 +94,8 @@ impl TradePosition {
 
     pub fn do_take_profit(&self, sell_price: f64) -> bool {
         match self.strategy {
-            StopLossStrategy::FixedThreshold => sell_price >= self.take_profit_price,
-            StopLossStrategy::TrailingStop => {
+            TakeProfitStrategy::FixedThreshold => sell_price >= self.take_profit_price,
+            TakeProfitStrategy::TrailingStop => {
                 let current_distance = sell_price - self.average_buy_price;
                 if current_distance > self.trailing_distance {
                     let cut_loss_price = sell_price - self.trailing_distance;
