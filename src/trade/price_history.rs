@@ -169,24 +169,24 @@ impl PriceHistory {
         }
     }
 
-    fn predict_next_price_regression(&self, next_relative_timestamp: i64) -> f64 {
-        if self.first_timestamp.is_none() {
+    fn predict_next_price_regression(&self, next_relative_timestamp: i64, period: usize) -> f64 {
+        if self.first_timestamp.is_none() || self.prices.len() < period {
             return self.prices.last().unwrap().price;
         }
 
-        let x_mean: f64 = self
-            .prices
+        let recent_prices = &self.prices[self.prices.len() - period..];
+
+        let x_mean: f64 = recent_prices
             .iter()
             .map(|p| p.relative_timestamp.unwrap())
             .sum::<i64>() as f64
-            / self.prices.len() as f64;
-        let y_mean: f64 =
-            self.prices.iter().map(|p| p.price).sum::<f64>() / self.prices.len() as f64;
+            / period as f64;
+        let y_mean: f64 = recent_prices.iter().map(|p| p.price).sum::<f64>() / period as f64;
 
         let mut numerator: f64 = 0.0;
         let mut denominator: f64 = 0.0;
 
-        for price_point in &self.prices {
+        for price_point in recent_prices {
             numerator += (price_point.relative_timestamp.unwrap() as f64 - x_mean)
                 * (price_point.price - y_mean);
             denominator += (price_point.relative_timestamp.unwrap() as f64 - x_mean).powi(2);
@@ -199,7 +199,9 @@ impl PriceHistory {
         };
         let intercept: f64 = y_mean - slope * x_mean;
 
-        return slope * (next_relative_timestamp + self.prices.last().unwrap().relative_timestamp.unwrap()) as f64
+        return slope
+            * (next_relative_timestamp as f64
+                + recent_prices.last().unwrap().relative_timestamp.unwrap() as f64)
             + intercept;
     }
 
@@ -421,7 +423,7 @@ impl PriceHistory {
                 let sma = self.predict_next_price_sma(period);
                 let ema = self.predict_next_price_ema(period);
                 let regression_prediction =
-                    self.predict_next_price_regression(prediction_interval_secs as i64);
+                    self.predict_next_price_regression(prediction_interval_secs as i64, period);
                 predictions.push(sma);
                 predictions.push(ema);
                 predictions.push(regression_prediction);
