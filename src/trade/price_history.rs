@@ -152,7 +152,7 @@ impl PriceHistory {
 
         // If the prices vector is larger than the ATR period, calculate the ATR
         if self.prices.len() > self.atr_period {
-            self.atr = self.calculate_atr();
+            self.calculate_atr();
         }
 
         price_point

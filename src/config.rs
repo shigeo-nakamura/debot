@@ -145,7 +145,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let position_creation_inteval_period_str =
             env::var("POSITION_CREATION_INVERVAL_PERIOD").unwrap_or_default();
         let position_creation_inteval_period: Option<u64> =
-            Some(u64::from_str(&position_creation_inteval_period_str).unwrap_or_default());
+            position_creation_inteval_period_str.parse().ok();
 
         let flash_crash_threshold = get_env_var("FLASH_CRASH_THRESHOLD", "0.95")?;
         let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;

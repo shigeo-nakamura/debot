@@ -261,7 +261,7 @@ impl ForcastTrader {
 
         let diff = amount_in - amount_out;
         if diff / amount_in > slippage {
-            log::info!(
+            log::debug!(
                 "Price impact is high:{} amount_in = {:6.6}, amount_out = {:6.6}, diff = {:3.3}",
                 token_name,
                 amount_in,

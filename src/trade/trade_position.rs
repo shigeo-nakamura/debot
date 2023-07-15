@@ -119,8 +119,11 @@ impl TradePosition {
             self.average_buy_price = (self.average_buy_price * self.amount
                 + average_price * amount)
                 / (self.amount + amount);
-
-            log::info!("Updated open position :{:?}", self);
+            if amount == self.amount {
+                log::info!("Open new position :{:?}", self);
+            } else {
+                log::info!("Updated open position :{:?}", self);
+            }
         } else {
             self.amount -= amount;
             self.sold_price = Some(average_price);

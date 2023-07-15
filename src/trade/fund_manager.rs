@@ -199,7 +199,7 @@ impl FundManager {
                 let amount = self.state.amount * self.config.leverage;
 
                 if amount < self.config.min_trading_amount {
-                    log::info!(
+                    log::debug!(
                         "No enough fund left({}): remaining = {:6.3}, amount = {:6.3}, invested = {:6.3}",
                         self.name(),
                         self.state.amount,
