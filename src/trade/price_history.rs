@@ -124,10 +124,8 @@ impl PriceHistory {
 
         let mut price_point = PricePoint::new(price, timestamp);
 
-        let prev_timestamp = self.prices.last().map(|p| p.timestamp);
-
-        if let Some(prev_timestamp) = prev_timestamp {
-            let relative_time = price_point.timestamp - prev_timestamp;
+        if let Some(prev_point) = self.prices.last() {
+            let relative_time = price_point.timestamp - prev_point.timestamp;
             price_point.relative_timestamp = Some(relative_time);
         }
 
@@ -136,7 +134,11 @@ impl PriceHistory {
         }
 
         self.prices.push(price_point.clone());
-        self.update_ema(price, price_point.timestamp, prev_timestamp);
+        self.update_ema(
+            price,
+            price_point.timestamp,
+            self.prices.get(self.prices.len() - 2).map(|p| p.timestamp),
+        );
         self.update_market_status();
         self.last_price = price;
 
