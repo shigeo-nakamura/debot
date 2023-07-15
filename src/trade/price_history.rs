@@ -117,6 +117,10 @@ impl PriceHistory {
         }
     }
 
+    pub fn atr(&self) -> f64 {
+        self.atr
+    }
+
     pub fn add_price(&mut self, price: f64, timestamp: Option<i64>) -> PricePoint {
         if self.prices.len() == self.max_size {
             self.prices.remove(0);

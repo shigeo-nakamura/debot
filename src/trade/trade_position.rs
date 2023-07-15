@@ -15,9 +15,17 @@ pub enum TakeProfitStrategy {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub enum CutLossStrategy {
+    #[default]
+    FixedThreshold,
+    ATRStop,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct TradePosition {
     pub id: Option<u32>,
-    pub strategy: TakeProfitStrategy,
+    pub take_profit_strategy: TakeProfitStrategy,
+    pub cut_loss_strategy: CutLossStrategy,
     pub state: State,
     pub token_name: String,
     pub fund_name: String,
@@ -56,12 +64,14 @@ impl TradePosition {
     pub fn new(
         token_name: &str,
         fund_name: &str,
-        strategy: TakeProfitStrategy,
+        take_profit_strategy: TakeProfitStrategy,
+        cut_loss_strategy: CutLossStrategy,
         average_buy_price: f64,
         take_profit_price: f64,
         cut_loss_price: f64,
         amount: f64,
         amount_in_base_token: f64,
+        atr: f64,
     ) -> Self {
         log::debug!(
             "Created new open position for token: {}, average_buy_price: {:6.3}, take_profit_price: {:6.3}, cut_loss_price: {:6.3}",
@@ -70,9 +80,15 @@ impl TradePosition {
 
         let open_time = chrono::Utc::now().timestamp();
 
+        let modified_cut_loss_price = match cut_loss_strategy {
+            CutLossStrategy::FixedThreshold => cut_loss_price,
+            CutLossStrategy::ATRStop => average_buy_price - atr,
+        };
+
         Self {
             id: None,
-            strategy,
+            take_profit_strategy,
+            cut_loss_strategy,
             state: State::Open,
             token_name: token_name.to_owned(),
             fund_name: fund_name.to_owned(),
@@ -81,7 +97,7 @@ impl TradePosition {
             close_time_str: String::new(),
             average_buy_price,
             take_profit_price,
-            cut_loss_price: Arc::new(std::sync::Mutex::new(cut_loss_price)),
+            cut_loss_price: Arc::new(std::sync::Mutex::new(modified_cut_loss_price)),
             initial_cut_loss_price: cut_loss_price,
             trailing_distance: take_profit_price - average_buy_price,
             sold_price: None,
@@ -93,7 +109,7 @@ impl TradePosition {
     }
 
     pub fn do_take_profit(&self, sell_price: f64) -> bool {
-        match self.strategy {
+        match self.take_profit_strategy {
             TakeProfitStrategy::FixedThreshold => sell_price >= self.take_profit_price,
             TakeProfitStrategy::TrailingStop => {
                 let current_distance = sell_price - self.average_buy_price;

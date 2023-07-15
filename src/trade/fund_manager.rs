@@ -5,7 +5,7 @@ use crate::trade::trade_position::State;
 
 use super::abstract_trader::ReasonForSell;
 use super::trade_position::TakeProfitStrategy;
-use super::{DBHandler, PriceHistory, TradePosition, TradingStrategy};
+use super::{CutLossStrategy, DBHandler, PriceHistory, TradePosition, TradingStrategy};
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;
@@ -34,7 +34,8 @@ pub struct FundManagerState {
 pub struct FundManagerConfig {
     name: String,
     strategy: TradingStrategy,
-    stop_loss_strategy: TakeProfitStrategy,
+    take_profit_strategy: TakeProfitStrategy,
+    cut_loss_strategy: CutLossStrategy,
     trade_period: usize,
     leverage: f64,
     min_trading_amount: f64,
@@ -58,6 +59,7 @@ pub struct TradeProposal {
     pub amount: f64,
     pub fund_name: String,
     pub reason_for_sell: Option<ReasonForSell>,
+    pub atr: Option<f64>,
 }
 
 impl FundManager {
@@ -65,7 +67,8 @@ impl FundManager {
         fund_name: &str,
         open_positions: Option<HashMap<String, TradePosition>>,
         strategy: TradingStrategy,
-        stop_loss_strategy: TakeProfitStrategy,
+        take_profit_strategy: TakeProfitStrategy,
+        cut_loss_strategy: CutLossStrategy,
         trade_period: usize,
         leverage: f64,
         initial_amount: f64,
@@ -82,7 +85,8 @@ impl FundManager {
         let config = FundManagerConfig {
             name: fund_name.to_owned(),
             strategy,
-            stop_loss_strategy,
+            take_profit_strategy,
+            cut_loss_strategy,
             trade_period,
             leverage,
             min_trading_amount,
@@ -218,6 +222,7 @@ impl FundManager {
                     amount,
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell: None,
+                    atr: Some(history.atr()),
                 });
             }
         }
@@ -296,6 +301,7 @@ impl FundManager {
                     amount,
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell,
+                    atr: None,
                 });
             }
         }
@@ -323,6 +329,7 @@ impl FundManager {
         token_name: &str,
         amount_in: f64,
         amount_out: f64,
+        atr: Option<f64>,
     ) {
         log::debug!(
             "update_position: amount_in = {:6.6}, amount_out = {:6.6}",
@@ -358,12 +365,14 @@ impl FundManager {
                 let mut position = TradePosition::new(
                     token_name,
                     self.name(),
-                    self.config.stop_loss_strategy.clone(),
+                    self.config.take_profit_strategy.clone(),
+                    self.config.cut_loss_strategy.clone(),
                     average_price,
                     take_profit_price,
                     cut_loss_price,
                     amount_out,
                     amount_in,
+                    atr.unwrap(),
                 );
                 position.id = self
                     .state

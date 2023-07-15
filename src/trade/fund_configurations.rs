@@ -1,6 +1,6 @@
 use crate::trade::trade_position::TakeProfitStrategy;
 
-use super::TradingStrategy;
+use super::{CutLossStrategy, TradingStrategy};
 
 pub fn get(
     index: usize,
@@ -11,6 +11,7 @@ pub fn get(
     &'static str,
     TradingStrategy,
     TakeProfitStrategy,
+    CutLossStrategy,
     usize,
     f64,
     f64,
@@ -25,10 +26,11 @@ pub fn get(
                 "trend-follow-short-trailing",
                 TradingStrategy::TrendFollowing,
                 TakeProfitStrategy::TrailingStop,
+                CutLossStrategy::ATRStop,
                 short_trade_period,
                 1.01, // buy_signal_threshold
                 1.01, // take_profit_threshold
-                0.95, // loss_cut_threshold
+                0.99, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
                 0.1,  // Predict the price in 0.1 hour
@@ -37,10 +39,11 @@ pub fn get(
                 "trend-follow-medium-trailing",
                 TradingStrategy::TrendFollowing,
                 TakeProfitStrategy::TrailingStop,
+                CutLossStrategy::ATRStop,
                 medium_trade_period,
                 1.01, // buy_signal_threshold
                 1.01, // take_profit_threshold
-                0.95, // loss_cut_threshold
+                0.99, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
                 1.0,  // Predict the price in 1.0 hour
@@ -49,10 +52,11 @@ pub fn get(
                 "trend-follow-long-trailing",
                 TradingStrategy::TrendFollowing,
                 TakeProfitStrategy::TrailingStop,
+                CutLossStrategy::ATRStop,
                 long_trade_period,
                 1.01, // buy_signal_threshold
                 1.01, // take_profit_threshold
-                0.95, // loss_cut_threshold
+                0.99, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
                 3.0,  // Predict the price in 3.0 hour
@@ -63,10 +67,11 @@ pub fn get(
                 "trend-follow-short-fixed",
                 TradingStrategy::TrendFollowing,
                 TakeProfitStrategy::FixedThreshold,
+                CutLossStrategy::FixedThreshold,
                 short_trade_period,
                 1.01, // buy_signal_threshold
-                1.01, // take_profit_threshold
-                0.95, // loss_cut_threshold
+                1.02, // take_profit_threshold
+                0.99, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
                 0.1,  // Predict the price in 0.1 hour
@@ -75,10 +80,11 @@ pub fn get(
                 "trend-follow-medium-fixed",
                 TradingStrategy::TrendFollowing,
                 TakeProfitStrategy::FixedThreshold,
+                CutLossStrategy::FixedThreshold,
                 medium_trade_period,
                 1.01, // buy_signal_threshold
-                1.01, // take_profit_threshold
-                0.95, // loss_cut_threshold
+                1.02, // take_profit_threshold
+                0.99, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
                 1.0,  // Predict the price in 1.0 hour
@@ -87,10 +93,11 @@ pub fn get(
                 "trend-follow-long-fixed",
                 TradingStrategy::TrendFollowing,
                 TakeProfitStrategy::FixedThreshold,
+                CutLossStrategy::FixedThreshold,
                 long_trade_period,
                 1.01, // buy_signal_threshold
-                1.01, // take_profit_threshold
-                0.95, // loss_cut_threshold
+                1.02, // take_profit_threshold
+                0.99, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
                 3.0,  // Predict the price in 3.0 hour

@@ -133,7 +133,8 @@ impl ForcastTrader {
                 |(
                     name,
                     strategy,
-                    stop_loss_strategy,
+                    take_profit_strategy,
+                    cut_loss_strategy,
                     period,
                     buy_signal,
                     take_profit,
@@ -156,7 +157,8 @@ impl ForcastTrader {
                         &fund_name,
                         open_positions_map.get(&fund_name).cloned(),
                         strategy,
-                        stop_loss_strategy,
+                        take_profit_strategy,
+                        cut_loss_strategy,
                         period,
                         leverage,
                         initial_amount,
@@ -328,6 +330,7 @@ impl ForcastTrader {
                         predicted_price: Some(opportunity.predicted_price),
                         trader_name: opportunity.fund_name.to_owned(),
                         reason_for_sell: None,
+                        atr: opportunity.atr,
                     });
                 }
             }
@@ -370,6 +373,7 @@ impl ForcastTrader {
                         predicted_price: None,
                         trader_name: proposal.fund_name.to_owned(),
                         reason_for_sell: proposal.reason_for_sell,
+                        atr: None,
                     });
                 }
             }
@@ -642,6 +646,7 @@ impl AbstractTrader for ForcastTrader {
             let token_a = &self.tokens()[opportunity.token_index[0]];
             let token_b = &self.tokens()[opportunity.token_index[1]];
             let amount_in = opportunity.amounts[0];
+            let atr = opportunity.atr;
 
             let token_a_name = token_a.symbol_name();
             let token_b_name = token_b.symbol_name();
@@ -658,7 +663,7 @@ impl AbstractTrader for ForcastTrader {
             if is_buy_trade {
                 let amount_out = amount_in / current_price;
                 fund_manager
-                    .update_position(is_buy_trade, None, token_b_name, amount_in, amount_out)
+                    .update_position(is_buy_trade, None, token_b_name, amount_in, amount_out, atr)
                     .await;
             } else {
                 let amount_out = amount_in * current_price;
@@ -669,6 +674,7 @@ impl AbstractTrader for ForcastTrader {
                         token_a_name,
                         amount_in,
                         amount_out,
+                        atr,
                     )
                     .await;
 
