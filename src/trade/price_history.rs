@@ -300,7 +300,7 @@ impl PriceHistory {
 
         let x_mean: f64 = recent_prices
             .iter()
-            .map(|p| p.relative_timestamp.unwrap())
+            .filter_map(|p| p.relative_timestamp) // Only consider PricePoints with a defined relative_timestamp
             .sum::<i64>() as f64
             / period as f64;
         let y_mean: f64 = recent_prices.iter().map(|p| p.price).sum::<f64>() / period as f64;
@@ -309,9 +309,11 @@ impl PriceHistory {
         let mut denominator: f64 = 0.0;
 
         for price_point in recent_prices {
-            numerator += (price_point.relative_timestamp.unwrap() as f64 - x_mean)
-                * (price_point.price - y_mean);
-            denominator += (price_point.relative_timestamp.unwrap() as f64 - x_mean).powi(2);
+            if let Some(relative_timestamp) = price_point.relative_timestamp {
+                let x = relative_timestamp as f64 - x_mean;
+                numerator += x * (price_point.price - y_mean);
+                denominator += x.powi(2);
+            }
         }
 
         let slope: f64 = if denominator != 0.0 {
@@ -323,7 +325,11 @@ impl PriceHistory {
 
         return slope
             * (next_relative_timestamp as f64
-                + recent_prices.last().unwrap().relative_timestamp.unwrap() as f64)
+                + recent_prices
+                    .last()
+                    .unwrap()
+                    .relative_timestamp
+                    .unwrap_or(0) as f64)
             + intercept;
     }
 
