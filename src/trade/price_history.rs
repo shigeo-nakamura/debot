@@ -12,6 +12,15 @@ const RSI_OVERSOLD: f64 = 30.0;
 // Threshold for detecting flash crash based on RSI
 const RSI_FLASH_CRASH: f64 = 85.0;
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum MarketStatus {
+    StrongUp,
+    Up,
+    WeakUp,
+    Down,
+    Neutral,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PricePoint {
     pub timestamp: i64,
@@ -53,6 +62,10 @@ pub struct PriceHistory {
     interval: u64,
     flash_crash_threshold: f64,
     first_timestamp: Option<i64>,
+    market_status: MarketStatus,
+    prev_ema_short: f64,
+    prev_ema_medium: f64,
+    prev_ema_long: f64,
 }
 
 #[allow(dead_code)]
@@ -86,6 +99,10 @@ impl PriceHistory {
             interval,
             flash_crash_threshold,
             first_timestamp: None,
+            market_status: MarketStatus::Neutral,
+            prev_ema_short: 0.0,
+            prev_ema_medium: 0.0,
+            prev_ema_long: 0.0,
         }
     }
 
@@ -109,8 +126,36 @@ impl PriceHistory {
 
         self.prices.push(price_point.clone());
         self.update_ema(price, price_point.timestamp, prev_timestamp);
+        self.update_market_status();
         self.last_price = price;
         price_point
+    }
+
+    fn update_market_status(&mut self) {
+        if self.ema_short > self.ema_medium && self.ema_medium > self.ema_long {
+            if self.ema_short > self.prev_ema_short && self.ema_medium > self.prev_ema_medium {
+                self.market_status = MarketStatus::StrongUp;
+            } else {
+                self.market_status = MarketStatus::Up;
+            }
+        } else if self.ema_short > self.ema_medium && self.ema_medium <= self.ema_long {
+            if self.ema_short < self.prev_ema_short {
+                self.market_status = MarketStatus::Down;
+            } else {
+                self.market_status = MarketStatus::WeakUp;
+            }
+        } else if self.ema_short > self.ema_long && self.ema_short <= self.ema_medium {
+            self.market_status = MarketStatus::Up;
+        } else if self.ema_short < self.ema_medium {
+            self.market_status = MarketStatus::Down;
+        } else {
+            self.market_status = MarketStatus::Neutral;
+        }
+
+        // update previous EMAs
+        self.prev_ema_short = self.ema_short;
+        self.prev_ema_medium = self.ema_medium;
+        self.prev_ema_long = self.ema_long;
     }
 
     pub fn predict_next_price_ema(&self, period: usize) -> f64 {
