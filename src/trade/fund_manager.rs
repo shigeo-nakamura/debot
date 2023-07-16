@@ -380,6 +380,8 @@ impl FundManager {
                     .lock()
                     .await
                     .increment_counter(CounterType::Position);
+                log::info!("Open a new position: {:?}", position);
+
                 let position_cloned = position.clone();
                 self.state
                     .db_handler
