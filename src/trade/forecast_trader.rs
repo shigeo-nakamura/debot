@@ -243,7 +243,6 @@ impl ForcastTrader {
                     token_a_name,
                     *buy_price.unwrap(),
                     sell_price,
-                    self.base_trader.initial_amount() * self.base_trader.leverage(),
                     self.config.slippage,
                 ) {
                     continue;
@@ -269,13 +268,8 @@ impl ForcastTrader {
         Ok(token_pair_prices)
     }
 
-    fn is_price_impacted(
-        token_name: &str,
-        buy_price: f64,
-        sell_price: f64,
-        amount_in: f64,
-        slippage: f64,
-    ) -> bool {
+    fn is_price_impacted(token_name: &str, buy_price: f64, sell_price: f64, slippage: f64) -> bool {
+        let amount_in = 1.0;
         let amount_out = (buy_price * amount_in) * sell_price;
         if amount_out >= amount_in {
             return false;
