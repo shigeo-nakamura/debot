@@ -54,7 +54,6 @@ pub struct FundManager {
 
 pub struct TradeProposal {
     pub profit: f64,
-    pub price: f64,
     pub predicted_price: f64,
     pub amount: f64,
     pub fund_name: String,
@@ -165,7 +164,7 @@ impl FundManager {
     pub fn find_buy_opportunities(
         &self,
         token_name: &str,
-        price: f64,
+        sell_price: f64,
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Option<TradeProposal> {
         if let Some(history) = histories.get_mut(token_name) {
@@ -174,7 +173,7 @@ impl FundManager {
                 self.config.prediction_interval_secs,
                 self.config.strategy,
             );
-            let profit_ratio = (predicted_price - price) * 100.0 / price;
+            let profit_ratio = (predicted_price - sell_price) * 100.0 / sell_price;
 
             let color = match profit_ratio {
                 x if x > 0.0 => "\x1b[0;32m",
@@ -187,7 +186,7 @@ impl FundManager {
                 profit_ratio,
                 self.name(),
                 token_name,
-                price,
+                sell_price,
                 predicted_price,
             );
 
@@ -213,11 +212,10 @@ impl FundManager {
                     return None;
                 }
 
-                let profit = (predicted_price - price) * amount;
+                let profit = (predicted_price - sell_price) * amount;
 
                 return Some(TradeProposal {
                     profit,
-                    price,
                     predicted_price,
                     amount,
                     fund_name: self.config.name.to_owned(),
@@ -296,7 +294,6 @@ impl FundManager {
                 let profit = (sell_price - position.average_buy_price) * amount;
                 return Some(TradeProposal {
                     profit,
-                    price: sell_price,
                     predicted_price: sell_price,
                     amount,
                     fund_name: self.config.name.to_owned(),

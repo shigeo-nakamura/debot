@@ -1,6 +1,5 @@
 // algorithm_trader.rs
 
-use ethers::abi::Hash;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
@@ -233,18 +232,13 @@ impl ForcastTrader {
             if token_b_name == self.base_token().symbol_name() {
                 // Check if the prices are reliable
                 let sell_price = *price;
-                let key = (
-                    self.base_token().symbol_name().to_owned(),
-                    token_a_name.to_owned(),
-                    self.dexes()[self.config.dex_index].name().to_owned(),
-                );
-                let buy_price = token_pair_prices.get(&key);
+                let buy_price = self.get_buy_price(token_a_name, &token_pair_prices);
                 if buy_price.is_none() {
                     continue;
                 }
                 if Self::is_price_impacted(
                     token_a_name,
-                    *buy_price.unwrap(),
+                    buy_price.unwrap(),
                     sell_price,
                     self.config.slippage,
                 ) {
@@ -280,6 +274,19 @@ impl ForcastTrader {
         Ok(current_pricies)
     }
 
+    fn get_buy_price(
+        &self,
+        token_a_name: &str,
+        current_prices: &HashMap<(String, String, String), f64>,
+    ) -> Option<f64> {
+        let key = (
+            self.base_token().symbol_name().to_owned(),
+            token_a_name.to_owned(),
+            self.dexes()[self.config.dex_index].name().to_owned(),
+        );
+        current_prices.get(&key).copied()
+    }
+
     fn is_price_impacted(token_name: &str, buy_price: f64, sell_price: f64, slippage: f64) -> bool {
         let amount_in = 1.0;
         let amount_out = (buy_price * amount_in) * sell_price;
@@ -309,7 +316,7 @@ impl ForcastTrader {
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
 
-        for ((token_a_name, token_b_name, dex_name), price) in current_prices {
+        for ((token_a_name, token_b_name, dex_name), sell_price) in current_prices {
             if token_b_name != self.base_token().symbol_name() {
                 continue;
             }
@@ -324,7 +331,8 @@ impl ForcastTrader {
                 find_index(&self.dexes(), |dex| dex.name() == dex_name).ok_or("Dex not found")?;
 
             for fund_manager in self.state.fund_manager_map.values() {
-                let proposal = fund_manager.find_buy_opportunities(token_a_name, *price, histories);
+                let proposal =
+                    fund_manager.find_buy_opportunities(token_a_name, *sell_price, histories);
 
                 if let Some(opportunity) = proposal {
                     opportunities.push(TradeOpportunity {
@@ -333,7 +341,7 @@ impl ForcastTrader {
                         amounts: vec![opportunity.amount],
                         operation: Operation::Buy,
                         predicted_profit: Some(opportunity.profit),
-                        currect_price: Some(opportunity.price),
+                        currect_price: self.get_buy_price(token_a_name, current_prices),
                         predicted_price: Some(opportunity.predicted_price),
                         trader_name: opportunity.fund_name.to_owned(),
                         reason_for_sell: None,
@@ -352,7 +360,7 @@ impl ForcastTrader {
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
 
-        for ((token_a_name, token_b_name, dex_name), price) in current_prices {
+        for ((token_a_name, token_b_name, dex_name), sell_price) in current_prices {
             if token_b_name != self.base_token().symbol_name() {
                 continue;
             }
@@ -367,7 +375,7 @@ impl ForcastTrader {
                 find_index(&self.dexes(), |dex| dex.name() == dex_name).ok_or("Dex not found")?;
 
             for fund_manager in self.state.fund_manager_map.values() {
-                let proposal = fund_manager.find_sell_opportunities(token_a_name, *price);
+                let proposal = fund_manager.find_sell_opportunities(token_a_name, *sell_price);
 
                 if let Some(proposal) = proposal {
                     opportunities.push(TradeOpportunity {
@@ -376,7 +384,7 @@ impl ForcastTrader {
                         amounts: vec![proposal.amount],
                         operation: Operation::Sell,
                         predicted_profit: Some(proposal.profit),
-                        currect_price: Some(proposal.price),
+                        currect_price: Some(*sell_price),
                         predicted_price: None,
                         trader_name: proposal.fund_name.to_owned(),
                         reason_for_sell: proposal.reason_for_sell,
