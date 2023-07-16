@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::utils::ToDateTimeString;
+
 const SIGNAL_PERIOD: usize = 9;
 const MACD_THRESHOLD: f64 = 0.1;
 
@@ -24,14 +26,17 @@ pub enum MarketStatus {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PricePoint {
     pub timestamp: i64,
+    pub timestamp_str: String,
     relative_timestamp: Option<i64>,
     pub price: f64,
 }
 
 impl PricePoint {
     pub fn new(price: f64, timestamp: Option<i64>) -> Self {
+        let time = timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp());
         Self {
-            timestamp: timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp()),
+            timestamp: time,
+            timestamp_str: time.to_datetime_string(),
             relative_timestamp: None,
             price,
         }
@@ -42,6 +47,7 @@ impl Default for PricePoint {
     fn default() -> Self {
         Self {
             timestamp: 0,
+            timestamp_str: String::new(),
             relative_timestamp: None,
             price: 0.0,
         }

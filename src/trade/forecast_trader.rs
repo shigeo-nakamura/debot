@@ -227,13 +227,33 @@ impl ForcastTrader {
                 price
             );
 
-            // Update the price history and predict next prices
             if token_b_name == self.base_token().symbol_name() {
-                // sell price
+                // Check if the prices are reliable
+                let sell_price = *price;
+                let key = (
+                    self.base_token().symbol_name().to_owned(),
+                    token_a_name.to_owned(),
+                    self.dexes()[self.config.dex_index].name().to_owned(),
+                );
+                let buy_price = token_pair_prices.get(&key);
+                if buy_price.is_none() {
+                    continue;
+                }
+                if Self::is_price_impacted(
+                    token_a_name,
+                    *buy_price.unwrap(),
+                    sell_price,
+                    self.base_trader.initial_amount() * self.base_trader.leverage(),
+                    self.config.slippage,
+                ) {
+                    continue;
+                }
+
+                // Update the price history and predict next prices
                 let history = histories
                     .entry(token_a_name.clone())
                     .or_insert_with(|| self.create_price_history());
-                let price_point = history.add_price(*price, None);
+                let price_point = history.add_price(sell_price, None);
 
                 if self.base_trader.save_prices() {
                     self.base_trader
@@ -301,25 +321,6 @@ impl ForcastTrader {
                 let proposal = fund_manager.find_buy_opportunities(token_a_name, *price, histories);
 
                 if let Some(opportunity) = proposal {
-                    let key = (
-                        self.base_token().symbol_name().to_owned(),
-                        token_a_name.to_owned(),
-                        self.dexes()[self.config.dex_index].name().to_owned(),
-                    );
-                    let buy_price = current_prices.get(&key);
-                    if buy_price.is_none() {
-                        continue;
-                    }
-                    if Self::is_price_impacted(
-                        token_a_name,
-                        *buy_price.unwrap(),
-                        opportunity.price,
-                        opportunity.amount,
-                        self.config.slippage,
-                    ) {
-                        continue;
-                    }
-
                     opportunities.push(TradeOpportunity {
                         dex_index: vec![dex_index],
                         token_index: vec![token_b_index, token_a_index],
@@ -386,6 +387,32 @@ impl ForcastTrader {
         Ok(opportunities)
     }
 
+    pub async fn find_opportunities(
+        &self,
+        histories: &mut HashMap<String, PriceHistory>,
+    ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
+        let mut results: Vec<TradeOpportunity> = vec![];
+
+        if self.base_trader.state() != TraderState::Active {
+            log::warn!("{}'s state {:?}", self.name(), self.state());
+            return Ok(results);
+        }
+
+        // Get current prices
+        let current_prices: HashMap<(String, String, String), f64> =
+            self.get_current_prices(histories).await?;
+
+        self.check_positions(&current_prices);
+
+        let mut result_for_open = self.find_buy_opportunities(&current_prices, histories)?;
+        results.append(&mut result_for_open);
+
+        let mut result_for_close = self.find_sell_opportunities(&current_prices)?;
+        results.append(&mut result_for_close);
+
+        Ok(results)
+    }
+
     fn check_positions(&self, current_prices: &HashMap<(String, String, String), f64>) {
         for fund_manager in self.state.fund_manager_map.values() {
             fund_manager.check_positions(current_prices, self.base_token().symbol_name());
@@ -413,32 +440,6 @@ impl ForcastTrader {
         if self.state() == TraderState::Active {
             self.set_state(TraderState::Paused).await;
         }
-    }
-
-    pub async fn find_opportunities(
-        &self,
-        histories: &mut HashMap<String, PriceHistory>,
-    ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
-        let mut results: Vec<TradeOpportunity> = vec![];
-
-        if self.base_trader.state() != TraderState::Active {
-            log::warn!("{}'s state {:?}", self.name(), self.state());
-            return Ok(results);
-        }
-
-        // Get current prices
-        let current_prices: HashMap<(String, String, String), f64> =
-            self.get_current_prices(histories).await?;
-
-        self.check_positions(&current_prices);
-
-        let mut result_for_open = self.find_buy_opportunities(&current_prices, histories)?;
-        results.append(&mut result_for_open);
-
-        let mut result_for_close = self.find_sell_opportunities(&current_prices)?;
-        results.append(&mut result_for_close);
-
-        Ok(results)
     }
 
     pub async fn liquidate(&mut self, chain_name: &str) {
@@ -699,7 +700,7 @@ impl AbstractTrader for ForcastTrader {
         let base_token = &self.base_token();
         let dex = &self.dexes()[self.config.dex_index];
         let tokens = &self.tokens();
-        let amount = self.state.amount;
+        let amount = self.base_trader.initial_amount();
 
         // Get prices with base token / each token and each token / base token
         let mut get_price_futures = Vec::new();

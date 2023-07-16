@@ -23,7 +23,7 @@ pub fn get(
     let configs = vec![
         vec![
             (
-                "trend-follow-short-trailing",
+                "trend-follow-short-trailing-atr",
                 TradingStrategy::TrendFollowing,
                 TakeProfitStrategy::TrailingStop,
                 CutLossStrategy::ATRStop,
@@ -36,7 +36,7 @@ pub fn get(
                 0.1,  // Predict the price in 0.1 hour
             ),
             (
-                "trend-follow-medium-trailing",
+                "trend-follow-medium-trailing-atr",
                 TradingStrategy::TrendFollowing,
                 TakeProfitStrategy::TrailingStop,
                 CutLossStrategy::ATRStop,
@@ -49,7 +49,7 @@ pub fn get(
                 1.0,  // Predict the price in 1.0 hour
             ),
             (
-                "trend-follow-long-trailing",
+                "trend-follow-long-trailing-atr",
                 TradingStrategy::TrendFollowing,
                 TakeProfitStrategy::TrailingStop,
                 CutLossStrategy::ATRStop,
