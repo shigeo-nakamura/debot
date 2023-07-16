@@ -1,5 +1,6 @@
 // algorithm_trader.rs
 
+use ethers::abi::Hash;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
@@ -218,6 +219,8 @@ impl ForcastTrader {
         let token_pair_prices: HashMap<(String, String, String), f64> =
             self.get_token_pair_prices().await?;
 
+        let mut current_pricies: HashMap<(String, String, String), f64> = HashMap::new();
+
         for ((token_a_name, token_b_name, dex), price) in &token_pair_prices {
             log::debug!(
                 "Token pair price: {:<6}-{:<6}@{:<6}: {:12.6}",
@@ -248,6 +251,15 @@ impl ForcastTrader {
                     continue;
                 }
 
+                current_pricies.insert(
+                    (
+                        token_a_name.to_string(),
+                        token_b_name.to_string(),
+                        dex.to_string(),
+                    ),
+                    *price,
+                );
+
                 // Update the price history and predict next prices
                 let history = histories
                     .entry(token_a_name.clone())
@@ -265,7 +277,7 @@ impl ForcastTrader {
             }
         }
 
-        Ok(token_pair_prices)
+        Ok(current_pricies)
     }
 
     fn is_price_impacted(token_name: &str, buy_price: f64, sell_price: f64, slippage: f64) -> bool {
@@ -277,7 +289,7 @@ impl ForcastTrader {
 
         let diff = amount_in - amount_out;
         if diff / amount_in > slippage {
-            log::debug!(
+            log::info!(
                 "Price impact is high:{} amount_in = {:6.6}, amount_out = {:6.6}, diff = {:3.3}",
                 token_name,
                 amount_in,
