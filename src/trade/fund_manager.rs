@@ -222,7 +222,7 @@ impl FundManager {
                     amount,
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell: None,
-                    atr: Some(history.atr()),
+                    atr: history.atr(),
                 });
             }
         }
@@ -372,7 +372,7 @@ impl FundManager {
                     cut_loss_price,
                     amount_out,
                     amount_in,
-                    atr.unwrap(),
+                    atr,
                 );
                 position.id = self
                     .state

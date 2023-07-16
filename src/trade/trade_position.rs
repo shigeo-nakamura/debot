@@ -43,6 +43,7 @@ pub struct TradePosition {
     pub amount: f64,
     pub amount_in_base_token: f64,
     pub realized_pnl: Option<f64>,
+    pub atr: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -71,18 +72,20 @@ impl TradePosition {
         cut_loss_price: f64,
         amount: f64,
         amount_in_base_token: f64,
-        atr: f64,
+        atr: Option<f64>,
     ) -> Self {
         log::debug!(
-            "Created new open position for token: {}, average_buy_price: {:6.3}, take_profit_price: {:6.3}, cut_loss_price: {:6.3}",
-            token_name, average_buy_price, take_profit_price, cut_loss_price,
+            "Created new open position for token: {}, average_buy_price: {:6.3}, take_profit_price: {:6.3}, cut_loss_price: {:6.3}, atr:{:?}",
+            token_name, average_buy_price, take_profit_price, cut_loss_price, atr
         );
 
         let open_time = chrono::Utc::now().timestamp();
 
         let modified_cut_loss_price = match cut_loss_strategy {
             CutLossStrategy::FixedThreshold => cut_loss_price,
-            CutLossStrategy::ATRStop => average_buy_price - atr,
+            CutLossStrategy::ATRStop => {
+                average_buy_price - atr.unwrap_or(average_buy_price - cut_loss_price)
+            }
         };
 
         Self {
@@ -105,6 +108,7 @@ impl TradePosition {
             amount,
             amount_in_base_token,
             realized_pnl: None,
+            atr: atr,
         }
     }
 

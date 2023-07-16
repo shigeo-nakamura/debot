@@ -76,7 +76,7 @@ pub struct PriceHistory {
     high_price: f64,
     low_price: f64,
     // Add the ATR value over a given period
-    atr: f64,
+    atr: Option<f64>,
     // ATR period
     atr_period: usize,
 }
@@ -118,12 +118,12 @@ impl PriceHistory {
             prev_ema_long: 0.0,
             high_price: 0.0,
             low_price: 0.0,
-            atr: 0.0,
+            atr: None,
             atr_period: long_period,
         }
     }
 
-    pub fn atr(&self) -> f64 {
+    pub fn atr(&self) -> Option<f64> {
         self.atr
     }
 
@@ -174,9 +174,9 @@ impl PriceHistory {
         price_point
     }
 
-    fn calculate_atr(&mut self) -> f64 {
+    fn calculate_atr(&mut self) {
         if self.prices.len() < self.atr_period + 1 {
-            return 0.0; // Not enough data to calculate ATR
+            return; // Not enough data to calculate ATR
         }
 
         let current_high = self.high_price;
@@ -192,7 +192,7 @@ impl PriceHistory {
         .cloned()
         .fold(f64::NAN, f64::max);
 
-        if self.atr == 0.0 {
+        if self.atr == None {
             // This is the first time we calculate ATR, so we calculate the average TR over atr_period
             let tr_sum: f64 = self.prices[self.prices.len() - self.atr_period..]
                 .windows(2)
@@ -213,13 +213,13 @@ impl PriceHistory {
                     .fold(f64::NAN, f64::max)
                 })
                 .sum();
-            self.atr = tr_sum / self.atr_period as f64;
+            self.atr = Some(tr_sum / self.atr_period as f64);
         } else {
             // We update ATR using the formula
-            self.atr = (self.atr * (self.atr_period as f64 - 1.0) + tr) / self.atr_period as f64;
+            self.atr = Some(
+                (self.atr.unwrap() * (self.atr_period as f64 - 1.0) + tr) / self.atr_period as f64,
+            );
         }
-
-        self.atr
     }
 
     fn update_market_status(&mut self) {
