@@ -29,7 +29,7 @@ pub fn get(
                 CutLossStrategy::ATRStop,
                 short_trade_period,
                 1.01, // buy_signal_threshold
-                1.01, // take_profit_threshold
+                1.015, // take_profit_threshold
                 0.99, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
@@ -42,7 +42,7 @@ pub fn get(
                 CutLossStrategy::ATRStop,
                 medium_trade_period,
                 1.01, // buy_signal_threshold
-                1.01, // take_profit_threshold
+                1.015, // take_profit_threshold
                 0.99, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
@@ -55,7 +55,7 @@ pub fn get(
                 CutLossStrategy::ATRStop,
                 long_trade_period,
                 1.01, // buy_signal_threshold
-                1.01, // take_profit_threshold
+                1.015, // take_profit_threshold
                 0.99, // loss_cut_threshold
                 10.0, // initial_score
                 1.0,  // 1 day
