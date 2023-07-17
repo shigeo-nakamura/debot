@@ -54,7 +54,8 @@ pub struct FundManager {
 
 pub struct TradeProposal {
     pub profit: f64,
-    pub predicted_price: f64,
+    pub predicted_price: Option<f64>,
+    pub execution_price: f64,
     pub amount: f64,
     pub fund_name: String,
     pub reason_for_sell: Option<ReasonForSell>,
@@ -159,6 +160,7 @@ impl FundManager {
     pub fn find_buy_opportunities(
         &self,
         token_name: &str,
+        buy_price: f64,
         sell_price: f64,
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Option<TradeProposal> {
@@ -211,7 +213,8 @@ impl FundManager {
 
                 return Some(TradeProposal {
                     profit,
-                    predicted_price,
+                    predicted_price: Some(predicted_price),
+                    execution_price: buy_price,
                     amount,
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell: None,
@@ -289,7 +292,8 @@ impl FundManager {
                 let profit = (sell_price - position.average_buy_price) * amount;
                 return Some(TradeProposal {
                     profit,
-                    predicted_price: sell_price,
+                    predicted_price: None,
+                    execution_price: sell_price,
                     amount,
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell,

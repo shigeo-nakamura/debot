@@ -330,22 +330,32 @@ impl ForcastTrader {
             let dex_index =
                 find_index(&self.dexes(), |dex| dex.name() == dex_name).ok_or("Dex not found")?;
 
-            for fund_manager in self.state.fund_manager_map.values() {
-                let proposal =
-                    fund_manager.find_buy_opportunities(token_a_name, *sell_price, histories);
+            let buy_price = self.get_buy_price(token_a_name, current_prices);
+            if buy_price.is_none() {
+                log::warn!("buy price does not exist for {}", token_a_name);
+                continue;
+            }
 
-                if let Some(opportunity) = proposal {
+            for fund_manager in self.state.fund_manager_map.values() {
+                let proposal = fund_manager.find_buy_opportunities(
+                    token_a_name,
+                    buy_price.unwrap(),
+                    *sell_price,
+                    histories,
+                );
+
+                if let Some(proposal) = proposal {
                     opportunities.push(TradeOpportunity {
                         dex_index: vec![dex_index],
                         token_index: vec![token_b_index, token_a_index],
-                        amounts: vec![opportunity.amount],
+                        amounts: vec![proposal.amount],
                         operation: Operation::Buy,
-                        predicted_profit: Some(opportunity.profit),
-                        currect_price: self.get_buy_price(token_a_name, current_prices),
-                        predicted_price: Some(opportunity.predicted_price),
-                        trader_name: opportunity.fund_name.to_owned(),
+                        predicted_profit: Some(proposal.profit),
+                        currect_price: Some(proposal.execution_price),
+                        predicted_price: proposal.predicted_price,
+                        trader_name: proposal.fund_name.to_owned(),
                         reason_for_sell: None,
-                        atr: opportunity.atr,
+                        atr: proposal.atr,
                     });
                 }
             }
@@ -384,8 +394,8 @@ impl ForcastTrader {
                         amounts: vec![proposal.amount],
                         operation: Operation::Sell,
                         predicted_profit: Some(proposal.profit),
-                        currect_price: Some(*sell_price),
-                        predicted_price: None,
+                        currect_price: Some(proposal.execution_price),
+                        predicted_price: proposal.predicted_price,
                         trader_name: proposal.fund_name.to_owned(),
                         reason_for_sell: proposal.reason_for_sell,
                         atr: None,
