@@ -145,7 +145,6 @@ impl BaseTrader {
     }
 
     pub async fn get_amount_of_token(
-        &self,
         owner: Address,
         token: &Box<dyn Token>,
     ) -> Result<f64, Box<dyn Error + Send + Sync>> {
@@ -170,25 +169,21 @@ impl BaseTrader {
         Ok(())
     }
 
+    pub async fn get_initial_amount(
+        token: &Box<dyn Token>,
+        owner: Address,
+        min_managed_amount: f64,
+    ) -> Result<f64, Box<dyn Error + Send + Sync>> {
+        let base_token_amount = Self::get_amount_of_token(owner, token).await?;
+        log::info!("base_token_amount = {:6.3}", base_token_amount);
+        Ok(base_token_amount)
+    }
+
     pub async fn init(
         &mut self,
         owner: Address,
         min_managed_amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        for token in self.tokens.iter() {
-            if token.symbol_name() == self.base_token.symbol_name() {
-                let base_token_amount = self.get_amount_of_token(owner, token).await?;
-                if base_token_amount < min_managed_amount {
-                    if !self.dry_run {
-                        panic!("Not enough amount of base token");
-                    }
-                }
-                log::info!("base_token_amount = {:6.3}", base_token_amount);
-                self.initial_amount = min_managed_amount;
-                break;
-            }
-        }
-
         for token in self.tokens.iter() {
             for dex in self.dexes.iter() {
                 // Check the allowed amount
@@ -318,7 +313,7 @@ impl BaseTrader {
         let mut total_amount_in_base_token = 0.0;
 
         for token in self.tokens().iter() {
-            if let Ok(amount) = self.get_amount_of_token(*wallet_address, token).await {
+            if let Ok(amount) = Self::get_amount_of_token(*wallet_address, token).await {
                 let dex_arc = Arc::new(self.dexes[0].clone());
                 let token_arc = Arc::new(token.clone());
                 let base_token_arc = Arc::new(self.base_token.clone());
@@ -441,12 +436,6 @@ pub trait AbstractTrader {
     async fn get_token_pair_prices(
         &self,
     ) -> Result<HashMap<(String, String, String), f64>, Box<dyn Error + Send + Sync>>;
-
-    async fn get_amount_of_token(
-        &self,
-        owner: Address,
-        token: &Box<dyn Token>,
-    ) -> Result<f64, Box<dyn Error + Send + Sync>>;
 
     async fn transfer_token(
         &self,

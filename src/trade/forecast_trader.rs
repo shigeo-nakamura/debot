@@ -127,6 +127,8 @@ impl ForcastTrader {
             transaction_log.clone(),
         )));
 
+        let amount_per_fund = initial_amount / dexes.len() as f64;
+
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
             .map(
@@ -161,7 +163,7 @@ impl ForcastTrader {
                         cut_loss_strategy,
                         period,
                         leverage,
-                        initial_amount,
+                        amount_per_fund,
                         min_trading_amount,
                         *intial_score,
                         position_creation_inteval,
@@ -176,9 +178,7 @@ impl ForcastTrader {
             )
             .collect();
 
-        let mut total_fund_amount = 0.0;
         for fund_manager in fund_managers {
-            total_fund_amount += fund_manager.amount();
             state
                 .fund_manager_map
                 .insert(fund_manager.name().to_owned(), fund_manager);
@@ -194,7 +194,7 @@ impl ForcastTrader {
                 name,
                 trader_state.clone(),
                 leverage,
-                total_fund_amount,
+                initial_amount,
                 allowance_factor,
                 tokens,
                 base_token,
@@ -471,13 +471,14 @@ impl ForcastTrader {
     }
 
     pub async fn rebalance(&mut self, owner: Address, force_rebalance: bool) {
-        let base_token_amount = match self.get_amount_of_token(owner, &self.base_token()).await {
-            Ok(amount) => amount,
-            Err(e) => {
-                log::error!("rebalance failed: {:?}", e);
-                return;
-            }
-        };
+        let base_token_amount =
+            match BaseTrader::get_amount_of_token(owner, &self.base_token()).await {
+                Ok(amount) => amount,
+                Err(e) => {
+                    log::error!("rebalance failed: {:?}", e);
+                    return;
+                }
+            };
 
         if base_token_amount == 0.0 {
             log::warn!("rebalance: No balance left in {}", self.config.chain_name);
@@ -805,14 +806,6 @@ impl AbstractTrader for ForcastTrader {
         min_managed_amount: f64,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.base_trader.init(owner, min_managed_amount).await
-    }
-
-    async fn get_amount_of_token(
-        &self,
-        owner: Address,
-        token: &Box<dyn Token>,
-    ) -> Result<f64, Box<dyn Error + Send + Sync>> {
-        self.base_trader.get_amount_of_token(owner, token).await
     }
 
     async fn transfer_token(

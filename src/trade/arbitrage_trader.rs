@@ -438,14 +438,6 @@ impl AbstractTrader for ArbitrageTrader {
         self.base_trader.init(owner, min_managed_amount).await
     }
 
-    async fn get_amount_of_token(
-        &self,
-        owner: Address,
-        token: &Box<dyn Token>,
-    ) -> Result<f64, Box<dyn Error + Send + Sync>> {
-        self.base_trader.get_amount_of_token(owner, token).await
-    }
-
     async fn transfer_token(
         &self,
         recipient: Address,

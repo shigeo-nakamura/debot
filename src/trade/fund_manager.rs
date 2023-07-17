@@ -103,13 +103,8 @@ impl FundManager {
             None => HashMap::new(),
         };
 
-        let mut amount = initial_amount;
-        for open_position in open_positions.values() {
-            amount -= open_position.amount_in_base_token;
-        }
-
         let state = FundManagerState {
-            amount: amount,
+            amount: initial_amount,
             open_positions,
             fund_state: Arc::new(std::sync::Mutex::new(FundState::Active)),
             score: initial_score,

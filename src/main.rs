@@ -8,9 +8,11 @@ use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Address;
 use ethers_middleware::providers::{Http, Provider};
 use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
+use futures::TryFutureExt;
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
+use trade::abstract_trader::BaseTrader;
 use trade::price_history::PricePoint;
 use trade::{ForcastTrader, PriceHistory, TradePosition, TransactionLog};
 
@@ -201,7 +203,7 @@ async fn prepare_algorithm_trader_instance(
         .expect("Error creating tokens");
 
     // Create a base token
-    let usdt_token = create_base_token(wallet_and_provider.clone(), &config.chain_params)
+    let base_token = create_base_token(wallet_and_provider.clone(), &config.chain_params)
         .await
         .expect("Error creating a base token");
 
@@ -219,15 +221,26 @@ async fn prepare_algorithm_trader_instance(
         None => None,
     };
 
+    // Get base token amount
+    let mut initial_amount = BaseTrader::get_amount_of_token(wallet.address(), &base_token)
+        .await
+        .unwrap_or(config.min_managed_amount);
+    if initial_amount < config.min_managed_amount {
+        log::warn!("No enough initial amount: {:6.3}", initial_amount);
+        if config.dry_run {
+            initial_amount = config.min_managed_amount;
+        }
+    }
+
     let mut trader = ForcastTrader::new(
         config.chain_params.chain_name,
         trader_state.clone(),
         config.leverage,
-        config.min_managed_amount,
+        initial_amount,
         config.min_trading_amount,
         config.allowance_factor,
         tokens.clone(),
-        usdt_token.clone(),
+        base_token.clone(),
         dexes.clone(),
         config.dry_run,
         config.chain_params.gas,
@@ -412,16 +425,14 @@ async fn manage_token_amount<T: AbstractTrader>(
         return None;
     }
 
-    let current_amount = match trader
-        .get_amount_of_token(*wallet_address, &trader.base_token())
-        .await
-    {
-        Ok(amount) => amount,
-        Err(e) => {
-            log::error!("get_current_token_amount: {:?}", e);
-            return None;
-        }
-    };
+    let current_amount =
+        match BaseTrader::get_amount_of_token(*wallet_address, &trader.base_token()).await {
+            Ok(amount) => amount,
+            Err(e) => {
+                log::error!("get_current_token_amount: {:?}", e);
+                return None;
+            }
+        };
 
     if config.treasury.is_some() && current_amount > config.max_managed_amount {
         let treasury = config.treasury.unwrap();
