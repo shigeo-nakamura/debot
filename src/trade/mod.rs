@@ -18,6 +18,7 @@ pub use abstract_trader::TraderState;
 pub use arbitrage_trader::ArbitrageTrader;
 pub use db_handler::DBHandler;
 pub use forecast_trader::ForcastTrader;
+pub use forecast_trader::Prices;
 pub use fund_manager::FundManager;
 pub use price_history::PriceHistory;
 pub use price_history::TradingStrategy;
