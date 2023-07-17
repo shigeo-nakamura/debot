@@ -8,7 +8,6 @@ use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Address;
 use ethers_middleware::providers::{Http, Provider};
 use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
-use futures::TryFutureExt;
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
@@ -225,6 +224,7 @@ async fn prepare_algorithm_trader_instance(
     let mut initial_amount = BaseTrader::get_amount_of_token(wallet.address(), &base_token)
         .await
         .unwrap_or(config.min_managed_amount);
+    log::info!("initia_amount = {:6.3}", initial_amount);
     if initial_amount < config.min_managed_amount {
         log::warn!("No enough initial amount: {:6.3}", initial_amount);
         if config.dry_run {

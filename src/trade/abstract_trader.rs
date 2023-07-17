@@ -169,16 +169,6 @@ impl BaseTrader {
         Ok(())
     }
 
-    pub async fn get_initial_amount(
-        token: &Box<dyn Token>,
-        owner: Address,
-        min_managed_amount: f64,
-    ) -> Result<f64, Box<dyn Error + Send + Sync>> {
-        let base_token_amount = Self::get_amount_of_token(owner, token).await?;
-        log::info!("base_token_amount = {:6.3}", base_token_amount);
-        Ok(base_token_amount)
-    }
-
     pub async fn init(
         &mut self,
         owner: Address,
