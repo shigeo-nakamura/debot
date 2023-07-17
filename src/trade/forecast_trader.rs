@@ -245,6 +245,7 @@ impl ForcastTrader {
 
                 if Self::is_price_impacted(
                     token_a_name,
+                    dex,
                     buy_price,
                     sell_price,
                     self.config.slippage,
@@ -293,7 +294,13 @@ impl ForcastTrader {
         current_prices.get(&key).copied()
     }
 
-    fn is_price_impacted(token_name: &str, buy_price: f64, sell_price: f64, slippage: f64) -> bool {
+    fn is_price_impacted(
+        token_name: &str,
+        dex_name: &str,
+        buy_price: f64,
+        sell_price: f64,
+        slippage: f64,
+    ) -> bool {
         let amount_in = 1.0;
         let amount_out = (buy_price * amount_in) * sell_price;
         if amount_out >= amount_in {
@@ -303,8 +310,9 @@ impl ForcastTrader {
         let diff = amount_in - amount_out;
         if diff / amount_in > slippage {
             log::info!(
-                "Price impact is high:{} amount_in = {:6.6}, amount_out = {:6.6}, diff = {:3.3}",
+                "Price impact is high:{}@{} amount_in = {:6.6}, amount_out = {:6.6}, diff = {:3.3}",
                 token_name,
+                dex_name,
                 amount_in,
                 amount_out,
                 diff
