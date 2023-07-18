@@ -313,7 +313,7 @@ impl ForcastTrader {
         let diff = (buy_price - sell_price) / sell_price;
 
         if diff > spread {
-            log::debug!(
+            log::trace!(
                 "Price spread is wide: {}@{} buy_price = {:6.6}, sell_price = {:6.6}, spread = {:3.3}%",
                 token_name,
                 dex_name,
