@@ -256,7 +256,7 @@ async fn prepare_algorithm_trader_instance(
         client_holder.clone(),
         transaction_log,
         config.dex_index,
-        config.slippage,
+        config.spread,
         open_positions_map,
         prev_balance,
         scores,

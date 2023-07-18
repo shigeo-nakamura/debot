@@ -46,7 +46,7 @@ pub struct ForcastTraderConfig {
     reward_multiplier: f64,
     penalty_multiplier: f64,
     dex_index: usize,
-    slippage: f64,
+    spread: f64,
 }
 
 pub struct ForcastTraderState {
@@ -86,7 +86,7 @@ impl ForcastTrader {
         db_client: Arc<Mutex<ClientHolder>>,
         transaction_log: Arc<TransactionLog>,
         dex_index: usize,
-        slippage: f64,
+        spread: f64,
         open_positions_map: HashMap<String, HashMap<String, TradePosition>>,
         prev_balance: Option<f64>,
         latest_scores: HashMap<String, HashMap<String, f64>>,
@@ -103,7 +103,7 @@ impl ForcastTrader {
             reward_multiplier,
             penalty_multiplier,
             dex_index,
-            slippage,
+            spread,
         };
 
         let name = format!("{}-{}-AlgoTrader", chain_name, dex_index);
@@ -243,13 +243,8 @@ impl ForcastTrader {
                 }
                 let buy_price = buy_price.unwrap();
 
-                if Self::is_price_impacted(
-                    token_a_name,
-                    dex,
-                    buy_price,
-                    sell_price,
-                    self.config.slippage,
-                ) {
+                if Self::check_spread(token_a_name, dex, buy_price, sell_price, self.config.spread)
+                {
                     continue;
                 }
 
@@ -303,12 +298,12 @@ impl ForcastTrader {
         }
     }
 
-    fn is_price_impacted(
+    fn check_spread(
         token_name: &str,
         dex_name: &str,
         buy_price: f64,
         sell_price: f64,
-        slippage: f64,
+        spread: f64,
     ) -> bool {
         let amount_in = 1.0;
         let amount_out = (buy_price * amount_in) * sell_price;
@@ -317,14 +312,14 @@ impl ForcastTrader {
         }
 
         let diff = amount_in - amount_out;
-        if diff / amount_in > slippage {
-            log::info!(
-                "Price impact is high:{}@{} amount_in = {:6.6}, amount_out = {:6.6}, diff = {:3.3}",
+        if diff / amount_in > spread {
+            log::debug!(
+                "Price spread is wide: {}@{} amount_in = {:6.6}, amount_out = {:6.6}, spread = {:3.3}%",
                 token_name,
                 dex_name,
                 amount_in,
                 amount_out,
-                diff
+                diff * 100.0,
             );
             return true;
         }
