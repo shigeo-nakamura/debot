@@ -243,8 +243,13 @@ impl ForcastTrader {
                 }
                 let buy_price = buy_price.unwrap();
 
-                if Self::check_spread(token_a_name, dex, buy_price, sell_price, self.config.spread)
-                {
+                if Self::is_wide_spread(
+                    token_a_name,
+                    dex,
+                    buy_price,
+                    sell_price,
+                    self.config.spread,
+                ) {
                     continue;
                 }
 
@@ -298,27 +303,22 @@ impl ForcastTrader {
         }
     }
 
-    fn check_spread(
+    fn is_wide_spread(
         token_name: &str,
         dex_name: &str,
         buy_price: f64,
         sell_price: f64,
         spread: f64,
     ) -> bool {
-        let amount_in = 1.0;
-        let amount_out = (buy_price * amount_in) * sell_price;
-        if amount_out >= amount_in {
-            return false;
-        }
+        let diff = (buy_price - sell_price) / sell_price;
 
-        let diff = amount_in - amount_out;
-        if diff / amount_in > spread {
+        if diff > spread {
             log::debug!(
-                "Price spread is wide: {}@{} amount_in = {:6.6}, amount_out = {:6.6}, spread = {:3.3}%",
+                "Price spread is wide: {}@{} buy_price = {:6.6}, sell_price = {:6.6}, spread = {:3.3}%",
                 token_name,
                 dex_name,
-                amount_in,
-                amount_out,
+                buy_price,
+                sell_price,
                 diff * 100.0,
             );
             return true;
