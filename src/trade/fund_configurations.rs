@@ -64,8 +64,8 @@ pub fn get(
         ],
         vec![
             (
-                "trend-follow-short-fixed",
-                TradingStrategy::TrendFollowing,
+                "contrarian-short-fixed",
+                TradingStrategy::Contrarian,
                 TakeProfitStrategy::FixedThreshold,
                 CutLossStrategy::FixedThreshold,
                 short_trade_period,
@@ -77,8 +77,8 @@ pub fn get(
                 0.1,  // Predict the price in 0.1 hour
             ),
             (
-                "trend-follow-medium-fixed",
-                TradingStrategy::TrendFollowing,
+                "contrarian-medium-fixed",
+                TradingStrategy::Contrarian,
                 TakeProfitStrategy::FixedThreshold,
                 CutLossStrategy::FixedThreshold,
                 medium_trade_period,
@@ -90,8 +90,8 @@ pub fn get(
                 1.0,  // Predict the price in 1.0 hour
             ),
             (
-                "trend-follow-long-fixed",
-                TradingStrategy::TrendFollowing,
+                "contrarian-long-fixed",
+                TradingStrategy::Contrarian,
                 TakeProfitStrategy::FixedThreshold,
                 CutLossStrategy::FixedThreshold,
                 long_trade_period,
