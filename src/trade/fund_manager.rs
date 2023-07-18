@@ -100,7 +100,12 @@ impl FundManager {
         };
 
         let open_positions = match open_positions {
-            Some(positions) => positions,
+            Some(mut positions) => {
+                for (_token_name, position) in positions.iter_mut() {
+                    position.cut_loss_price = Arc::new(std::sync::Mutex::new(position.initial_cut_loss_price));
+                }
+                positions
+            },
             None => HashMap::new(),
         };
 
