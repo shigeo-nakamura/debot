@@ -25,7 +25,7 @@ async fn get_last_id<T: Default + Entity + HasId>(db: &Database) -> u32 {
     match search_items(db, &item).await {
         Ok(mut items) => items.pop().and_then(|item| item.id()).unwrap_or(0),
         Err(e) => {
-            log::warn!("get_last_transaction_id: {:?}", e);
+            log::warn!("get_last_id: {:?}", e);
             0
         }
     }
