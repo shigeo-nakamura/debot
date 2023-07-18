@@ -124,9 +124,24 @@ impl DBHandler {
             let mut item = PerformanceLog::default();
             item.id = self.increment_counter(CounterType::Performance);
             item.trader_name = trader_name.to_owned();
-            item.scores = scores;
+            item.scores = scores.clone();
             if let Err(e) = TransactionLog::update_performance(&db, item).await {
                 log::error!("log_performance: {:?}", e);
+            }
+
+            // store the latest scores
+            if let Err(e) = TransactionLog::update_app_state(
+                &db,
+                None,
+                &String::new(),
+                None,
+                false,
+                None,
+                Some((trader_name.to_string(), scores)),
+            )
+            .await
+            {
+                log::warn!("log_performance: {:?}", e);
             }
         }
     }
