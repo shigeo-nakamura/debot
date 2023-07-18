@@ -14,7 +14,7 @@ const RSI_OVERSOLD: f64 = 30.0;
 // Threshold for detecting flash crash based on RSI
 const RSI_FLASH_CRASH: f64 = 85.0;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum MarketStatus {
     StrongUp,
     Up,
@@ -121,6 +121,10 @@ impl PriceHistory {
             atr: None,
             atr_period: long_period,
         }
+    }
+
+    pub fn market_status(&self) -> MarketStatus {
+        self.market_status
     }
 
     pub fn atr(&self) -> Option<f64> {

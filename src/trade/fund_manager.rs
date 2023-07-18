@@ -102,10 +102,11 @@ impl FundManager {
         let open_positions = match open_positions {
             Some(mut positions) => {
                 for (_token_name, position) in positions.iter_mut() {
-                    position.cut_loss_price = Arc::new(std::sync::Mutex::new(position.initial_cut_loss_price));
+                    position.cut_loss_price =
+                        Arc::new(std::sync::Mutex::new(position.initial_cut_loss_price));
                 }
                 positions
-            },
+            }
             None => HashMap::new(),
         };
 
@@ -162,6 +163,16 @@ impl FundManager {
         *self.state.fund_state.lock().unwrap() == FundState::Liquidated
     }
 
+    fn risk_reward(history: &PriceHistory) -> f64 {
+        match history.market_status() {
+            super::price_history::MarketStatus::StrongUp => 2.0,
+            super::price_history::MarketStatus::Up => 1.5,
+            super::price_history::MarketStatus::WeakUp => 1.2,
+            super::price_history::MarketStatus::Down => 0.5,
+            super::price_history::MarketStatus::Neutral => 1.0,
+        }
+    }
+
     pub fn find_buy_opportunities(
         &self,
         token_name: &str,
@@ -202,7 +213,7 @@ impl FundManager {
                     return None;
                 }
 
-                let amount = self.state.amount * self.config.leverage;
+                let amount = self.state.amount * self.config.leverage * Self::risk_reward(history);
 
                 if amount < self.config.min_trading_amount {
                     log::debug!(
