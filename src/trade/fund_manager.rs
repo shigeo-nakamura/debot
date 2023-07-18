@@ -164,6 +164,7 @@ impl FundManager {
     }
 
     fn risk_reward(history: &PriceHistory) -> f64 {
+        log::info!("risk_reward = {:?}", history.market_status());
         match history.market_status() {
             super::price_history::MarketStatus::StrongUp => 2.0,
             super::price_history::MarketStatus::Up => 1.5,
