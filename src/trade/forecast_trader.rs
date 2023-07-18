@@ -291,7 +291,16 @@ impl ForcastTrader {
             token_a_name.to_owned(),
             self.dexes()[self.config.dex_index].name().to_owned(),
         );
-        current_prices.get(&key).copied()
+        match current_prices.get(&key).copied() {
+            Some(price) => {
+                if price == 0.0 {
+                    None
+                } else {
+                    Some(1.0 / price)
+                }
+            }
+            None => None,
+        }
     }
 
     fn is_price_impacted(

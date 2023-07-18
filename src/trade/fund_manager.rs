@@ -170,7 +170,7 @@ impl FundManager {
                 self.config.prediction_interval_secs,
                 self.config.strategy,
             );
-            let profit_ratio = (predicted_price - sell_price) * 100.0 / sell_price;
+            let profit_ratio = (predicted_price - buy_price) * 100.0 / buy_price;
 
             let color = match profit_ratio {
                 x if x > 0.0 => "\x1b[0;32m",
@@ -178,11 +178,12 @@ impl FundManager {
                 _ => "\x1b[0;90m",
             };
             log::debug!(
-                "{} {:3.3}%\x1b[0m {} \x1b[0;34m{:<6}\x1b[0m current: {:6.5}, predict: {:6.5}",
+                "{} {:3.3}%\x1b[0m {} \x1b[0;34m{:<6}\x1b[0m current: {:6.5} - {:6.5}, predict: {:6.5}",
                 color,
                 profit_ratio,
                 self.name(),
                 token_name,
+                buy_price,
                 sell_price,
                 predicted_price,
             );
@@ -209,7 +210,7 @@ impl FundManager {
                     return None;
                 }
 
-                let profit = (predicted_price - sell_price) * amount;
+                let profit = (predicted_price - buy_price) * amount;
 
                 return Some(TradeProposal {
                     profit,

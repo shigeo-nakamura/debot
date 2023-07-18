@@ -118,7 +118,7 @@ lazy_static! {
             // ("USDT", POLYGON_USDT_ADDRESS),
             // ("WBTC", POLYGON_WBTC_ADDRESS),
             ("WETH", POLYGON_WETH_ADDRESS),
-            ("DAI", POLYGON_DAI_ADDRESS),
+            // ("DAI", POLYGON_DAI_ADDRESS),
             // ("MAI", POLYGON_MAI_ADDRESS),
             ("WMATIC", POLYGON_WMATIC_ADDRESS),
             // ("AAVE", POLYGON_AAVE_ADDRESS),
