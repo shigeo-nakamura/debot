@@ -179,9 +179,17 @@ impl PriceHistory {
             return; // Not enough data to calculate ATR
         }
 
-        let current_high = self.high_price;
-        let current_low = self.low_price;
-        let previous_close = self.prices[self.prices.len() - 2].price;
+        let atr_prices = &self.prices[self.prices.len() - self.atr_period..];
+
+        let current_high = atr_prices
+            .iter()
+            .map(|p| p.price)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let current_low = atr_prices
+            .iter()
+            .map(|p| p.price)
+            .fold(f64::INFINITY, f64::min);
+        let previous_close = self.prices[self.prices.len() - self.atr_period - 1].price;
 
         let tr = [
             current_high - current_low,
@@ -194,10 +202,13 @@ impl PriceHistory {
 
         if self.atr == None {
             // This is the first time we calculate ATR, so we calculate the average TR over atr_period
-            let tr_sum: f64 = self.prices[self.prices.len() - self.atr_period..]
+            let tr_sum: f64 = atr_prices
                 .windows(2)
                 .map(|window| {
-                    let high = window.iter().map(|pp| pp.price).fold(f64::NAN, f64::max);
+                    let high = window
+                        .iter()
+                        .map(|pp| pp.price)
+                        .fold(f64::NEG_INFINITY, f64::max);
                     let low = window
                         .iter()
                         .map(|pp| pp.price)
