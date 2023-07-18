@@ -84,7 +84,12 @@ impl TradePosition {
         let modified_cut_loss_price = match cut_loss_strategy {
             CutLossStrategy::FixedThreshold => cut_loss_price,
             CutLossStrategy::ATRStop => {
-                average_buy_price - atr.unwrap_or(average_buy_price - cut_loss_price)
+                let distance = average_buy_price - cut_loss_price;
+                let cut_loss_distance = match atr {
+                    Some(atr) => f64::max(atr, distance),
+                    None => distance,
+                };
+                average_buy_price - cut_loss_distance
             }
         };
 
