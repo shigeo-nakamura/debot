@@ -9,6 +9,8 @@ const MACD_THRESHOLD: f64 = 0.1;
 
 // RSI thresholds
 const RSI_OVERBOUGHT: f64 = 70.0;
+const RSI_BOUGHT: f64 = 60.0;
+const RSI_SOLD: f64 = 40.0;
 const RSI_OVERSOLD: f64 = 30.0;
 
 // Threshold for detecting flash crash based on RSI
@@ -364,39 +366,62 @@ impl PriceHistory {
 
     pub fn predict_next_price_rsi(&self, period: usize) -> f64 {
         let rsi = self.calculate_rsi(period);
-        if rsi > RSI_OVERBOUGHT {
-            self.prices.last().unwrap().price * 0.98 // assume a 2 price drop
-        } else if rsi < RSI_OVERSOLD {
-            self.prices.last().unwrap().price * 1.02 // assume a 2% price rise
+        let last_price = self.prices.last().unwrap().price;
+
+        let (lower_rsi, upper_rsi, lower_multiplier, upper_multiplier) = if rsi < RSI_OVERSOLD {
+            (0.0, RSI_OVERSOLD, 1.02, 1.01)
+        } else if rsi < RSI_SOLD {
+            (RSI_OVERSOLD, RSI_SOLD, 1.01, 1.0)
+        } else if rsi < RSI_BOUGHT {
+            (RSI_SOLD, RSI_BOUGHT, 1.0, 0.99)
+        } else if rsi <= RSI_OVERBOUGHT {
+            (RSI_BOUGHT, RSI_OVERBOUGHT, 0.99, 0.98)
         } else {
-            self.prices.last().unwrap().price // no clear signal, return last price
-        }
+            (RSI_OVERBOUGHT, 100.0, 0.98, 0.98)
+        };
+
+        let position_in_band = (rsi - lower_rsi) / (upper_rsi - lower_rsi);
+        let predicted_multiplier =
+            lower_multiplier + position_in_band * (upper_multiplier - lower_multiplier);
+
+        last_price * predicted_multiplier
     }
 
     pub fn predict_next_price_bollinger(&mut self, period: usize) -> f64 {
         let (lower_band, _, upper_band) = self.calculate_bollinger_bands(period);
         let last_price = self.prices.last().unwrap().price;
-        if last_price > upper_band {
-            (last_price + last_price * 0.98) / 2.0 // take the average of the last price and the price assuming a 2% drop
-        } else if last_price < lower_band {
-            (last_price + last_price * 1.02) / 2.0 // take the average of the last price and the price assuming a 2% rise
-        } else {
-            last_price // price is within bands, return last price
-        }
+
+        let position_in_band = (last_price - lower_band) / (upper_band - lower_band); // Position in band as a percentage, where lower_band is 0 and upper_band is 1
+
+        let lower_multiplier = 1.02;
+        let upper_multiplier = 0.98;
+
+        let predicted_multiplier =
+            lower_multiplier - position_in_band * (lower_multiplier - upper_multiplier); // Linear interpolation between lower_multiplier and upper_multiplier based on position_in_band
+
+        last_price * predicted_multiplier
     }
 
     pub fn predict_next_price_fibonacci(&mut self) -> f64 {
         let (level1, level2, level3, _low) = self.calculate_fibonacci_retracement();
         let last_price = self.prices.last().unwrap().price;
-        if last_price < level1 {
-            last_price * 1.02 // assume a 2% price rise
+
+        let (lower_level, upper_level, lower_multiplier, upper_multiplier) = if last_price < level1
+        {
+            (0.0, level1, 1.02, 1.01)
         } else if last_price < level2 {
-            level1 // price might retreat to level1
+            (level1, level2, 1.01, 1.01)
         } else if last_price < level3 {
-            level2 // price might retreat to level2
+            (level2, level3, 1.01, 1.0)
         } else {
-            level3 // price might retreat to level3
-        }
+            (level3, last_price, 1.0, 0.98)
+        };
+
+        let position_in_band = (last_price - lower_level) / (upper_level - lower_level);
+        let predicted_multiplier =
+            lower_multiplier - position_in_band * (lower_multiplier - upper_multiplier);
+
+        last_price * predicted_multiplier
     }
 
     pub fn predict_next_price_sdg(&self, _period: usize) -> f64 {
@@ -594,20 +619,23 @@ impl PriceHistory {
             TradingStrategy::MeanReversion => {
                 let bollinger_prediction = self.predict_next_price_bollinger(period);
                 let fibonacci_prediction = self.predict_next_price_fibonacci();
+                let rsi_prediction = self.predict_next_price_rsi(period);
                 predictions.push(bollinger_prediction);
                 predictions.push(fibonacci_prediction);
+                predictions.push(rsi_prediction);
                 log::trace!(
-                    "BOLLINGER: {:6.3}, FIBONACCI: {:6.3}",
+                    "BOLLINGER: {:6.3}, FIBONACCI: {:6.3}, RSI: {:6.3}",
                     bollinger_prediction,
-                    fibonacci_prediction
+                    fibonacci_prediction,
+                    rsi_prediction,
                 );
             }
             TradingStrategy::Contrarian => {
-                let macd = self.predict_next_price_macd();
-                let rsi_prediction = self.predict_next_price_rsi(period);
-                predictions.push(macd);
-                predictions.push(rsi_prediction);
-                log::trace!("MACD: {:6.3}, RSI: {:6.3}", macd, rsi_prediction);
+                // let macd = self.predict_next_price_macd();
+                // let rsi_prediction = self.predict_next_price_rsi(period);
+                // predictions.push(macd);
+                // predictions.push(rsi_prediction);
+                // log::trace!("MACD: {:6.3}, RSI: {:6.3}", macd, rsi_prediction);
             }
             TradingStrategy::MLSGDPredictive => {
                 let sdg = self.predict_next_price_sdg(period);

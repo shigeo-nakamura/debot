@@ -64,46 +64,7 @@ pub fn get(
         ],
         vec![
             (
-                "contrarian-short-fixed",
-                TradingStrategy::Contrarian,
-                TakeProfitStrategy::TrailingStop,
-                CutLossStrategy::ATRStop,
-                short_trade_period,
-                1.01, // buy_signal_threshold
-                1.03, // take_profit_threshold
-                0.98, // loss_cut_threshold
-                10.0, // initial_score
-                1.0,  // 1 day
-                0.1,  // Predict the price in 0.1 hour
-            ),
-            (
-                "contrarian-medium-fixed",
-                TradingStrategy::Contrarian,
-                TakeProfitStrategy::TrailingStop,
-                CutLossStrategy::ATRStop,
-                medium_trade_period,
-                1.01, // buy_signal_threshold
-                1.03, // take_profit_threshold
-                0.98, // loss_cut_threshold
-                10.0, // initial_score
-                1.0,  // 1 day
-                1.0,  // Predict the price in 1.0 hour
-            ),
-            (
-                "contrarian-long-fixed",
-                TradingStrategy::Contrarian,
-                TakeProfitStrategy::TrailingStop,
-                CutLossStrategy::ATRStop,
-                long_trade_period,
-                1.01, // buy_signal_threshold
-                1.03, // take_profit_threshold
-                0.98, // loss_cut_threshold
-                10.0, // initial_score
-                1.0,  // 1 day
-                3.0,  // Predict the price in 3.0 hour
-            ),
-            (
-                "reversion-short-fixed",
+                "reversion-short-trailing-atr",
                 TradingStrategy::MeanReversion,
                 TakeProfitStrategy::TrailingStop,
                 CutLossStrategy::ATRStop,
@@ -116,7 +77,7 @@ pub fn get(
                 0.1,  // Predict the price in 0.1 hour
             ),
             (
-                "reversion-medium-fixed",
+                "reversion-medium-trailing-atr",
                 TradingStrategy::MeanReversion,
                 TakeProfitStrategy::TrailingStop,
                 CutLossStrategy::ATRStop,
@@ -129,7 +90,7 @@ pub fn get(
                 1.0,  // Predict the price in 1.0 hour
             ),
             (
-                "reversion-long-fixed",
+                "reversion-long-trailing-atr",
                 TradingStrategy::MeanReversion,
                 TakeProfitStrategy::TrailingStop,
                 CutLossStrategy::ATRStop,
