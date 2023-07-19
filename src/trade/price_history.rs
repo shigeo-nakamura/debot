@@ -365,9 +365,9 @@ impl PriceHistory {
     pub fn predict_next_price_rsi(&self, period: usize) -> f64 {
         let rsi = self.calculate_rsi(period);
         if rsi > RSI_OVERBOUGHT {
-            self.prices.last().unwrap().price * 0.98 // assume a 1% price drop
+            self.prices.last().unwrap().price * 0.98 // assume a 2 price drop
         } else if rsi < RSI_OVERSOLD {
-            self.prices.last().unwrap().price * 1.02 // assume a 1% price rise
+            self.prices.last().unwrap().price * 1.02 // assume a 2% price rise
         } else {
             self.prices.last().unwrap().price // no clear signal, return last price
         }
@@ -377,7 +377,7 @@ impl PriceHistory {
         let (lower_band, _, upper_band) = self.calculate_bollinger_bands(period);
         let last_price = self.prices.last().unwrap().price;
         if last_price > upper_band {
-            (last_price + last_price * 0.99) / 2.0 // take the average of the last price and the price assuming a 2% drop
+            (last_price + last_price * 0.98) / 2.0 // take the average of the last price and the price assuming a 2% drop
         } else if last_price < lower_band {
             (last_price + last_price * 1.02) / 2.0 // take the average of the last price and the price assuming a 2% rise
         } else {
@@ -389,7 +389,7 @@ impl PriceHistory {
         let (level1, level2, level3, _low) = self.calculate_fibonacci_retracement();
         let last_price = self.prices.last().unwrap().price;
         if last_price < level1 {
-            last_price * 1.02 // assume a 1% price rise
+            last_price * 1.02 // assume a 2% price rise
         } else if last_price < level2 {
             level1 // price might retreat to level1
         } else if last_price < level3 {
