@@ -173,7 +173,11 @@ impl DBHandler {
             let open_positions_vec = TransactionLog::get_all_open_positions(&db).await;
 
             // Populate the open_positions_map
-            for position in open_positions_vec {
+            for mut position in open_positions_vec {
+                // Restore the mutex
+                position.cut_loss_price =
+                    Arc::new(std::sync::Mutex::new(position.initial_cut_loss_price));
+
                 // Ensure a HashMap exists for this fund_name
                 open_positions_map
                     .entry(position.fund_name.clone())

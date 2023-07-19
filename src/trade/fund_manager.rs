@@ -100,13 +100,7 @@ impl FundManager {
         };
 
         let open_positions = match open_positions {
-            Some(mut positions) => {
-                for (_token_name, position) in positions.iter_mut() {
-                    position.cut_loss_price =
-                        Arc::new(std::sync::Mutex::new(position.initial_cut_loss_price));
-                }
-                positions
-            }
+            Some(positions) => positions,
             None => HashMap::new(),
         };
 
@@ -187,7 +181,9 @@ impl FundManager {
                 self.config.prediction_interval_secs,
                 self.config.strategy,
             );
-            let profit_ratio = (predicted_price - buy_price) * 100.0 / buy_price;
+
+            let price_spread = (buy_price - sell_price) / buy_price;
+            let profit_ratio = (predicted_price - sell_price) / sell_price;
 
             let color = match profit_ratio {
                 x if x > 0.0 => "\x1b[0;32m",
@@ -195,9 +191,10 @@ impl FundManager {
                 _ => "\x1b[0;90m",
             };
             log::debug!(
-                "{} {:3.3}%\x1b[0m {} \x1b[0;34m{:<6}\x1b[0m current: {:6.5} - {:6.5}, predict: {:6.5}",
+                "{} {:3.3}%\x1b[0m(-{:3.3}%), {} \x1b[0;34m{:<6}\x1b[0m current: {:6.5} - {:6.5}, predict: {:6.5}",
                 color,
-                profit_ratio,
+                profit_ratio * 100.0,
+                price_spread *100.0,
                 self.name(),
                 token_name,
                 buy_price,
@@ -205,7 +202,7 @@ impl FundManager {
                 predicted_price,
             );
 
-            if profit_ratio >= self.config.buy_signal_threshold {
+            if (price_spread + profit_ratio) * 100.0 >= self.config.buy_signal_threshold {
                 if !self.can_create_new_position(token_name) {
                     log::debug!(
                         "{} Need to wait for a while to create a new position",

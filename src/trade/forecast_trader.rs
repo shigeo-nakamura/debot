@@ -314,12 +314,12 @@ impl ForcastTrader {
 
         if diff > spread {
             log::trace!(
-                "Price spread is wide: {}@{} buy_price = {:6.6}, sell_price = {:6.6}, spread = {:3.3}%",
-                token_name,
-                dex_name,
+                "{:3.3}%({:6.6} - {:6.6}), {}@{}",
+                diff * 100.0,
                 buy_price,
                 sell_price,
-                diff * 100.0,
+                token_name,
+                dex_name,
             );
             return true;
         }
