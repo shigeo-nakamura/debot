@@ -66,8 +66,8 @@ pub fn get(
             (
                 "contrarian-short-fixed",
                 TradingStrategy::Contrarian,
-                TakeProfitStrategy::FixedThreshold,
-                CutLossStrategy::FixedThreshold,
+                TakeProfitStrategy::TrailingStop,
+                CutLossStrategy::ATRStop,
                 short_trade_period,
                 1.01, // buy_signal_threshold
                 1.03, // take_profit_threshold
@@ -79,8 +79,8 @@ pub fn get(
             (
                 "contrarian-medium-fixed",
                 TradingStrategy::Contrarian,
-                TakeProfitStrategy::FixedThreshold,
-                CutLossStrategy::FixedThreshold,
+                TakeProfitStrategy::TrailingStop,
+                CutLossStrategy::ATRStop,
                 medium_trade_period,
                 1.01, // buy_signal_threshold
                 1.03, // take_profit_threshold
@@ -92,8 +92,47 @@ pub fn get(
             (
                 "contrarian-long-fixed",
                 TradingStrategy::Contrarian,
-                TakeProfitStrategy::FixedThreshold,
-                CutLossStrategy::FixedThreshold,
+                TakeProfitStrategy::TrailingStop,
+                CutLossStrategy::ATRStop,
+                long_trade_period,
+                1.01, // buy_signal_threshold
+                1.03, // take_profit_threshold
+                0.98, // loss_cut_threshold
+                10.0, // initial_score
+                1.0,  // 1 day
+                3.0,  // Predict the price in 3.0 hour
+            ),
+            (
+                "reversion-short-fixed",
+                TradingStrategy::MeanReversion,
+                TakeProfitStrategy::TrailingStop,
+                CutLossStrategy::ATRStop,
+                short_trade_period,
+                1.01, // buy_signal_threshold
+                1.03, // take_profit_threshold
+                0.98, // loss_cut_threshold
+                10.0, // initial_score
+                1.0,  // 1 day
+                0.1,  // Predict the price in 0.1 hour
+            ),
+            (
+                "reversion-medium-fixed",
+                TradingStrategy::MeanReversion,
+                TakeProfitStrategy::TrailingStop,
+                CutLossStrategy::ATRStop,
+                medium_trade_period,
+                1.01, // buy_signal_threshold
+                1.03, // take_profit_threshold
+                0.98, // loss_cut_threshold
+                10.0, // initial_score
+                1.0,  // 1 day
+                1.0,  // Predict the price in 1.0 hour
+            ),
+            (
+                "reversion-long-fixed",
+                TradingStrategy::MeanReversion,
+                TakeProfitStrategy::TrailingStop,
+                CutLossStrategy::ATRStop,
                 long_trade_period,
                 1.01, // buy_signal_threshold
                 1.03, // take_profit_threshold

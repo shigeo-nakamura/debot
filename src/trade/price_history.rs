@@ -365,9 +365,9 @@ impl PriceHistory {
     pub fn predict_next_price_rsi(&self, period: usize) -> f64 {
         let rsi = self.calculate_rsi(period);
         if rsi > RSI_OVERBOUGHT {
-            self.prices.last().unwrap().price * 0.99 // assume a 1% price drop
+            self.prices.last().unwrap().price * 0.98 // assume a 1% price drop
         } else if rsi < RSI_OVERSOLD {
-            self.prices.last().unwrap().price * 1.01 // assume a 1% price rise
+            self.prices.last().unwrap().price * 1.02 // assume a 1% price rise
         } else {
             self.prices.last().unwrap().price // no clear signal, return last price
         }
@@ -377,9 +377,9 @@ impl PriceHistory {
         let (lower_band, _, upper_band) = self.calculate_bollinger_bands(period);
         let last_price = self.prices.last().unwrap().price;
         if last_price > upper_band {
-            (last_price + last_price * 0.99) / 2.0 // take the average of the last price and the price assuming a 1% drop
+            (last_price + last_price * 0.99) / 2.0 // take the average of the last price and the price assuming a 2% drop
         } else if last_price < lower_band {
-            (last_price + last_price * 1.01) / 2.0 // take the average of the last price and the price assuming a 1% rise
+            (last_price + last_price * 1.02) / 2.0 // take the average of the last price and the price assuming a 2% rise
         } else {
             last_price // price is within bands, return last price
         }
@@ -389,7 +389,7 @@ impl PriceHistory {
         let (level1, level2, level3, _low) = self.calculate_fibonacci_retracement();
         let last_price = self.prices.last().unwrap().price;
         if last_price < level1 {
-            last_price * 1.01 // assume a 1% price rise
+            last_price * 1.02 // assume a 1% price rise
         } else if last_price < level2 {
             level1 // price might retreat to level1
         } else if last_price < level3 {
@@ -520,7 +520,7 @@ impl PriceHistory {
 
     fn calculate_rsi(&self, period: usize) -> f64 {
         if self.prices.len() < period + 1 {
-            return self.prices.last().unwrap().price;
+            return 0.0;
         }
 
         let mut gains = 0.0;
