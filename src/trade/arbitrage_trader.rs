@@ -317,7 +317,7 @@ impl AbstractTrader for ArbitrageTrader {
         let tokens = &self.tokens();
         let amount = self.initial_amount() * self.leverage();
 
-        // Get prices with base token / each token and each token / base token
+        // Get prices with base token / each token, and each token / base token
         for dex in dexes.iter() {
             let mut dex_get_price_futures = self
                 .base_trader

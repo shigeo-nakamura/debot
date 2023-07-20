@@ -12,10 +12,10 @@ const RSI_BOUGHT: f64 = 60.0;
 const RSI_SOLD: f64 = 40.0;
 const RSI_OVERSOLD: f64 = 30.0;
 
-const UPPER_STRONG_LEVEL_MULTIPLIER: f64 = 1.01;
-const UPPER_WEAK_LEVEL_MULTIPLIER: f64 = 1.05;
+const UPPER_STRONG_LEVEL_MULTIPLIER: f64 = 1.015;
+const UPPER_WEAK_LEVEL_MULTIPLIER: f64 = 1.005;
 const LOWER_WEAK_LEVEL_MULTIPLIER: f64 = 0.995;
-const LOWER_STRONG_LEVEL_MULTIPLIER: f64 = 0.99;
+const LOWER_STRONG_LEVEL_MULTIPLIER: f64 = 0.985;
 
 // Threshold for detecting flash crash based on RSI
 const RSI_FLASH_CRASH: f64 = 85.0;
@@ -92,7 +92,6 @@ pub struct PriceHistory {
 pub enum TradingStrategy {
     TrendFollowing,
     MeanReversion,
-    Contrarian,
     MLSGDPredictive,
 }
 
@@ -446,6 +445,10 @@ impl PriceHistory {
             (level3, last_price, 1.0, LOWER_STRONG_LEVEL_MULTIPLIER)
         };
 
+        if upper_level == lower_level {
+            return last_price;
+        }
+
         let position_in_band = (last_price - lower_level) / (upper_level - lower_level);
         let predicted_multiplier =
             lower_multiplier - position_in_band * (lower_multiplier - upper_multiplier);
@@ -658,13 +661,6 @@ impl PriceHistory {
                     fibonacci_prediction,
                     rsi_prediction,
                 );
-            }
-            TradingStrategy::Contrarian => {
-                // let macd = self.predict_next_price_macd();
-                // let rsi_prediction = self.predict_next_price_rsi(period);
-                // predictions.push(macd);
-                // predictions.push(rsi_prediction);
-                // log::trace!("MACD: {:6.3}, RSI: {:6.3}", macd, rsi_prediction);
             }
             TradingStrategy::MLSGDPredictive => {
                 let sdg = self.predict_next_price_sdg(period);

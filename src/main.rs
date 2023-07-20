@@ -255,7 +255,6 @@ async fn prepare_algorithm_trader_instance(
         config.penalty_multiplier,
         client_holder.clone(),
         transaction_log,
-        config.dex_index,
         config.spread,
         open_positions_map,
         prev_balance,
@@ -315,7 +314,7 @@ async fn main_loop(
         log::info!(
             "main_loop() starts for {}-{}",
             config.chain_params.chain_name,
-            config.dex_index,
+            config.rpc_node_index
         );
     }
 
