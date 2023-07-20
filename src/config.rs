@@ -13,7 +13,6 @@ use std::str::FromStr;
 pub struct EnvConfig {
     pub chain_params: &'static ChainParams,
     pub rpc_node_index: usize,
-    pub dex_index: usize,
     pub mongodb_uri: String,
     pub db_name: String,
     pub use_kms: bool,
@@ -101,7 +100,6 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
 
     for chain_name in chain_names {
         let mut rpc_node_index = 0;
-        let mut dex_index = 0;
         let mut dry_run = false;
 
         let chain_name = chain_name.trim(); // To handle spaces after the comma
@@ -109,14 +107,12 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             "BSC" => {
                 dry_run = get_bool_env_var("BSC_DRY_RUN", true);
                 rpc_node_index = bsc_index;
-                dex_index = bsc_index;
                 bsc_index += 1;
                 &BSC_CHAIN_PARAMS
             }
             "POLYGON" => {
                 dry_run = get_bool_env_var("POLYGON_DRY_RUN", true);
                 rpc_node_index = polygon_index;
-                dex_index = polygon_index;
                 polygon_index += 1;
                 &POLYGON_CHAIN_PARAMS
             }
@@ -138,8 +134,8 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
         let num_swaps = get_env_var("NUM_SWAPS", "3")?;
         let short_trade_period = get_env_var("SHORT_TRADE_PEREIOD", "60")?; // 600sec = 10min
-        let medium_trade_period = get_env_var("MEDIUM_TRADE_PEREIOD", "420")?; // 4200sec = 70min
-        let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "1260")?; // 12600sec = 210min
+        let medium_trade_period = get_env_var("MEDIUM_TRADE_PEREIOD", "360")?; // 3600sec = 1h
+        let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "2160")?; // 21600sec = 6h
         let max_price_size = get_env_var("MAX_PRICE_SIZE", "8640")?; // 86400sec = 1day
 
         let position_creation_inteval_period_str =
@@ -160,7 +156,6 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let env_config = EnvConfig {
             chain_params,
             rpc_node_index,
-            dex_index,
             mongodb_uri,
             db_name,
             use_kms,
