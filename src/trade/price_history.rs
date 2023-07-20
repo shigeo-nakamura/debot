@@ -1,8 +1,7 @@
 // price_history.rs
 
-use serde::{Deserialize, Serialize};
-
 use crate::utils::ToDateTimeString;
+use serde::{Deserialize, Serialize};
 
 const SIGNAL_PERIOD: usize = 9;
 const MACD_THRESHOLD: f64 = 0.1;
@@ -12,6 +11,11 @@ const RSI_OVERBOUGHT: f64 = 70.0;
 const RSI_BOUGHT: f64 = 60.0;
 const RSI_SOLD: f64 = 40.0;
 const RSI_OVERSOLD: f64 = 30.0;
+
+const UPPER_STRONG_LEVEL_MULTIPLIER: f64 = 1.02;
+const UPPER_WEAK_LEVEL_MULTIPLIER: f64 = 1.01;
+const LOWER_WEAK_LEVEL_MULTIPLIER: f64 = 0.99;
+const LOWER_STRONG_LEVEL_MULTIPLIER: f64 = 0.98;
 
 // Threshold for detecting flash crash based on RSI
 const RSI_FLASH_CRASH: f64 = 85.0;
@@ -369,15 +373,30 @@ impl PriceHistory {
         let last_price = self.prices.last().unwrap().price;
 
         let (lower_rsi, upper_rsi, lower_multiplier, upper_multiplier) = if rsi < RSI_OVERSOLD {
-            (0.0, RSI_OVERSOLD, 1.02, 1.01)
+            (
+                0.0,
+                RSI_OVERSOLD,
+                UPPER_STRONG_LEVEL_MULTIPLIER,
+                UPPER_WEAK_LEVEL_MULTIPLIER,
+            )
         } else if rsi < RSI_SOLD {
-            (RSI_OVERSOLD, RSI_SOLD, 1.01, 1.0)
+            (RSI_OVERSOLD, RSI_SOLD, UPPER_WEAK_LEVEL_MULTIPLIER, 1.0)
         } else if rsi < RSI_BOUGHT {
-            (RSI_SOLD, RSI_BOUGHT, 1.0, 0.99)
+            (RSI_SOLD, RSI_BOUGHT, 1.0, LOWER_WEAK_LEVEL_MULTIPLIER)
         } else if rsi <= RSI_OVERBOUGHT {
-            (RSI_BOUGHT, RSI_OVERBOUGHT, 0.99, 0.98)
+            (
+                RSI_BOUGHT,
+                RSI_OVERBOUGHT,
+                LOWER_WEAK_LEVEL_MULTIPLIER,
+                LOWER_STRONG_LEVEL_MULTIPLIER,
+            )
         } else {
-            (RSI_OVERBOUGHT, 100.0, 0.98, 0.98)
+            (
+                RSI_OVERBOUGHT,
+                100.0,
+                LOWER_STRONG_LEVEL_MULTIPLIER,
+                LOWER_STRONG_LEVEL_MULTIPLIER,
+            )
         };
 
         let position_in_band = (rsi - lower_rsi) / (upper_rsi - lower_rsi);
@@ -393,8 +412,8 @@ impl PriceHistory {
 
         let position_in_band = (last_price - lower_band) / (upper_band - lower_band); // Position in band as a percentage, where lower_band is 0 and upper_band is 1
 
-        let lower_multiplier = 1.02;
-        let upper_multiplier = 0.98;
+        let lower_multiplier = UPPER_STRONG_LEVEL_MULTIPLIER;
+        let upper_multiplier = LOWER_STRONG_LEVEL_MULTIPLIER;
 
         let predicted_multiplier =
             lower_multiplier - position_in_band * (lower_multiplier - upper_multiplier); // Linear interpolation between lower_multiplier and upper_multiplier based on position_in_band
@@ -408,13 +427,23 @@ impl PriceHistory {
 
         let (lower_level, upper_level, lower_multiplier, upper_multiplier) = if last_price < level1
         {
-            (0.0, level1, 1.02, 1.01)
+            (
+                0.0,
+                level1,
+                UPPER_STRONG_LEVEL_MULTIPLIER,
+                UPPER_WEAK_LEVEL_MULTIPLIER,
+            )
         } else if last_price < level2 {
-            (level1, level2, 1.01, 1.01)
+            (
+                level1,
+                level2,
+                UPPER_WEAK_LEVEL_MULTIPLIER,
+                UPPER_WEAK_LEVEL_MULTIPLIER,
+            )
         } else if last_price < level3 {
-            (level2, level3, 1.01, 1.0)
+            (level2, level3, UPPER_WEAK_LEVEL_MULTIPLIER, 1.0)
         } else {
-            (level3, last_price, 1.0, 0.98)
+            (level3, last_price, 1.0, LOWER_STRONG_LEVEL_MULTIPLIER)
         };
 
         let position_in_band = (last_price - lower_level) / (upper_level - lower_level);
