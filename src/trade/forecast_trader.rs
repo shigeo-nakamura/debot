@@ -270,21 +270,23 @@ impl ForcastTrader {
                         ),
                     );
                 }
+            }
+        }
 
-                // Update the price history and predict next prices
-                let history = histories
-                    .entry(key.clone())
-                    .or_insert_with(|| self.create_price_history());
-                let price_point = history.add_price(sell_price, None);
+        for (token_name, (dex_name, price)) in &current_pricies {
+            // Update the price history and predict next prices
+            let history = histories
+                .entry(token_name.clone())
+                .or_insert_with(|| self.create_price_history());
+            let price_point = history.add_price(price.sell_price, None);
 
-                if self.base_trader.save_prices() {
-                    self.base_trader
-                        .db_handler()
-                        .lock()
-                        .await
-                        .log_price(self.name(), &key, price_point)
-                        .await;
-                }
+            if self.base_trader.save_prices() {
+                self.base_trader
+                    .db_handler()
+                    .lock()
+                    .await
+                    .log_price(self.name(), token_name, price_point)
+                    .await;
             }
         }
 
