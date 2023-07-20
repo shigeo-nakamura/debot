@@ -420,8 +420,27 @@ impl PriceHistory {
         last_price * predicted_multiplier
     }
 
-    pub fn predict_next_price_fibonacci(&mut self) -> f64 {
-        let (level1, level2, level3, _low) = self.calculate_fibonacci_retracement();
+    pub fn predict_next_price_fibonacci(&mut self, period: usize) -> f64 {
+        let prices_period = if self.prices.len() < period {
+            &self.prices
+        } else {
+            &self.prices[self.prices.len() - period..]
+        };
+
+        let high = prices_period
+            .iter()
+            .map(|p| p.price)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let low = prices_period
+            .iter()
+            .map(|p| p.price)
+            .fold(f64::INFINITY, f64::min);
+        let diff = high - low;
+
+        let level1 = high - 0.236 * diff;
+        let level2 = high - 0.382 * diff;
+        let level3 = high - 0.618 * diff;
+
         let last_price = self.prices.last().unwrap().price;
 
         let (lower_level, upper_level, lower_multiplier, upper_multiplier) = if last_price < level1
@@ -604,26 +623,6 @@ impl PriceHistory {
         100.0 - (100.0 / (1.0 + rs))
     }
 
-    fn calculate_fibonacci_retracement(&self) -> (f64, f64, f64, f64) {
-        let high = self
-            .prices
-            .iter()
-            .map(|p| p.price)
-            .fold(f64::NEG_INFINITY, f64::max);
-        let low = self
-            .prices
-            .iter()
-            .map(|p| p.price)
-            .fold(f64::INFINITY, f64::min);
-        let diff = high - low;
-
-        let level1 = high - 0.236 * diff;
-        let level2 = high - 0.382 * diff;
-        let level3 = high - 0.618 * diff;
-
-        (level1, level2, level3, low)
-    }
-
     pub fn majority_vote_predictions(
         &mut self,
         period: usize,
@@ -650,7 +649,7 @@ impl PriceHistory {
             }
             TradingStrategy::MeanReversion => {
                 let bollinger_prediction = self.predict_next_price_bollinger(period);
-                let fibonacci_prediction = self.predict_next_price_fibonacci();
+                let fibonacci_prediction = self.predict_next_price_fibonacci(period);
                 let rsi_prediction = self.predict_next_price_rsi(period);
                 predictions.push(bollinger_prediction);
                 predictions.push(fibonacci_prediction);
