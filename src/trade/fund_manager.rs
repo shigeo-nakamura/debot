@@ -202,7 +202,7 @@ impl FundManager {
                 predicted_price,
             );
 
-            if (price_spread + profit_ratio) * 100.0 >= self.config.buy_signal_threshold {
+            if profit_ratio * 100.0 >= self.config.buy_signal_threshold {
                 if !self.can_create_new_position(token_name) {
                     log::debug!(
                         "{} Need to wait for a while to create a new position",

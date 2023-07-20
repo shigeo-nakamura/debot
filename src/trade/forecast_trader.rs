@@ -132,7 +132,7 @@ impl ForcastTrader {
             transaction_log.clone(),
         )));
 
-        let amount_per_fund = initial_amount / dexes.len() as f64;
+        let amount_per_fund = initial_amount / fund_manager_configurations.len() as f64;
 
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
@@ -504,7 +504,7 @@ impl ForcastTrader {
         if self.base_trader.dry_run() {
             self.state.amount = self.total_fund_amount();
         } else {
-            self.state.amount = base_token_amount / self.dexes().len() as f64;
+            self.state.amount = base_token_amount;
         }
 
         log::info!(
