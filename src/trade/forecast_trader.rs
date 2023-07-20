@@ -273,14 +273,12 @@ impl ForcastTrader {
             }
         }
 
-        for (token_name, (_dex_name, price)) in &current_pricies {
+        for (token_name, (dex_name, price)) in &current_pricies {
             // Update the price history and predict next prices
             let history = histories
                 .entry(token_name.clone())
                 .or_insert_with(|| self.create_price_history());
             let price_point = history.add_price(price.sell_price, None);
-
-            log::info!("#### save price:{} {} {}", price_point.timestamp_str, token_name, _dex_name);
 
             if self.base_trader.save_prices() {
                 self.base_trader
