@@ -2,12 +2,13 @@
 
 import random_forest as rfp
 
-mode = 'predict'
 past_minutes = 180
 
 data = rfp.load_data_from_mongodb()
 past_data_points = past_minutes * 6
 features = rfp.create_features(data, past_data_points)
+
+rfp.train_model(data, features, past_data_points)
 
 for future_minutes in [10, 60, 180]:
     future_time_steps = future_minutes * 6
