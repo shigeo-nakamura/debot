@@ -291,7 +291,9 @@ impl FundManager {
                     log::warn!("Close the position as it reaches the limit of hold period");
                     amount = position.amount;
                     reason_for_sell = Some(ReasonForSell::Expired);
-                } else if position.do_take_profit(sell_price) || position.do_cut_loss(sell_price) {
+                } else if position.should_take_profit(sell_price)
+                    || position.should_cut_loss(sell_price)
+                {
                     amount = position.amount;
                 }
             }

@@ -117,24 +117,39 @@ impl TradePosition {
         }
     }
 
-    pub fn do_take_profit(&self, sell_price: f64) -> bool {
-        match self.take_profit_strategy {
-            TakeProfitStrategy::FixedThreshold => sell_price >= self.take_profit_price,
-            TakeProfitStrategy::TrailingStop => {
-                let current_distance = sell_price - self.average_buy_price;
-                if current_distance > self.trailing_distance {
-                    let cut_loss_price = sell_price - self.trailing_distance;
-                    let mut cut_loss_price_self = self.cut_loss_price.lock().unwrap();
-                    if cut_loss_price > *cut_loss_price_self {
-                        *cut_loss_price_self = cut_loss_price;
-                    }
-                }
-                false
-            }
-        }
+    fn should_take_profit_fixed_threshold(&self, sell_price: f64) -> bool {
+        sell_price >= self.take_profit_price
     }
 
-    pub fn do_cut_loss(&self, sell_price: f64) -> bool {
+    // Adjusts cut loss price and returns false. The cut loss price is adjusted
+    // based on the sell price and the trailing distance.
+    fn should_take_profit_trailing_stop(&self, sell_price: f64) -> bool {
+        let current_distance = if sell_price - self.average_buy_price > 0.0 {
+            sell_price - self.average_buy_price
+        } else {
+            sell_price - *self.cut_loss_price.lock().unwrap()
+        };
+
+        if current_distance > self.trailing_distance {
+            let cut_loss_price = sell_price - self.trailing_distance;
+            let mut cut_loss_price_self = self.cut_loss_price.lock().unwrap();
+            if cut_loss_price > *cut_loss_price_self {
+                *cut_loss_price_self = cut_loss_price;
+            }
+        }
+
+        false
+    }
+
+    pub fn should_take_profit(&self, sell_price: f64) -> bool {
+        match self.take_profit_strategy {
+            TakeProfitStrategy::FixedThreshold => {
+                self.should_take_profit_fixed_threshold(sell_price)
+            }
+            TakeProfitStrategy::TrailingStop => self.should_take_profit_trailing_stop(sell_price),
+        }
+    }
+    pub fn should_cut_loss(&self, sell_price: f64) -> bool {
         sell_price <= *self.cut_loss_price.lock().unwrap()
     }
 
