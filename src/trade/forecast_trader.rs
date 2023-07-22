@@ -273,7 +273,7 @@ impl ForcastTrader {
             }
         }
 
-        for (token_name, (dex_name, price)) in &current_pricies {
+        for (token_name, (_dex_name, price)) in &current_pricies {
             // Update the price history and predict next prices
             let history = histories
                 .entry(token_name.clone())
