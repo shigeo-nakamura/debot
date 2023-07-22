@@ -9,20 +9,34 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 import gridfs
 import pickle
+import datetime
+import pytz
 
-def load_data_from_mongodb():
+def load_data_from_mongodb(past_minutes):
     mongodb_uri = os.getenv('MONGODB_URI')
     db_name = os.getenv('DB_NAME')
     client = MongoClient(mongodb_uri)
     db = client[db_name]
     collection = db['price']
-    cursor = collection.find({"trader_name": "BSC-AlgoTrader"}).sort("price_point.timestamp", 1)
+    
+    # Calculate the timestamp for 'past_minutes' minutes ago
+    current_time = datetime.datetime.now(pytz.utc)
+    past_time = current_time - datetime.timedelta(minutes=past_minutes)
+    past_time_timestamp = past_time.timestamp()
+
+    cursor = collection.find({
+        "trader_name": "BSC-AlgoTrader", 
+        "price_point.timestamp": {"$gte": past_time_timestamp}  # Only retrieve data where the timestamp is greater than 'past_time_timestamp'
+    }).sort("price_point.timestamp", 1)
     data = pd.DataFrame(list(cursor))
     data['timestamp'] = data['price_point'].apply(lambda x: x['timestamp'])
     data['price'] = data['price_point'].apply(lambda x: x['price'])
     data['timestamp'] = pd.to_datetime(data['timestamp'], unit='s')
     data = data.pivot(index='timestamp', columns='token_name', values='price')
-    data = data.fillna(method='ffill')
+
+    # Resample and interpolate to fill in missing values
+    data = data.resample('1S').interpolate()
+
     return data
 
 def create_features(data, past_data_points):
@@ -36,8 +50,17 @@ def create_features(data, past_data_points):
         token_lags[f'{token}_rate_of_change'] = rate_of_change_feature
         all_lags.append(token_lags)
     features = pd.concat(all_lags, axis=1)
-    features = features.iloc[past_data_points:]
-    features = features.fillna(method='ffill')
+
+    # Count and print the number of NaN values in each column
+    nan_counts = features.isnull().sum()
+    print(f"Number of NaN values in 'features' by column before forward and backward fill:\n{nan_counts}")
+
+    features = features.fillna(method='ffill').fillna(method='bfill')  # Forward fill then backward fill
+
+    # Recheck and print the number of NaN values in each column
+    nan_counts_after = features.isnull().sum()
+    print(f"Number of NaN values in 'features' by column after forward and backward fill:\n{nan_counts_after}")
+
     return features
 
 def train_model(data, features, past_data_points):
@@ -48,9 +71,16 @@ def train_model(data, features, past_data_points):
     fs = gridfs.GridFS(db)
     model = RandomForestRegressor(n_estimators=100, max_depth=10)
     scaler = StandardScaler()
-    X_train = scaler.fit_transform(features.values)
+    
+    # Drop the first 'past_data_points' rows from features
+    features_dropped = features.iloc[past_data_points:]
+    
+    X_train = scaler.fit_transform(features_dropped.values)
     y_train = data['WBNB'].iloc[past_data_points:].values
-    total_data_points = len(X_train)
+    
+    print(f"Number of training samples in X_train: {len(X_train)}")
+    print(f"Number of training samples in y_train: {len(y_train)}")
+
     model.fit(X_train, y_train)
     print(f"Training progress: 100.00%")
     binary_model = pickle.dumps(model)
@@ -86,13 +116,13 @@ if __name__ == "__main__":
     parser.add_argument('--future_minutes', type=int, default=180, help='number of short-term minutes into the future to predict')
     args = parser.parse_args()
 
-    data = load_data_from_mongodb()
-    past_data_points = args.past_minutes * 6
+    data = load_data_from_mongodb(args.past_minutes)  # Use 'past_minutes' as an argument
+    past_data_points = args.past_minutes * 60  # Convert minutes to seconds
     features = create_features(data, past_data_points)
 
     if args.mode == 'train':
         train_model(data, features, past_data_points)
     elif args.mode == 'predict':
         future_minutes = args.future_minutes
-        future_time_steps = future_minutes * 6
+        future_time_steps = future_minutes * 60  # Convert minutes to seconds
         predict(data, features, past_data_points, future_time_steps)
