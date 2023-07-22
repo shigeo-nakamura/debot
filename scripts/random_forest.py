@@ -53,13 +53,13 @@ def create_features(data, past_data_points):
 
     # Count and print the number of NaN values in each column
     nan_counts = features.isnull().sum()
-    print(f"Number of NaN values in 'features' by column before forward and backward fill:\n{nan_counts}")
+    # print(f"Number of NaN values in 'features' by column before forward and backward fill:\n{nan_counts}")
 
     features = features.fillna(method='ffill').fillna(method='bfill')  # Forward fill then backward fill
 
     # Recheck and print the number of NaN values in each column
     nan_counts_after = features.isnull().sum()
-    print(f"Number of NaN values in 'features' by column after forward and backward fill:\n{nan_counts_after}")
+    # print(f"Number of NaN values in 'features' by column after forward and backward fill:\n{nan_counts_after}")
 
     return features
 
@@ -78,8 +78,8 @@ def train_model(data, features, past_data_points):
     X_train = scaler.fit_transform(features_dropped.values)
     y_train = data['WBNB'].iloc[past_data_points:].values
     
-    print(f"Number of training samples in X_train: {len(X_train)}")
-    print(f"Number of training samples in y_train: {len(y_train)}")
+    # print(f"Number of training samples in X_train: {len(X_train)}")
+    # print(f"Number of training samples in y_train: {len(y_train)}")
 
     model.fit(X_train, y_train)
     print(f"Training progress: 100.00%")
@@ -117,12 +117,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     data = load_data_from_mongodb(args.past_minutes)  # Use 'past_minutes' as an argument
-    past_data_points = args.past_minutes * 60  # Convert minutes to seconds
+    past_data_points = args.past_minutes * 6  # 6 data points in 1 minutes
     features = create_features(data, past_data_points)
 
     if args.mode == 'train':
         train_model(data, features, past_data_points)
     elif args.mode == 'predict':
         future_minutes = args.future_minutes
-        future_time_steps = future_minutes * 60  # Convert minutes to seconds
+        future_time_steps = future_minutes * 6  # 6 data points in 1 minutes
         predict(data, features, past_data_points, future_time_steps)
