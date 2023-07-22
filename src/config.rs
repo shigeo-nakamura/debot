@@ -126,17 +126,18 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let use_kms = get_bool_env_var("USE_KMS", false);
         let interval = get_env_var("INTERVAL", "10")?; // sec
         let leverage = get_env_var("LEVERAGE", "0.2")?;
-        let min_managed_amount = get_env_var("min_managed_amount", "3000.0")?;
-        let max_managed_amount = get_env_var("max_managed_amount", "7000.0")?;
-        let min_trading_amount = get_env_var("min_trading_amount", "10.0")?;
+        let min_managed_amount = get_env_var("MIN_MANAGED_AMOUNT", "3000.0")?;
+        let max_managed_amount = get_env_var("MAX_MANAGED_AMOUNT", "7000.0")?;
+        let min_trading_amount = get_env_var("MIN_TRADING_AMOUNT", "10.0")?;
         let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
         let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
         let num_swaps = get_env_var("NUM_SWAPS", "3")?;
-        let short_trade_period = get_env_var("SHORT_TRADE_PEREIOD", "60")?; // 600sec = 10min
-        let medium_trade_period = get_env_var("MEDIUM_TRADE_PEREIOD", "360")?; // 3600sec = 1h
-        let long_trade_period = get_env_var("LONG_TRACE_PEREIOD", "2160")?; // 21600sec = 6h
-        let max_price_size = get_env_var("MAX_PRICE_SIZE", "8640")?; // 86400sec = 1day
+        let short_trade_period_minutes: usize = get_env_var("SHORT_TRADE_PEREIOD_MINUTES", "30")?;
+        let medium_trade_period_minutes: usize =
+            get_env_var("MEDIUM_TRADE_PEREIOD_MINUTES", "240")?;
+        let long_trade_period_minutes: usize = get_env_var("LONG_TRACE_PEREIOD_MINUTES", "720")?;
+        let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "24")?;
 
         let position_creation_inteval_period_str =
             env::var("POSITION_CREATION_INVERVAL_PERIOD").unwrap_or_default();
@@ -152,6 +153,11 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
 
         let treasury_str = env::var("TREASURY").unwrap_or_default();
         let treasury: Option<Address> = Some(Address::from_str(&treasury_str).unwrap_or_default());
+
+        let short_trade_period = short_trade_period_minutes * 60 / (interval as usize);
+        let medium_trade_period = medium_trade_period_minutes * 60 / (interval as usize);
+        let long_trade_period = long_trade_period_minutes * 60 / (interval as usize);
+        let max_price_size = max_price_size_hours * 60 * 60 / (interval as u32);
 
         let env_config = EnvConfig {
             chain_params,
