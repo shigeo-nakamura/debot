@@ -7,10 +7,10 @@ const SIGNAL_PERIOD: usize = 9;
 const MACD_THRESHOLD: f64 = 0.1;
 
 // RSI thresholds
-const RSI_OVERBOUGHT: f64 = 70.0;
-const RSI_BOUGHT: f64 = 60.0;
-const RSI_SOLD: f64 = 40.0;
-const RSI_OVERSOLD: f64 = 30.0;
+const RSI_OVERBOUGHT: f64 = 80.0;
+const RSI_BOUGHT: f64 = 70.0;
+const RSI_SOLD: f64 = 30.0;
+const RSI_OVERSOLD: f64 = 20.0;
 
 const UPPER_STRONG_LEVEL_MULTIPLIER: f64 = 1.012;
 const UPPER_WEAK_LEVEL_MULTIPLIER: f64 = 1.001;
