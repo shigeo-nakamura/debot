@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::utils::{DateTimeUtils, ToDateTimeString};
 
-use super::HasId;
+use super::{abstract_trader::ReasonForSell, HasId};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub enum TakeProfitStrategy {
@@ -141,7 +141,18 @@ impl TradePosition {
         false
     }
 
-    pub fn should_take_profit(&self, sell_price: f64) -> bool {
+    pub fn should_close(
+        &self,
+        sell_price: f64,
+        max_holding_interval: i64,
+    ) -> Option<ReasonForSell> {
+        if self.should_take_profit(sell_price) {
+            return Some(ReasonForSell::Others);
+        }
+        self.should_cut_loss(sell_price, max_holding_interval)
+    }
+
+    fn should_take_profit(&self, sell_price: f64) -> bool {
         match self.take_profit_strategy {
             TakeProfitStrategy::FixedThreshold => {
                 self.should_take_profit_fixed_threshold(sell_price)
@@ -149,8 +160,27 @@ impl TradePosition {
             TakeProfitStrategy::TrailingStop => self.should_take_profit_trailing_stop(sell_price),
         }
     }
-    pub fn should_cut_loss(&self, sell_price: f64) -> bool {
-        sell_price <= *self.cut_loss_price.lock().unwrap()
+    fn should_cut_loss(&self, sell_price: f64, max_holding_interval: i64) -> Option<ReasonForSell> {
+        let current_time = chrono::Utc::now().timestamp();
+        let holding_interval = current_time - self.open_time;
+        let cut_loss_price = *self.cut_loss_price.lock().unwrap();
+
+        if sell_price < cut_loss_price {
+            return Some(ReasonForSell::Others);
+        }
+
+        if self.take_profit_price < cut_loss_price {
+            return None;
+        }
+
+        if holding_interval > max_holding_interval * 2 {
+            return Some(ReasonForSell::Expired);
+        } else if holding_interval > max_holding_interval {
+            if sell_price > cut_loss_price {
+                return Some(ReasonForSell::Expired);
+            }
+        }
+        None
     }
 
     fn update(&mut self, average_price: f64, amount: f64) {

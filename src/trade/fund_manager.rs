@@ -284,18 +284,14 @@ impl FundManager {
                 amount = position.amount;
                 reason_for_sell = Some(ReasonForSell::Liquidated);
             } else {
-                let current_time = chrono::Utc::now().timestamp();
-                let holding_interval = current_time - position.open_time;
-
-                if holding_interval > self.config.max_hold_interval_in_secs.try_into().unwrap() {
-                    log::warn!("Close the position as it reaches the limit of hold period");
-                    amount = position.amount;
-                    reason_for_sell = Some(ReasonForSell::Expired);
-                } else if position.should_take_profit(sell_price)
-                    || position.should_cut_loss(sell_price)
-                {
-                    amount = position.amount;
+                reason_for_sell = position.should_close(
+                    sell_price,
+                    self.config.max_hold_interval_in_secs.try_into().unwrap(),
+                );
+                if reason_for_sell.is_none() {
+                    return None;
                 }
+                amount = position.amount;
             }
 
             if amount > 0.0 {
@@ -316,6 +312,10 @@ impl FundManager {
 
     fn can_create_new_position(&self, token_name: &str) -> bool {
         if let Some(position) = self.state.open_positions.get(token_name) {
+            let cut_loss_price = position.cut_loss_price.lock().unwrap();
+            if position.average_buy_price < *cut_loss_price {
+                return true;
+            }
             if self.config.position_creation_inteval.is_none() {
                 return false;
             }
