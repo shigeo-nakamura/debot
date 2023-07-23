@@ -240,7 +240,7 @@ impl TradePosition {
         };
 
         log::debug!(
-            "ID: {}, Token: {} PNL = {:6.3}, current_price: {:6.3}, average_buy_price: {:6.3}, take_profit_price: {:6.3}, cut_loss_price: {:6.3}, amount: {:6.6}",
+            "ID: {}, Token: {} PNL: {:6.3}, current: {:6.3}, average_buy: {:6.3}, take_profit: {:6.3}, cut_loss: {:6.3}, amount: {:6.6}",
             id,
             self.token_name,
             pnl,

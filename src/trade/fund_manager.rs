@@ -210,8 +210,7 @@ impl FundManager {
                     return None;
                 }
 
-                let mut amount =
-                    self.state.amount * self.config.leverage * Self::risk_reward(history);
+                let amount = self.state.amount * self.config.leverage * Self::risk_reward(history);
 
                 if amount < self.config.min_trading_amount {
                     log::debug!(
@@ -275,8 +274,8 @@ impl FundManager {
         sell_price: f64,
     ) -> Option<TradeProposal> {
         if let Some(position) = self.state.open_positions.get(token_name) {
-            let mut amount = 0.0;
-            let mut reason_for_sell = Some(ReasonForSell::Others);
+            let amount;
+            let reason_for_sell;
 
             let should_liquidate =
                 *self.state.fund_state.lock().unwrap() == FundState::ShouldLiquidate;
