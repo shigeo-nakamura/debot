@@ -158,7 +158,6 @@ impl FundManager {
     }
 
     fn risk_reward(history: &PriceHistory) -> f64 {
-        log::info!("risk_reward = {:?}", history.market_status());
         match history.market_status() {
             super::price_history::MarketStatus::StrongUp => 2.0,
             super::price_history::MarketStatus::Up => 1.5,
@@ -211,7 +210,8 @@ impl FundManager {
                     return None;
                 }
 
-                let amount = self.state.amount * self.config.leverage * Self::risk_reward(history);
+                let mut amount =
+                    self.state.amount * self.config.leverage * Self::risk_reward(history);
 
                 if amount < self.config.min_trading_amount {
                     log::debug!(
@@ -223,6 +223,12 @@ impl FundManager {
                     );
                     return None;
                 }
+
+                log::info!(
+                    "{}: Maket status = {:?}",
+                    token_name,
+                    history.market_status()
+                );
 
                 let profit = (predicted_price - buy_price) * amount;
 
