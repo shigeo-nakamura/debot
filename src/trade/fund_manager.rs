@@ -413,7 +413,8 @@ impl FundManager {
                 let new_state = match reason_for_sell.unwrap() {
                     ReasonForSell::Liquidated => State::Liquidated,
                     ReasonForSell::Expired => State::Expired,
-                    ReasonForSell::Others => State::Closed,
+                    ReasonForSell::TakeProfit => State::TakeProfit,
+                    ReasonForSell::CutLoss => State::CutLoss,
                 };
 
                 position.del(sold_price, amount_in, new_state);

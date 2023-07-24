@@ -50,7 +50,8 @@ pub struct TradePosition {
 pub enum State {
     #[default]
     Open,
-    Closed,
+    CutLoss,
+    TakeProfit,
     Liquidated,
     Expired,
 }
@@ -147,7 +148,7 @@ impl TradePosition {
         max_holding_interval: i64,
     ) -> Option<ReasonForSell> {
         if self.should_take_profit(sell_price) {
-            return Some(ReasonForSell::Others);
+            return Some(ReasonForSell::TakeProfit);
         }
         self.should_cut_loss(sell_price, max_holding_interval)
     }
@@ -166,7 +167,11 @@ impl TradePosition {
         let cut_loss_price = *self.cut_loss_price.lock().unwrap();
 
         if sell_price < cut_loss_price {
-            return Some(ReasonForSell::Others);
+            if sell_price > self.average_buy_price {
+                return Some(ReasonForSell::TakeProfit);
+            } else {
+                return Some(ReasonForSell::CutLoss);
+            }
         }
 
         if self.take_profit_price < cut_loss_price {
@@ -177,7 +182,7 @@ impl TradePosition {
             return Some(ReasonForSell::Expired);
         } else if holding_interval > max_holding_interval {
             if sell_price > cut_loss_price {
-                return Some(ReasonForSell::Expired);
+                return Some(ReasonForSell::TakeProfit);
             }
         }
         None

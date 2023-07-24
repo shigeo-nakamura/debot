@@ -37,7 +37,8 @@ pub enum Operation {
 pub enum ReasonForSell {
     Liquidated,
     Expired,
-    Others,
+    TakeProfit,
+    CutLoss,
 }
 
 #[derive(Debug, Clone)]
