@@ -181,7 +181,7 @@ impl TradePosition {
         if holding_interval > max_holding_interval * 2 {
             return Some(ReasonForSell::Expired);
         } else if holding_interval > max_holding_interval {
-            if sell_price > cut_loss_price {
+            if sell_price > self.average_buy_price {
                 return Some(ReasonForSell::TakeProfit);
             }
         }
