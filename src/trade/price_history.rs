@@ -124,7 +124,7 @@ impl PriceHistory {
             high_price: 0.0,
             low_price: 0.0,
             atr: None,
-            atr_period: max_size,
+            atr_period: max_size - 2,
         }
     }
 
