@@ -215,11 +215,6 @@ async fn prepare_algorithm_trader_instance(
         None => None,
     };
 
-    let position_creation_inteval_period = match config.position_creation_inteval_period {
-        Some(period) => Some(period * config.interval),
-        None => None,
-    };
-
     // Get base token amount
     let mut initial_amount = BaseTrader::get_amount_of_token(wallet.address(), &base_token)
         .await
@@ -250,7 +245,7 @@ async fn prepare_algorithm_trader_instance(
         config.max_price_size,
         config.interval,
         config.flash_crash_threshold,
-        position_creation_inteval_period,
+        config.position_creation_inteval_seconds,
         config.reward_multiplier,
         config.penalty_multiplier,
         client_holder.clone(),

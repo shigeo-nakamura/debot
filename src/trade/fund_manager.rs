@@ -39,7 +39,7 @@ pub struct FundManagerConfig {
     trade_period: usize,
     leverage: f64,
     min_trading_amount: f64,
-    position_creation_inteval: Option<u64>,
+    position_creation_inteval_seconds: Option<u64>,
     buy_signal_threshold: f64,
     take_profit_threshold: f64,
     cut_loss_threshold: f64,
@@ -74,7 +74,7 @@ impl FundManager {
         initial_amount: f64,
         min_trading_amount: f64,
         initial_score: f64,
-        position_creation_inteval: Option<u64>,
+        position_creation_inteval_seconds: Option<u64>,
         buy_signal_threshold: f64,
         take_profit_threshold: f64,
         cut_loss_threshold: f64,
@@ -90,7 +90,7 @@ impl FundManager {
             trade_period,
             leverage,
             min_trading_amount,
-            position_creation_inteval,
+            position_creation_inteval_seconds,
             buy_signal_threshold,
             take_profit_threshold,
             cut_loss_threshold,
@@ -202,7 +202,7 @@ impl FundManager {
             );
 
             if profit_ratio * 100.0 >= self.config.buy_signal_threshold {
-                if !self.can_create_new_position(token_name) {
+                if !self.can_create_new_position(token_name, buy_price) {
                     log::debug!(
                         "{} Need to wait for a while to create a new position",
                         self.name()
@@ -315,20 +315,23 @@ impl FundManager {
         None
     }
 
-    fn can_create_new_position(&self, token_name: &str) -> bool {
+    fn can_create_new_position(&self, token_name: &str, buy_price: f64) -> bool {
         if let Some(position) = self.state.open_positions.get(token_name) {
             let cut_loss_price = position.cut_loss_price.lock().unwrap();
             if position.average_buy_price < *cut_loss_price {
                 return true;
             }
-            if self.config.position_creation_inteval.is_none() {
+            if position.average_buy_price > buy_price {
+                return false;
+            }
+            if self.config.position_creation_inteval_seconds.is_none() {
                 return false;
             }
             let current_time = chrono::Utc::now().timestamp();
             let time_since_last_creation = current_time - position.open_time;
 
             return time_since_last_creation
-                > (self.config.position_creation_inteval.unwrap() as i64);
+                > (self.config.position_creation_inteval_seconds.unwrap() as i64);
         }
         true
     }
