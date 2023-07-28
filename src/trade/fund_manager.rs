@@ -5,7 +5,7 @@ use crate::trade::trade_position::State;
 
 use super::abstract_trader::ReasonForSell;
 use super::trade_position::TakeProfitStrategy;
-use super::{CutLossStrategy, DBHandler, PriceHistory, Prices, TradePosition, TradingStrategy};
+use super::{CutLossStrategy, DBHandler, DexPrices, PriceHistory, TradePosition, TradingStrategy};
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;
@@ -245,15 +245,15 @@ impl FundManager {
         None
     }
 
-    pub fn check_positions(&self, current_prices: &HashMap<(String, String), Prices>) {
+    pub fn check_positions(&self, current_prices: &HashMap<String, DexPrices>) {
         let mut unrealized_pnl = 0.0;
 
-        for ((token_name, _dex_name), prices) in current_prices {
+        for (token_name, prices) in current_prices {
             if let Some(position) = self.state.open_positions.get(token_name) {
                 // caliculate unrialized PnL
-                position.print_info(prices.sell_price);
+                position.print_info(prices.sell.price);
                 unrealized_pnl +=
-                    prices.sell_price * position.amount - position.amount_in_base_token;
+                    prices.sell.price * position.amount - position.amount_in_base_token;
             }
         }
 
