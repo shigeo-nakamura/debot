@@ -752,10 +752,20 @@ impl AbstractTrader for ForcastTrader {
                     .await;
 
                 if opportunity.predicted_profit.is_some() {
-                    let multiplier = match opportunity.predicted_profit > Some(0.0) {
-                        true => self.config.reward_multiplier,
-                        false => self.config.penalty_multiplier,
-                    };
+                    let multiplier;
+                    match opportunity.predicted_profit {
+                        Some(profit) => {
+                            let ratio = profit / opportunity.amounts[0];
+                            multiplier = match ratio {
+                                _ if ratio > 0.01 => self.config.reward_multiplier,
+                                _ if ratio < -0.01 => self.config.penalty_multiplier,
+                                _ => 1.0,
+                            };
+                        }
+                        None => {
+                            multiplier = 1.0;
+                        }
+                    }
                     fund_manager.apply_reward_or_penalty(multiplier);
                 }
             }
