@@ -60,19 +60,6 @@ pub fn get(
             3.0,  // Predict the price in 3.0 hour
         ),
         (
-            "reversion-short-trailing-atr",
-            TradingStrategy::MeanReversion,
-            TakeProfitStrategy::TrailingStop,
-            CutLossStrategy::ATRStop,
-            short_trade_period,
-            1.01, // buy_signal_threshold
-            1.03, // take_profit_threshold
-            0.98, // loss_cut_threshold
-            10.0, // initial_score
-            1.0,  // 1 day
-            0.1,  // Predict the price in 0.1 hour
-        ),
-        (
             "reversion-medium-trailing-atr",
             TradingStrategy::MeanReversion,
             TakeProfitStrategy::TrailingStop,
