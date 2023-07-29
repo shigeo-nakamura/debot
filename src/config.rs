@@ -35,7 +35,7 @@ pub struct EnvConfig {
     pub max_error_count: u32,
     pub reward_multiplier: f64,
     pub penalty_multiplier: f64,
-    pub spread: f64,
+    pub relative_spread: f64,
     pub save_prices: bool,
     pub treasury: Option<Address>,
 }
@@ -152,7 +152,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;
         let reward_multiplier = get_env_var("REWARD_MULTIPLIER", "2.0")?;
         let penalty_multiplier = get_env_var("PENALTY_MULTIPLIER", "0.5")?;
-        let spread = get_env_var("SPREAD", "0.01")?;
+        let relative_spread = get_env_var("RELATIVE_SPREAD", "0.01")?;
         let save_prices = get_bool_env_var("SAVE_PRICES", false);
 
         let treasury_str = env::var("TREASURY").unwrap_or_default();
@@ -188,7 +188,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             max_error_count,
             reward_multiplier,
             penalty_multiplier,
-            spread,
+            relative_spread,
             save_prices,
             treasury,
         };

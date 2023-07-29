@@ -38,6 +38,8 @@ pub struct DexPrice {
 pub struct DexPrices {
     pub buy: DexPrice,
     pub sell: DexPrice,
+    pub spread: f64,
+    pub relative_spread: f64,
 }
 
 pub struct ForcastTraderConfig {
@@ -222,52 +224,40 @@ impl ForcastTrader {
 
         let mut current_prices: HashMap<String, DexPrices> = HashMap::new();
 
-        for ((token_a_name, token_b_name, sell_dex_name), &sell_price) in &token_pair_prices {
-            if token_b_name != self.base_token().symbol_name() {
+        for token in self.tokens().iter() {
+            let token_name = token.symbol_name();
+            if token_name == self.base_token().symbol_name() {
                 continue;
             }
 
-            if let Some((buy_price, buy_dex_name)) =
-                self.get_best_buy_price(token_a_name, &token_pair_prices)
-            {
-                // Check if the prices are reliable
-                if Self::is_wide_spread(
-                    token_a_name,
-                    &buy_dex_name,
-                    sell_dex_name,
-                    buy_price,
-                    sell_price,
-                    self.config.spread,
-                ) {
-                    continue;
-                }
-
-                // Calculate spread
-                let spread = buy_price - sell_price;
-                let key = token_a_name.to_string();
-
-                // Create new DexPrices
-                let new_prices = DexPrices {
-                    buy: DexPrice {
-                        dex_string: buy_dex_name.to_owned(),
-                        price: buy_price,
-                    },
-                    sell: DexPrice {
-                        dex_string: sell_dex_name.to_string(),
-                        price: sell_price,
-                    },
-                };
-
-                // Update if the new spread is smaller or token does not exist
-                if let Some(existing_prices) = current_prices.get(&key) {
-                    let existing_spread = existing_prices.buy.price - existing_prices.sell.price;
-                    if spread < existing_spread {
-                        current_prices.insert(key, new_prices);
-                    }
-                } else {
-                    current_prices.insert(key, new_prices);
-                }
+            let buy_price = self.get_best_buy_price(token_name, &token_pair_prices);
+            let sell_price = self.get_best_sell_price(token_name, &token_pair_prices);
+            if buy_price.is_none() || sell_price.is_none() {
+                continue;
             }
+
+            let (buy_price, buy_dex_name) = buy_price.unwrap();
+            let (sell_price, sell_dex_name) = sell_price.unwrap();
+
+            // Calculate spread
+            let key = token_name.to_string();
+            let spread = buy_price - sell_price;
+
+            // Create new DexPrices
+            let new_prices = DexPrices {
+                buy: DexPrice {
+                    dex_string: buy_dex_name.to_owned(),
+                    price: buy_price,
+                },
+                sell: DexPrice {
+                    dex_string: sell_dex_name.to_string(),
+                    price: sell_price,
+                },
+                spread: spread,
+                relative_spread: spread / sell_price,
+            };
+
+            current_prices.insert(key, new_prices);
         }
 
         // Update the price history and predict next prices
@@ -291,19 +281,25 @@ impl ForcastTrader {
         Ok(current_prices)
     }
 
-    fn get_best_buy_price(
+    fn get_best_price<F, C>(
         &self,
-        token_a_name: &str,
+        token_name: &str,
         current_prices: &HashMap<(String, String, String), f64>,
-    ) -> Option<(f64, String)> {
+        price_func: F,
+        cmp: C,
+    ) -> Option<(f64, String)>
+    where
+        F: Fn(&str, &HashMap<(String, String, String), f64>, &str) -> Option<f64>,
+        C: Fn(f64, f64) -> bool,
+    {
         let mut best_price: Option<(f64, String)> = None;
 
         for dex in self.dexes().iter() {
-            let price = self.get_buy_price(token_a_name, current_prices, &dex.name());
+            let price = price_func(token_name, current_prices, &dex.name());
 
             best_price = match (best_price, price) {
                 (Some((best, dex_name)), Some(current)) => {
-                    if current < best {
+                    if cmp(current, best) {
                         Some((current, dex.name().to_owned()))
                     } else {
                         Some((best, dex_name))
@@ -318,50 +314,79 @@ impl ForcastTrader {
         best_price
     }
 
-    fn get_buy_price(
+    fn get_best_buy_price(
         &self,
-        token_a_name: &str,
+        token_name: &str,
         current_prices: &HashMap<(String, String, String), f64>,
-        dex_name: &str,
+    ) -> Option<(f64, String)> {
+        self.get_best_price(
+            token_name,
+            current_prices,
+            |token_name, current_prices, dex_name| {
+                let key = (
+                    self.base_token().symbol_name().to_owned(),
+                    token_name.to_owned(),
+                    dex_name.to_owned(),
+                );
+                self.get_price(current_prices, &key, true)
+            },
+            |current, best| current < best,
+        )
+    }
+
+    fn get_best_sell_price(
+        &self,
+        token_name: &str,
+        current_prices: &HashMap<(String, String, String), f64>,
+    ) -> Option<(f64, String)> {
+        self.get_best_price(
+            token_name,
+            current_prices,
+            |token_name, current_prices, dex_name| {
+                let key = (
+                    token_name.to_owned(),
+                    self.base_token().symbol_name().to_owned(),
+                    dex_name.to_owned(),
+                );
+                self.get_price(current_prices, &key, false)
+            },
+            |current, best| current > best,
+        )
+    }
+
+    fn get_price(
+        &self,
+        current_prices: &HashMap<(String, String, String), f64>,
+        key: &(String, String, String),
+        invert: bool,
     ) -> Option<f64> {
-        let dex_index = match self.get_dex_index(dex_name) {
-            Ok(index) => index,
-            Err(_) => {
-                return None;
-            }
-        };
-        let key = (
-            self.base_token().symbol_name().to_owned(),
-            token_a_name.to_owned(),
-            self.dexes()[dex_index].name().to_owned(),
-        );
-        match current_prices.get(&key).copied() {
+        match current_prices.get(key).copied() {
             Some(price) => {
                 if price == 0.0 {
                     None
                 } else {
-                    Some(1.0 / price)
+                    if invert {
+                        Some(1.0 / price)
+                    } else {
+                        Some(price)
+                    }
                 }
             }
             None => None,
         }
     }
 
-    fn is_wide_spread(
-        token_name: &str,
-        buy_dex_name: &str,
-        sell_dex_name: &str,
-        buy_price: f64,
-        sell_price: f64,
-        spread: f64,
-    ) -> bool {
-        let diff = (buy_price - sell_price) / sell_price;
+    fn is_wide_spread(token_name: &str, prices: &DexPrices, relative_spread: f64) -> bool {
+        let buy_price = prices.buy.price;
+        let sell_price = prices.sell.price;
+        let buy_dex_name = &prices.buy.dex_string;
+        let sell_dex_name = &prices.sell.dex_string;
 
-        if diff > spread {
+        if prices.relative_spread > relative_spread {
             log::trace!(
                 "{}: {:3.3}%({:6.6}@{} - {:6.6}@{})",
                 token_name,
-                diff * 100.0,
+                prices.relative_spread,
                 sell_price,
                 sell_dex_name,
                 buy_price,
@@ -396,6 +421,11 @@ impl ForcastTrader {
             let token_a_index = self.get_token_index(token_name)?;
             let token_b_index = self.get_token_index(self.base_token().symbol_name())?;
             let dex_index = self.get_dex_index(&prices.buy.dex_string)?;
+
+            // Check if the prices are reliable
+            if Self::is_wide_spread(token_name, prices, self.config.spread) {
+                continue;
+            }
 
             for fund_manager in self.state.fund_manager_map.values() {
                 let proposal = fund_manager.find_buy_opportunities(
@@ -485,12 +515,13 @@ impl ForcastTrader {
 
         for (token_name, prices) in &current_prices {
             log::debug!(
-                "current price: {:<6}: {:12.6}@{:<6} - {:12.6}@{:<6}",
+                "current price: {:<6}: {:12.6}@{:<12} - {:12.6}@{:<12} ({:3.3})%",
                 token_name,
                 prices.sell.price,
                 prices.sell.dex_string,
                 prices.buy.price,
                 prices.buy.dex_string,
+                prices.relative_spread * 100.0,
             );
         }
 
