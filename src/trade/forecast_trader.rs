@@ -382,20 +382,7 @@ impl ForcastTrader {
         let buy_dex_name = &prices.buy.dex_string;
         let sell_dex_name = &prices.sell.dex_string;
 
-        if prices.relative_spread > relative_spread {
-            log::trace!(
-                "{}: {:3.3}%({:6.6}@{} - {:6.6}@{})",
-                token_name,
-                prices.relative_spread,
-                sell_price,
-                sell_dex_name,
-                buy_price,
-                buy_dex_name,
-            );
-            return true;
-        }
-
-        return false;
+        prices.relative_spread > relative_spread
     }
 
     fn get_token_index(&self, token_name: &str) -> Result<usize, Box<dyn Error + Send + Sync>> {
