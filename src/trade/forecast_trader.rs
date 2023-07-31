@@ -376,7 +376,7 @@ impl ForcastTrader {
         }
     }
 
-    fn is_wide_spread(token_name: &str, prices: &DexPrices, relative_spread: f64) -> bool {
+    fn is_wide_spread(prices: &DexPrices, relative_spread: f64) -> bool {
         let buy_price = prices.buy.price;
         let sell_price = prices.sell.price;
         let buy_dex_name = &prices.buy.dex_string;
@@ -410,7 +410,7 @@ impl ForcastTrader {
             let dex_index = self.get_dex_index(&prices.buy.dex_string)?;
 
             // Check if the prices are reliable
-            if Self::is_wide_spread(token_name, prices, self.config.spread) {
+            if Self::is_wide_spread(prices, self.config.spread) {
                 continue;
             }
 
