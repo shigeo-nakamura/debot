@@ -52,6 +52,7 @@ pub enum State {
     Open,
     CutLoss,
     TakeProfit,
+    Closed,
     Liquidated,
     Expired,
 }
@@ -182,7 +183,7 @@ impl TradePosition {
             return Some(ReasonForSell::Expired);
         } else if holding_interval > max_holding_interval {
             if sell_price > self.average_buy_price {
-                return Some(ReasonForSell::TakeProfit);
+                return Some(ReasonForSell::Closed);
             }
         }
         None

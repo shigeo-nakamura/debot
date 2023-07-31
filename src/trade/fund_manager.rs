@@ -418,6 +418,7 @@ impl FundManager {
                     ReasonForSell::Expired => State::Expired,
                     ReasonForSell::TakeProfit => State::TakeProfit,
                     ReasonForSell::CutLoss => State::CutLoss,
+                    ReasonForSell::Closed => State::Closed,
                 };
 
                 position.del(sold_price, amount_in, new_state);
