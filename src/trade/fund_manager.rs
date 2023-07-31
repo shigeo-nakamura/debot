@@ -190,15 +190,15 @@ impl FundManager {
                 _ => "\x1b[0;90m",
             };
             log::debug!(
-                "{} {:3.3}%\x1b[0m(-{:3.3}%), {} \x1b[0;34m{:<6}\x1b[0m current: {:6.5} - {:6.5}, predict: {:6.5}",
+                "{} {:>7.3}%\x1b[0m({:>2.2}%), {:<40} \x1b[0;34m{:<6}\x1b[0m {:<6.5}({:<6.5}) - {:<6.5}",
                 color,
                 profit_ratio * 100.0,
-                price_spread *100.0,
+                price_spread * 100.0,
                 self.name(),
                 token_name,
-                buy_price,
                 sell_price,
                 predicted_price,
+                buy_price,
             );
 
             if profit_ratio * 100.0 >= self.config.buy_signal_threshold {

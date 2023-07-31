@@ -377,11 +377,6 @@ impl ForcastTrader {
     }
 
     fn is_wide_spread(prices: &DexPrices, relative_spread: f64) -> bool {
-        let buy_price = prices.buy.price;
-        let sell_price = prices.sell.price;
-        let buy_dex_name = &prices.buy.dex_string;
-        let sell_dex_name = &prices.sell.dex_string;
-
         prices.relative_spread > relative_spread
     }
 
