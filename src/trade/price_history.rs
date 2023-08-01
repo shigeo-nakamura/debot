@@ -188,6 +188,13 @@ impl PriceHistory {
             return; // Not enough data to calculate ATR
         }
 
+        let one_hour_ago_index = (3600 / self.interval) as usize;
+        if self.prices.len() < one_hour_ago_index + self.atr_period + 1 {
+            return;
+        }
+
+        let previous_close = self.prices[self.prices.len() - one_hour_ago_index - 1].price;
+
         let atr_prices = &self.prices[self.prices.len() - self.atr_period..];
 
         let current_high = atr_prices
@@ -198,7 +205,6 @@ impl PriceHistory {
             .iter()
             .map(|p| p.price)
             .fold(f64::INFINITY, f64::min);
-        let previous_close = self.prices[self.prices.len() - self.atr_period - 1].price;
 
         let tr = [
             current_high - current_low,
