@@ -33,6 +33,7 @@ pub struct FundManagerState {
 
 pub struct FundManagerConfig {
     name: String,
+    token_name: String,
     strategy: TradingStrategy,
     take_profit_strategy: TakeProfitStrategy,
     cut_loss_strategy: CutLossStrategy,
@@ -65,6 +66,7 @@ pub struct TradeProposal {
 impl FundManager {
     pub fn new(
         fund_name: &str,
+        token_name: &str,
         open_positions: Option<HashMap<String, TradePosition>>,
         strategy: TradingStrategy,
         take_profit_strategy: TakeProfitStrategy,
@@ -84,6 +86,7 @@ impl FundManager {
     ) -> Self {
         let config = FundManagerConfig {
             name: fund_name.to_owned(),
+            token_name: token_name.to_owned(),
             strategy,
             take_profit_strategy,
             cut_loss_strategy,
@@ -174,6 +177,10 @@ impl FundManager {
         sell_price: f64,
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Option<TradeProposal> {
+        if token_name != self.config.token_name {
+            return None;
+        }
+
         if let Some(history) = histories.get_mut(token_name) {
             let predicted_price = history.majority_vote_predictions(
                 self.config.trade_period,

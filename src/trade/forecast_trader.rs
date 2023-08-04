@@ -124,8 +124,12 @@ impl ForcastTrader {
             scores: scores.clone(),
         };
 
-        let fund_manager_configurations =
-            fund_configurations::get(short_trade_period, medium_trade_period, long_trade_period);
+        let fund_manager_configurations = fund_configurations::get(
+            chain_name,
+            short_trade_period,
+            medium_trade_period,
+            long_trade_period,
+        );
 
         let db_handler = Arc::new(Mutex::new(DBHandler::new(
             db_client.clone(),
@@ -136,9 +140,10 @@ impl ForcastTrader {
 
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
-            .map(
+            .filter_map(
                 |(
                     name,
+                    token_name,
                     strategy,
                     take_profit_strategy,
                     cut_loss_strategy,
@@ -150,7 +155,19 @@ impl ForcastTrader {
                     days,
                     hours,
                 )| {
-                    let fund_name = format!("{}-{}", chain_name, name);
+                    let mut token_found = false;
+                    for token in tokens.iter() {
+                        if token_name == token.symbol_name() {
+                            token_found = true;
+                            break;
+                        }
+                    }
+
+                    if !token_found {
+                        return None;
+                    }
+
+                    let fund_name = format!("{}-{}-{}", chain_name, token_name, name);
 
                     let prev_score = scores.get(&fund_name);
                     let intial_score = match prev_score {
@@ -160,8 +177,9 @@ impl ForcastTrader {
 
                     state.scores.insert(fund_name.to_owned(), *intial_score);
 
-                    FundManager::new(
+                    Some(FundManager::new(
                         &fund_name,
+                        token_name,
                         open_positions_map.get(&fund_name).cloned(),
                         strategy,
                         take_profit_strategy,
@@ -178,7 +196,7 @@ impl ForcastTrader {
                         days,
                         hours,
                         db_handler.clone(),
-                    )
+                    ))
                 },
             )
             .collect();
