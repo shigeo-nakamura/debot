@@ -82,9 +82,13 @@ pub struct PriceHistory {
     high_price: f64,
     low_price: f64,
     // Add the ATR value over a given period
-    atr: Option<f64>,
+    atr_short: Option<f64>,
+    atr_medium: Option<f64>,
+    atr_long: Option<f64>,
     // ATR period
-    atr_period: usize,
+    atr_short_period: usize,
+    atr_medium_period: usize,
+    atr_long_period: usize,
 }
 
 #[allow(dead_code)]
@@ -123,8 +127,12 @@ impl PriceHistory {
             prev_ema_long: 0.0,
             high_price: 0.0,
             low_price: 0.0,
-            atr: None,
-            atr_period: max_size - 2,
+            atr_short: None,
+            atr_medium: None,
+            atr_long: None,
+            atr_short_period: short_period,
+            atr_medium_period: medium_period,
+            atr_long_period: long_period,
         }
     }
 
@@ -132,8 +140,13 @@ impl PriceHistory {
         self.market_status
     }
 
-    pub fn atr(&self) -> Option<f64> {
-        self.atr
+    pub fn atr(&self, period: usize) -> Option<f64> {
+        match period {
+            p if p == self.atr_short_period => self.atr_short,
+            p if p == self.atr_medium_period => self.atr_medium,
+            p if p == self.atr_long_period => self.atr_long,
+            _ => None,
+        }
     }
 
     pub fn add_price(&mut self, price: f64, timestamp: Option<i64>) -> PricePoint {
@@ -165,86 +178,79 @@ impl PriceHistory {
         self.update_market_status();
         self.last_price = price;
 
-        // If new price is higher than current high_price, update it
-        if price > self.high_price {
-            self.high_price = price;
-        }
-
-        // If new price is lower than current low_price, update it
-        if price < self.low_price {
-            self.low_price = price;
-        }
-
-        // If the prices vector is larger than the ATR period, calculate the ATR
-        if self.prices.len() >= self.atr_period {
-            self.calculate_atr();
-        }
+        self.calculate_atr();
 
         price_point
     }
 
     fn calculate_atr(&mut self) {
-        if self.prices.len() < self.atr_period + 1 {
-            return; // Not enough data to calculate ATR
-        }
-
         let one_hour_ago_index = (3600 / self.interval) as usize;
-        if self.prices.len() < one_hour_ago_index + self.atr_period + 1 {
+        if self.prices.len() < one_hour_ago_index + self.atr_long_period + 1 {
             return;
         }
 
         let previous_close = self.prices[self.prices.len() - one_hour_ago_index - 1].price;
 
-        let atr_prices = &self.prices[self.prices.len() - self.atr_period..];
+        let periods = [
+            self.atr_short_period,
+            self.atr_medium_period,
+            self.atr_long_period,
+        ];
 
-        let current_high = atr_prices
+        for (i, period) in periods.iter().enumerate() {
+            let atr_prices = &self.prices[self.prices.len() - *period..];
+            let current_high = atr_prices
+                .iter()
+                .map(|p| p.price)
+                .fold(f64::NEG_INFINITY, f64::max);
+            let current_low = atr_prices
+                .iter()
+                .map(|p| p.price)
+                .fold(f64::INFINITY, f64::min);
+
+            let tr = [
+                current_high - current_low,
+                (current_high - previous_close).abs(),
+                (current_low - previous_close).abs(),
+            ]
             .iter()
-            .map(|p| p.price)
-            .fold(f64::NEG_INFINITY, f64::max);
-        let current_low = atr_prices
-            .iter()
-            .map(|p| p.price)
-            .fold(f64::INFINITY, f64::min);
+            .cloned()
+            .fold(f64::NAN, f64::max);
 
-        let tr = [
-            current_high - current_low,
-            (current_high - previous_close).abs(),
-            (current_low - previous_close).abs(),
-        ]
-        .iter()
-        .cloned()
-        .fold(f64::NAN, f64::max);
+            let atr = match i {
+                0 => &mut self.atr_short,
+                1 => &mut self.atr_medium,
+                2 => &mut self.atr_long,
+                _ => unreachable!(),
+            };
 
-        if self.atr == None {
-            // This is the first time we calculate ATR, so we calculate the average TR over atr_period
-            let tr_sum: f64 = atr_prices
-                .windows(2)
-                .map(|window| {
-                    let high = window
+            if atr.is_none() {
+                let tr_sum: f64 = atr_prices
+                    .windows(2)
+                    .map(|window| {
+                        let high = window
+                            .iter()
+                            .map(|pp| pp.price)
+                            .fold(f64::NEG_INFINITY, f64::max);
+                        let low = window
+                            .iter()
+                            .map(|pp| pp.price)
+                            .fold(f64::INFINITY, f64::min);
+                        let previous_close = window[0].price;
+                        [
+                            high - low,
+                            (high - previous_close).abs(),
+                            (low - previous_close).abs(),
+                        ]
                         .iter()
-                        .map(|pp| pp.price)
-                        .fold(f64::NEG_INFINITY, f64::max);
-                    let low = window
-                        .iter()
-                        .map(|pp| pp.price)
-                        .fold(f64::INFINITY, f64::min);
-                    let previous_close = window[0].price;
-                    [
-                        high - low,
-                        (high - previous_close).abs(),
-                        (low - previous_close).abs(),
-                    ]
-                    .iter()
-                    .cloned()
-                    .fold(f64::NAN, f64::max)
-                })
-                .sum();
-            self.atr = Some(tr_sum / self.atr_period as f64);
-        } else {
-            // We update ATR using the formula
-            self.atr = Some(
-                (self.atr.unwrap() * (self.atr_period as f64 - 1.0) + tr) / self.atr_period as f64,
-            );
+                        .cloned()
+                        .fold(f64::NAN, f64::max)
+                    })
+                    .sum();
+                *atr = Some(tr_sum / *period as f64);
+            } else {
+                *atr = Some((atr.unwrap() * (*period as f64 - 1.0) + tr) / *period as f64);
+            }
         }
     }
 

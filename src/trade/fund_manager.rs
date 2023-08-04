@@ -238,7 +238,7 @@ impl FundManager {
                     amount,
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell: None,
-                    atr: history.atr(),
+                    atr: history.atr(self.config.trade_period),
                 });
             }
         }

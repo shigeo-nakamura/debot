@@ -137,7 +137,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let medium_trade_period_minutes: usize =
             get_env_var("MEDIUM_TRADE_PEREIOD_MINUTES", "240")?;
         let long_trade_period_minutes: usize = get_env_var("LONG_TRACE_PEREIOD_MINUTES", "720")?;
-        let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "24")?;
+        let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "36")?;
 
         let position_creation_inteval_hours_str =
             env::var("POSITION_CREATION_INVERVAL_HOURS").unwrap_or_default();
