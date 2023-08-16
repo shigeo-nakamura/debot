@@ -230,9 +230,7 @@ async fn prepare_algorithm_trader_instance(
     let mut trader = ForcastTrader::new(
         config.chain_params.chain_name,
         trader_state.clone(),
-        config.leverage,
         initial_amount,
-        config.min_trading_amount,
         config.allowance_factor,
         tokens.clone(),
         base_token.clone(),
@@ -244,7 +242,7 @@ async fn prepare_algorithm_trader_instance(
         config.long_trade_period,
         config.max_price_size,
         config.interval,
-        config.flash_crash_threshold,
+        config.risk_reward,
         config.position_creation_inteval_seconds,
         config.reward_multiplier,
         config.penalty_multiplier,
@@ -369,7 +367,10 @@ async fn main_loop(
                 trader.rebalance(*wallet_address, true).await;
             }
 
-            let mut opportunities = match trader.find_opportunities(histories).await {
+            let mut opportunities = match trader
+                .find_opportunities(config.trading_amount, histories)
+                .await
+            {
                 Ok(opportunities) => {
                     error_manager.reset_error_count();
                     opportunities

@@ -4,8 +4,9 @@ use crate::db::CounterType;
 use crate::trade::trade_position::State;
 
 use super::abstract_trader::ReasonForSell;
+use super::price_history::MarketStatus;
 use super::trade_position::TakeProfitStrategy;
-use super::{CutLossStrategy, DBHandler, DexPrices, PriceHistory, TradePosition, TradingStrategy};
+use super::{DBHandler, DexPrices, PriceHistory, TradePosition, TradingStrategy};
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;
@@ -36,16 +37,13 @@ pub struct FundManagerConfig {
     token_name: String,
     strategy: TradingStrategy,
     take_profit_strategy: TakeProfitStrategy,
-    cut_loss_strategy: CutLossStrategy,
     trade_period: usize,
-    leverage: f64,
-    min_trading_amount: f64,
     position_creation_inteval_seconds: Option<u64>,
     buy_signal_threshold: f64,
-    take_profit_threshold: f64,
     cut_loss_threshold: f64,
     max_hold_interval_in_secs: u64,
     prediction_interval_secs: u64,
+    risk_reward: f64,
 }
 
 pub struct FundManager {
@@ -61,6 +59,7 @@ pub struct TradeProposal {
     pub fund_name: String,
     pub reason_for_sell: Option<ReasonForSell>,
     pub atr: Option<f64>,
+    pub market_status: Option<MarketStatus>,
 }
 
 impl FundManager {
@@ -70,18 +69,15 @@ impl FundManager {
         open_positions: Option<HashMap<String, TradePosition>>,
         strategy: TradingStrategy,
         take_profit_strategy: TakeProfitStrategy,
-        cut_loss_strategy: CutLossStrategy,
         trade_period: usize,
-        leverage: f64,
         initial_amount: f64,
-        min_trading_amount: f64,
         initial_score: f64,
         position_creation_inteval_seconds: Option<u64>,
         buy_signal_threshold: f64,
-        take_profit_threshold: f64,
         cut_loss_threshold: f64,
         max_hold_interval_in_days: f64,
         prediction_interval_hours: f64,
+        risk_reward: f64,
         db_handler: Arc<Mutex<DBHandler>>,
     ) -> Self {
         let config = FundManagerConfig {
@@ -89,17 +85,14 @@ impl FundManager {
             token_name: token_name.to_owned(),
             strategy,
             take_profit_strategy,
-            cut_loss_strategy,
             trade_period,
-            leverage,
-            min_trading_amount,
             position_creation_inteval_seconds,
             buy_signal_threshold,
-            take_profit_threshold,
             cut_loss_threshold,
             max_hold_interval_in_secs: (max_hold_interval_in_days * (SECONDS_PER_DAY as f64))
                 as u64,
             prediction_interval_secs: (prediction_interval_hours * SECONDS_PER_HOUR as f64) as u64,
+            risk_reward,
         };
 
         let open_positions = match open_positions {
@@ -160,21 +153,12 @@ impl FundManager {
         *self.state.fund_state.lock().unwrap() == FundState::Liquidated
     }
 
-    fn risk_reward(history: &PriceHistory) -> f64 {
-        match history.market_status() {
-            super::price_history::MarketStatus::StrongUp => 2.0,
-            super::price_history::MarketStatus::Up => 1.5,
-            super::price_history::MarketStatus::WeakUp => 1.2,
-            super::price_history::MarketStatus::Down => 0.5,
-            super::price_history::MarketStatus::Neutral => 1.0,
-        }
-    }
-
     pub fn find_buy_opportunities(
         &self,
         token_name: &str,
         buy_price: f64,
         sell_price: f64,
+        amount: f64,
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Option<TradeProposal> {
         if token_name != self.config.token_name {
@@ -217,11 +201,9 @@ impl FundManager {
                     return None;
                 }
 
-                let amount = self.state.amount * self.config.leverage * Self::risk_reward(history);
-
-                if amount < self.config.min_trading_amount {
+                if self.state.amount < amount {
                     log::debug!(
-                        "No enough fund left({}): remaining = {:6.3}, amount = {:6.3}, invested = {:6.3}",
+                        "No enough fund left({}): remaining = {:6.3} < amount = {:6.3}, invested = {:6.3}",
                         self.name(),
                         self.state.amount,
                         amount,
@@ -246,6 +228,7 @@ impl FundManager {
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell: None,
                     atr: history.atr(self.config.trade_period),
+                    market_status: Some(history.market_status()),
                 });
             }
         }
@@ -316,6 +299,7 @@ impl FundManager {
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell,
                     atr: None,
+                    market_status: None,
                 });
             }
         }
@@ -324,10 +308,6 @@ impl FundManager {
 
     fn can_create_new_position(&self, token_name: &str, buy_price: f64) -> bool {
         if let Some(position) = self.state.open_positions.get(token_name) {
-            let cut_loss_price = position.cut_loss_price.lock().unwrap();
-            if position.average_buy_price < *cut_loss_price {
-                return true;
-            }
             if position.average_buy_price > buy_price {
                 return false;
             }
@@ -351,6 +331,7 @@ impl FundManager {
         amount_in: f64,
         amount_out: f64,
         atr: Option<f64>,
+        market_status: Option<MarketStatus>,
     ) {
         log::debug!(
             "update_position: amount_in = {:6.6}, amount_out = {:6.6}",
@@ -361,8 +342,9 @@ impl FundManager {
             self.state.amount -= amount_in;
 
             let average_price = amount_in / amount_out;
-            let take_profit_price = average_price * self.config.take_profit_threshold;
             let cut_loss_price = average_price * self.config.cut_loss_threshold;
+            let distance = average_price - cut_loss_price;
+            let take_profit_price = average_price + distance * self.config.risk_reward;
 
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
                 // if there are already open positions for this token, update them
@@ -387,13 +369,13 @@ impl FundManager {
                     token_name,
                     self.name(),
                     self.config.take_profit_strategy.clone(),
-                    self.config.cut_loss_strategy.clone(),
                     average_price,
                     take_profit_price,
                     cut_loss_price,
                     amount_out,
                     amount_in,
                     atr,
+                    market_status,
                 );
                 position.id = self
                     .state

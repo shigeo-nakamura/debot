@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::utils::{DateTimeUtils, ToDateTimeString};
 
-use super::{abstract_trader::ReasonForSell, HasId};
+use super::{abstract_trader::ReasonForSell, price_history::MarketStatus, HasId};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub enum TakeProfitStrategy {
@@ -15,17 +15,9 @@ pub enum TakeProfitStrategy {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub enum CutLossStrategy {
-    #[default]
-    FixedThreshold,
-    ATRStop,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct TradePosition {
     pub id: Option<u32>,
     pub take_profit_strategy: TakeProfitStrategy,
-    pub cut_loss_strategy: CutLossStrategy,
     pub state: State,
     pub token_name: String,
     pub fund_name: String,
@@ -43,6 +35,7 @@ pub struct TradePosition {
     pub amount: f64,
     pub amount_in_base_token: f64,
     pub realized_pnl: Option<f64>,
+    pub market_status: Option<MarketStatus>,
     pub atr: Option<f64>,
 }
 
@@ -68,13 +61,13 @@ impl TradePosition {
         token_name: &str,
         fund_name: &str,
         take_profit_strategy: TakeProfitStrategy,
-        cut_loss_strategy: CutLossStrategy,
         average_buy_price: f64,
         take_profit_price: f64,
         cut_loss_price: f64,
         amount: f64,
         amount_in_base_token: f64,
         atr: Option<f64>,
+        market_status: Option<MarketStatus>,
     ) -> Self {
         log::debug!(
             "Created new open position for token: {}, average_buy_price: {:6.3}, take_profit_price: {:6.3}, cut_loss_price: {:6.3}, atr:{:?}",
@@ -83,22 +76,11 @@ impl TradePosition {
 
         let open_time = chrono::Utc::now().timestamp();
 
-        let modified_cut_loss_price = match cut_loss_strategy {
-            CutLossStrategy::FixedThreshold => cut_loss_price,
-            CutLossStrategy::ATRStop => {
-                let distance = average_buy_price - cut_loss_price;
-                let cut_loss_distance = match atr {
-                    Some(atr) => f64::max(atr, distance),
-                    None => distance,
-                };
-                average_buy_price - cut_loss_distance
-            }
-        };
+        let modified_cut_loss_price = cut_loss_price;
 
         Self {
             id: None,
             take_profit_strategy,
-            cut_loss_strategy,
             state: State::Open,
             token_name: token_name.to_owned(),
             fund_name: fund_name.to_owned(),
@@ -115,6 +97,7 @@ impl TradePosition {
             amount,
             amount_in_base_token,
             realized_pnl: None,
+            market_status,
             atr: atr,
         }
     }

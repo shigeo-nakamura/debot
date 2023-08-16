@@ -17,10 +17,9 @@ pub struct EnvConfig {
     pub db_name: String,
     pub use_kms: bool,
     pub interval: u64,
-    pub leverage: f64,
     pub min_managed_amount: f64,
     pub max_managed_amount: f64,
-    pub min_trading_amount: f64,
+    pub trading_amount: f64,
     pub allowance_factor: f64,
     pub deadline_secs: u64,
     pub log_limit: u32,
@@ -31,7 +30,7 @@ pub struct EnvConfig {
     pub long_trade_period: usize,
     pub max_price_size: u32,
     pub position_creation_inteval_seconds: Option<u64>,
-    pub flash_crash_threshold: f64,
+    pub risk_reward: f64,
     pub max_error_count: u32,
     pub reward_multiplier: f64,
     pub penalty_multiplier: f64,
@@ -125,10 +124,9 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
         let use_kms = get_bool_env_var("USE_KMS", false);
         let interval = get_env_var("INTERVAL", "10")?; // sec
-        let leverage = get_env_var("LEVERAGE", "0.2")?;
-        let min_managed_amount = get_env_var("MIN_MANAGED_AMOUNT", "3000.0")?;
-        let max_managed_amount = get_env_var("MAX_MANAGED_AMOUNT", "7000.0")?;
-        let min_trading_amount = get_env_var("MIN_TRADING_AMOUNT", "10.0")?;
+        let min_managed_amount = get_env_var("MIN_MANAGED_AMOUNT", "1000.0")?;
+        let max_managed_amount = get_env_var("MAX_MANAGED_AMOUNT", "10000.0")?;
+        let trading_amount = get_env_var("TRADING_AMOUNT", "100.0")?;
         let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
         let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
@@ -148,11 +146,11 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             None => None,
         };
 
-        let flash_crash_threshold = get_env_var("FLASH_CRASH_THRESHOLD", "0.95")?;
+        let risk_reward = get_env_var("RISK_REWARD", "1.5")?;
         let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;
         let reward_multiplier = get_env_var("REWARD_MULTIPLIER", "2.0")?;
         let penalty_multiplier = get_env_var("PENALTY_MULTIPLIER", "0.5")?;
-        let relative_spread = get_env_var("RELATIVE_SPREAD", "0.01")?;
+        let relative_spread = get_env_var("RELATIVE_SPREAD", "0.007")?;
         let save_prices = get_bool_env_var("SAVE_PRICES", false);
 
         let treasury_str = env::var("TREASURY").unwrap_or_default();
@@ -170,10 +168,9 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             db_name,
             use_kms,
             interval,
-            leverage,
             min_managed_amount,
             max_managed_amount,
-            min_trading_amount,
+            trading_amount,
             allowance_factor,
             deadline_secs,
             log_limit,
@@ -184,7 +181,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             long_trade_period,
             max_price_size,
             position_creation_inteval_seconds,
-            flash_crash_threshold,
+            risk_reward,
             max_error_count,
             reward_multiplier,
             penalty_multiplier,

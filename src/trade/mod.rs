@@ -22,7 +22,6 @@ pub use forecast_trader::ForcastTrader;
 pub use fund_manager::FundManager;
 pub use price_history::PriceHistory;
 pub use price_history::TradingStrategy;
-pub use trade_position::CutLossStrategy;
 pub use trade_position::TakeProfitStrategy;
 pub use trade_position::TradePosition;
 pub use transaction_log::BalanceLog;

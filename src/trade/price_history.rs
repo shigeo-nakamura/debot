@@ -3,9 +3,6 @@
 use crate::utils::ToDateTimeString;
 use serde::{Deserialize, Serialize};
 
-const SIGNAL_PERIOD: usize = 9;
-const MACD_THRESHOLD: f64 = 0.1;
-
 // RSI thresholds
 const RSI_OVERBOUGHT: f64 = 80.0;
 const RSI_BOUGHT: f64 = 70.0;
@@ -17,15 +14,13 @@ const UPPER_WEAK_LEVEL_MULTIPLIER: f64 = 1.001;
 const LOWER_WEAK_LEVEL_MULTIPLIER: f64 = 0.999;
 const LOWER_STRONG_LEVEL_MULTIPLIER: f64 = 0.988;
 
-// Threshold for detecting flash crash based on RSI
-const RSI_FLASH_CRASH: f64 = 85.0;
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub enum MarketStatus {
     StrongUp,
     Up,
     WeakUp,
     Down,
+    #[default]
     Neutral,
 }
 
@@ -72,7 +67,6 @@ pub struct PriceHistory {
     long_period: usize,
     max_size: usize,
     interval: u64,
-    flash_crash_threshold: f64,
     first_timestamp: Option<i64>,
     market_status: MarketStatus,
     prev_ema_short: f64,
@@ -106,7 +100,6 @@ impl PriceHistory {
         long_period: usize,
         max_size: usize,
         interval: u64,
-        flash_crash_threshold: f64,
     ) -> PriceHistory {
         PriceHistory {
             prices: Vec::with_capacity(max_size),
@@ -119,7 +112,6 @@ impl PriceHistory {
             long_period,
             max_size,
             interval,
-            flash_crash_threshold,
             first_timestamp: None,
             market_status: MarketStatus::Neutral,
             prev_ema_short: 0.0,
@@ -305,38 +297,6 @@ impl PriceHistory {
         self.calculate_sma(period)
     }
 
-    pub fn predict_next_price_macd(&self) -> f64 {
-        if self.prices.len() < self.short_period + 1 {
-            log::trace!("Not enough data for MACD prediction, returning last known price.");
-            return self.prices.last().unwrap().price;
-        }
-
-        let compute_macd = |short_period, long_period| {
-            let short_ema = self.calculate_ema(self.prices.len() - 1, short_period);
-            let long_ema = self.calculate_ema(self.prices.len() - 1, long_period);
-            let macd_line = short_ema - long_ema + 1e-8;
-            let macd_lines = self.calculate_macd_lines(short_period, long_period, SIGNAL_PERIOD);
-            let signal_line = self.calculate_ema(macd_lines.len() - 1, SIGNAL_PERIOD);
-            let histogram = macd_line - signal_line;
-            let predicted_price = self.prices[self.prices.len() - 1].price + histogram;
-
-            log::trace!("Short EMA: {}, Long EMA: {}, MACD Line: {}, Signal Line: {}, Histogram: {}, Predicted Price: {}", 
-                short_ema, long_ema, macd_line, signal_line, histogram, predicted_price);
-
-            predicted_price
-        };
-
-        let predicted_price = compute_macd(self.short_period, self.long_period * 2);
-
-        let last_price = self.prices.last().unwrap().price;
-
-        if (predicted_price - last_price).abs() > MACD_THRESHOLD {
-            last_price
-        } else {
-            predicted_price
-        }
-    }
-
     fn predict_next_price_regression(&self, next_relative_timestamp: i64, period: usize) -> f64 {
         if self.first_timestamp.is_none() || self.prices.len() < period {
             return self.prices.last().unwrap().price;
@@ -502,16 +462,6 @@ impl PriceHistory {
         variance.sqrt()
     }
 
-    #[allow(dead_code)]
-    pub fn is_flash_crash(&self) -> bool {
-        if self.last_price < (self.ema_short * self.flash_crash_threshold)
-            && self.calculate_rsi(SIGNAL_PERIOD) > RSI_FLASH_CRASH
-        {
-            return true;
-        }
-        false
-    }
-
     fn update_ema(&mut self, price: f64, timestamp: i64, prev_timestamp: Option<i64>) {
         let weight_short = 2.0 / (self.short_period as f64 + 1.0);
         let weight_medium = 2.0 / (self.medium_period as f64 + 1.0);
@@ -541,47 +491,6 @@ impl PriceHistory {
         } else if self.prices.len() >= self.long_period {
             self.ema_long = (price - self.ema_long) * weight_long * time_difference + self.ema_long;
         }
-    }
-
-    fn calculate_ema(&self, current_index: usize, period: usize) -> f64 {
-        if current_index < period {
-            // When there are fewer data points than the period, return SMA
-            let sum: f64 = self
-                .prices
-                .iter()
-                .take(current_index)
-                .map(|p| p.price)
-                .sum();
-            return sum / current_index as f64;
-        }
-        let sma: f64 = self.calculate_sma(period);
-        let multiplier = 2.0 / (period as f64 + 1.0);
-        let ema = self
-            .prices
-            .iter()
-            .enumerate()
-            .skip(current_index - period + 1)
-            .take(period)
-            .fold(sma, |ema, (_i, price)| {
-                (price.price - ema) * multiplier + ema
-            });
-
-        ema
-    }
-
-    fn calculate_macd_lines(&self, short_period: usize, long_period: usize, n: usize) -> Vec<f64> {
-        let start_index = self.prices.len().saturating_sub(n);
-        let end_index = self.prices.len();
-        let mut macd_lines = Vec::new();
-
-        for i in start_index..end_index {
-            let short_ema = self.calculate_ema(i, short_period);
-            let long_ema = self.calculate_ema(i, long_period);
-            let macd_line = short_ema - long_ema + 1e-8; // Add a small constant to prevent exact zero
-            macd_lines.push(macd_line);
-        }
-
-        macd_lines
     }
 
     fn calculate_sma(&self, period: usize) -> f64 {

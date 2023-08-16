@@ -18,7 +18,7 @@ use crate::{
     token::Token,
 };
 
-use super::DBHandler;
+use super::{price_history::MarketStatus, DBHandler};
 
 pub fn find_index<T, F>(list: &[T], predicate: F) -> Option<usize>
 where
@@ -54,6 +54,7 @@ pub struct TradeOpportunity {
     pub currect_price: Option<f64>,
     pub predicted_price: Option<f64>,
     pub atr: Option<f64>,
+    pub market_status: Option<MarketStatus>,
 }
 
 impl TradeOpportunity {
@@ -100,7 +101,6 @@ pub enum TraderState {
 pub struct BaseTrader {
     name: String,
     state: TraderState,
-    leverage: f64,
     initial_amount: f64,
     allowance_factor: f64,
     tokens: Arc<Vec<Box<dyn Token>>>,
@@ -117,7 +117,6 @@ impl BaseTrader {
     pub fn new(
         name: String,
         state: TraderState,
-        leverage: f64,
         initial_amount: f64,
         allowance_factor: f64,
         tokens: Arc<Vec<Box<dyn Token>>>,
@@ -132,7 +131,6 @@ impl BaseTrader {
         Self {
             name,
             state,
-            leverage,
             initial_amount,
             allowance_factor,
             tokens,
@@ -355,10 +353,6 @@ impl BaseTrader {
             .await;
     }
 
-    pub fn leverage(&self) -> f64 {
-        self.leverage
-    }
-
     pub fn initial_amount(&self) -> f64 {
         self.initial_amount
     }
@@ -411,7 +405,6 @@ pub trait AbstractTrader {
 
     fn state(&self) -> TraderState;
     async fn set_state(&mut self, state: TraderState);
-    fn leverage(&self) -> f64;
     fn initial_amount(&self) -> f64;
     fn tokens(&self) -> Arc<Vec<Box<dyn Token>>>;
     fn base_token(&self) -> Arc<Box<dyn Token>>;
@@ -427,6 +420,7 @@ pub trait AbstractTrader {
 
     async fn get_token_pair_prices(
         &self,
+        amount: f64,
     ) -> Result<HashMap<(String, String, String), f64>, Box<dyn Error + Send + Sync>>;
 
     async fn transfer_token(

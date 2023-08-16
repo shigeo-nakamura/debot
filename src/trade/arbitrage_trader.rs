@@ -28,7 +28,6 @@ impl ArbitrageTrader {
     #[allow(dead_code)]
     pub fn new(
         trader_state: TraderState,
-        leverage: f64,
         initial_amount: f64,
         allowance_factor: f64,
         tokens: Arc<Vec<Box<dyn Token>>>,
@@ -50,7 +49,6 @@ impl ArbitrageTrader {
             base_trader: BaseTrader::new(
                 "Arbitrager".to_string(),
                 trader_state,
-                leverage,
                 initial_amount,
                 allowance_factor,
                 tokens,
@@ -224,9 +222,10 @@ impl ArbitrageTrader {
     pub async fn find_opportunities(
         &self,
         paths: &Vec<Vec<(Box<dyn Token>, Box<dyn Dex>)>>,
+        amount: f64,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         // Get the prices of all token pairs
-        let token_pair_prices = self.get_token_pair_prices().await?;
+        let token_pair_prices = self.get_token_pair_prices(amount).await?;
 
         for ((token_a, token_b, dex), price) in &token_pair_prices {
             log::debug!(
@@ -246,7 +245,7 @@ impl ArbitrageTrader {
 
             let profit = ArbitrageTrader::calculate_arbitrage_profit(
                 path,
-                self.initial_amount() * self.leverage(),
+                amount,
                 &token_pair_prices,
                 &self.base_trader.base_token(),
                 &mut amounts,
@@ -285,6 +284,7 @@ impl ArbitrageTrader {
                 trader_name: self.name().to_owned(),
                 reason_for_sell: None,
                 atr: None,
+                market_status: None,
             };
 
             results.push(opportunity);
@@ -309,13 +309,13 @@ impl AbstractTrader for ArbitrageTrader {
 
     async fn get_token_pair_prices(
         &self,
+        amount: f64,
     ) -> Result<HashMap<(String, String, String), f64>, Box<dyn Error + Send + Sync>> {
         // Get the prices of all token pairs
         let mut get_price_futures = Vec::new();
         let base_token = &self.base_token();
         let dexes = &self.dexes();
         let tokens = &self.tokens();
-        let amount = self.initial_amount() * self.leverage();
 
         // Get prices with base token / each token, and each token / base token
         for dex in dexes.iter() {
@@ -400,10 +400,6 @@ impl AbstractTrader for ArbitrageTrader {
 
     async fn set_state(&mut self, state: TraderState) {
         self.base_trader.set_state(state).await;
-    }
-
-    fn leverage(&self) -> f64 {
-        self.base_trader.leverage()
     }
 
     fn initial_amount(&self) -> f64 {

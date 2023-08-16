@@ -49,7 +49,6 @@ pub struct ForcastTraderConfig {
     long_trade_period: usize,
     max_price_size: u32,
     interval: u64,
-    flash_crash_threshold: f64,
     reward_multiplier: f64,
     penalty_multiplier: f64,
     spread: f64,
@@ -71,9 +70,7 @@ impl ForcastTrader {
     pub fn new(
         chain_name: &str,
         trader_state: HashMap<String, TraderState>,
-        leverage: f64,
         initial_amount: f64,
-        min_trading_amount: f64,
         allowance_factor: f64,
         tokens: Arc<Vec<Box<dyn Token>>>,
         base_token: Arc<Box<dyn Token>>,
@@ -85,7 +82,7 @@ impl ForcastTrader {
         long_trade_period: usize,
         max_price_size: u32,
         interval: u64,
-        flash_crash_threshold: f64,
+        risk_reward: f64,
         position_creation_inteval_seconds: Option<u64>,
         reward_multiplier: f64,
         penalty_multiplier: f64,
@@ -104,7 +101,6 @@ impl ForcastTrader {
             long_trade_period,
             max_price_size,
             interval,
-            flash_crash_threshold,
             reward_multiplier,
             penalty_multiplier,
             spread,
@@ -146,10 +142,8 @@ impl ForcastTrader {
                     token_name,
                     strategy,
                     take_profit_strategy,
-                    cut_loss_strategy,
                     period,
                     buy_signal,
-                    take_profit,
                     cut_loss,
                     score,
                     days,
@@ -183,18 +177,15 @@ impl ForcastTrader {
                         open_positions_map.get(&fund_name).cloned(),
                         strategy,
                         take_profit_strategy,
-                        cut_loss_strategy,
                         period,
-                        leverage,
                         amount_per_fund,
-                        min_trading_amount,
                         *intial_score,
                         position_creation_inteval_seconds,
                         buy_signal,
-                        take_profit,
                         cut_loss,
                         days,
                         hours,
+                        risk_reward,
                         db_handler.clone(),
                     ))
                 },
@@ -216,7 +207,6 @@ impl ForcastTrader {
             base_trader: BaseTrader::new(
                 name,
                 trader_state.clone(),
-                leverage,
                 initial_amount,
                 allowance_factor,
                 tokens,
@@ -235,10 +225,11 @@ impl ForcastTrader {
 
     async fn get_current_prices(
         &self,
+        amount: f64,
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Result<HashMap<String, DexPrices>, Box<dyn Error + Send + Sync>> {
         // Get the prices of token pairs
-        let token_pair_prices = self.get_token_pair_prices().await?;
+        let token_pair_prices = self.get_token_pair_prices(amount).await?;
 
         let mut current_prices: HashMap<String, DexPrices> = HashMap::new();
 
@@ -412,6 +403,7 @@ impl ForcastTrader {
 
     fn find_buy_opportunities(
         &self,
+        amount: f64,
         current_prices: &HashMap<String, DexPrices>,
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
@@ -432,6 +424,7 @@ impl ForcastTrader {
                     token_name,
                     prices.buy.price,
                     prices.sell.price,
+                    amount,
                     histories,
                 );
 
@@ -447,6 +440,7 @@ impl ForcastTrader {
                         trader_name: proposal.fund_name.to_owned(),
                         reason_for_sell: None,
                         atr: proposal.atr,
+                        market_status: proposal.market_status,
                     });
                 }
             }
@@ -487,6 +481,7 @@ impl ForcastTrader {
                         trader_name: proposal.fund_name.to_owned(),
                         reason_for_sell: proposal.reason_for_sell,
                         atr: None,
+                        market_status: None,
                     });
                 }
             }
@@ -501,6 +496,7 @@ impl ForcastTrader {
 
     pub async fn find_opportunities(
         &self,
+        amount: f64,
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut results: Vec<TradeOpportunity> = vec![];
@@ -511,7 +507,8 @@ impl ForcastTrader {
         }
 
         // Get current prices
-        let current_prices: HashMap<String, DexPrices> = self.get_current_prices(histories).await?;
+        let current_prices: HashMap<String, DexPrices> =
+            self.get_current_prices(amount, histories).await?;
 
         for (token_name, prices) in &current_prices {
             log::debug!(
@@ -527,7 +524,8 @@ impl ForcastTrader {
 
         self.check_positions(&current_prices);
 
-        let mut result_for_open = self.find_buy_opportunities(&current_prices, histories)?;
+        let mut result_for_open =
+            self.find_buy_opportunities(amount, &current_prices, histories)?;
         results.append(&mut result_for_open);
 
         let mut result_for_close = self.find_sell_opportunities(&current_prices)?;
@@ -655,7 +653,6 @@ impl ForcastTrader {
             self.config.long_trade_period,
             self.config.max_price_size as usize,
             self.config.interval,
-            self.config.flash_crash_threshold,
         )
     }
 }
@@ -772,6 +769,7 @@ impl AbstractTrader for ForcastTrader {
             let token_b = &self.tokens()[opportunity.token_index[1]];
             let amount_in = opportunity.amounts[0];
             let atr = opportunity.atr;
+            let market_status = opportunity.market_status;
 
             let token_a_name = token_a.symbol_name();
             let token_b_name = token_b.symbol_name();
@@ -788,7 +786,15 @@ impl AbstractTrader for ForcastTrader {
             if is_buy_trade {
                 let amount_out = amount_in / current_price;
                 fund_manager
-                    .update_position(is_buy_trade, None, token_b_name, amount_in, amount_out, atr)
+                    .update_position(
+                        is_buy_trade,
+                        None,
+                        token_b_name,
+                        amount_in,
+                        amount_out,
+                        atr,
+                        market_status,
+                    )
                     .await;
             } else {
                 let amount_out = amount_in * current_price;
@@ -800,6 +806,7 @@ impl AbstractTrader for ForcastTrader {
                         amount_in,
                         amount_out,
                         atr,
+                        market_status,
                     )
                     .await;
 
@@ -830,11 +837,11 @@ impl AbstractTrader for ForcastTrader {
 
     async fn get_token_pair_prices(
         &self,
+        amount: f64,
     ) -> Result<HashMap<(String, String, String), f64>, Box<dyn Error + Send + Sync>> {
         let base_token = &self.base_token();
         let dexes = &self.dexes();
         let tokens = &self.tokens();
-        let amount = self.base_trader.initial_amount();
 
         // Get prices with base token / each token and each token / base token
         let mut get_price_futures = Vec::new();
@@ -891,10 +898,6 @@ impl AbstractTrader for ForcastTrader {
 
     async fn set_state(&mut self, state: TraderState) {
         self.base_trader.set_state(state).await;
-    }
-
-    fn leverage(&self) -> f64 {
-        self.base_trader.leverage()
     }
 
     fn initial_amount(&self) -> f64 {
