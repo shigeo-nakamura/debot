@@ -58,6 +58,45 @@ pub fn get(
             1.0,  // 1 day
             24.0, // Predict the price in 24 hour
         ),
+        (
+            "reversion-short",
+            "BSC",
+            "WBNB",
+            TradingStrategy::MeanReversion,
+            TakeProfitStrategy::TrailingStop,
+            short_trade_period,
+            1.01, // buy_signal_threshold
+            0.99, // loss_cut_threshold
+            10.0, // initial_score
+            0.05, // 0.05 day
+            1.0,  // Predict the price in 1 hour
+        ),
+        (
+            "reversion-medium",
+            "BSC",
+            "WBNB",
+            TradingStrategy::MeanReversion,
+            TakeProfitStrategy::TrailingStop,
+            medium_trade_period,
+            1.01,  // buy_signal_threshold
+            0.985, // loss_cut_threshold
+            10.0,  // initial_score
+            0.5,   // 0.5 day
+            12.0,  // Predict the price in 12 hour
+        ),
+        (
+            "reversion-long",
+            "BSC",
+            "WBNB",
+            TradingStrategy::MeanReversion,
+            TakeProfitStrategy::TrailingStop,
+            long_trade_period,
+            1.01, // buy_signal_threshold
+            0.98, // loss_cut_threshold
+            10.0, // initial_score
+            1.0,  // 1 day
+            24.0, // Predict the price in 24 hour
+        ),
     ];
 
     configs
