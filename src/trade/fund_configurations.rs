@@ -29,7 +29,7 @@ pub fn get(
             1.01, // buy_signal_threshold
             0.99, // loss_cut_threshold
             10.0, // initial_score
-            0.05, // 1 day
+            0.05, // 0.05 day
             1.0,  // Predict the price in 1 hour
         ),
         (

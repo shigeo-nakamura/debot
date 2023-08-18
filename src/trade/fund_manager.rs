@@ -339,12 +339,17 @@ impl FundManager {
             amount_out
         );
         if is_buy_trade {
+            if atr.is_none() {
+                log::info!("No ATR");
+                return;
+            }
+
             self.state.amount -= amount_in;
 
             let average_price = amount_in / amount_out;
-            let cut_loss_price = average_price * self.config.cut_loss_threshold;
-            let distance = average_price - cut_loss_price;
-            let take_profit_price = average_price + distance * self.config.risk_reward;
+            let cut_loss_price = average_price - atr.unwrap();
+            let distance = (average_price - cut_loss_price) * self.config.risk_reward;
+            let take_profit_price = average_price + distance;
 
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
                 // if there are already open positions for this token, update them

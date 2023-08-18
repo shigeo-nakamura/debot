@@ -91,7 +91,7 @@ impl TradePosition {
             take_profit_price,
             cut_loss_price: Arc::new(std::sync::Mutex::new(modified_cut_loss_price)),
             initial_cut_loss_price: modified_cut_loss_price,
-            trailing_distance: (take_profit_price - average_buy_price) / 2.0,
+            trailing_distance: take_profit_price - average_buy_price,
             sold_price: None,
             sold_amount: None,
             amount,
