@@ -212,11 +212,15 @@ impl FundManager {
                     return None;
                 }
 
-                log::info!(
-                    "{}: Maket status = {:?}",
-                    token_name,
-                    history.market_status()
-                );
+                let atr = history.atr(self.config.trade_period);
+                if atr.is_none() {
+                    return None;
+                }
+
+                if atr.unwrap() < sell_price * 0.01 {
+                    log::info!("ATR is too small = {:6.3}", atr.unwrap());
+                    return None;
+                }
 
                 let profit = (predicted_price - buy_price) * amount;
 
@@ -227,7 +231,7 @@ impl FundManager {
                     amount,
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell: None,
-                    atr: history.atr(self.config.trade_period),
+                    atr,
                     market_status: Some(history.market_status()),
                 });
             }

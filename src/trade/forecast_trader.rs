@@ -466,6 +466,11 @@ impl ForcastTrader {
             let dex_index = find_index(&self.dexes(), |dex| dex.name() == prices.sell.dex_string)
                 .ok_or("Dex not found")?;
 
+            // Check if the prices are reliable
+            if Self::is_wide_spread(prices, self.config.spread) {
+                continue;
+            }
+
             for fund_manager in self.state.fund_manager_map.values() {
                 let proposal = fund_manager.find_sell_opportunities(token_name, prices.sell.price);
 
