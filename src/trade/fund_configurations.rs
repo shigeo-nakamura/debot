@@ -26,11 +26,11 @@ pub fn get(
             TradingStrategy::TrendFollowing,
             TakeProfitStrategy::TrailingStop,
             short_trade_period,
-            1.01, // buy_signal_threshold
-            0.99, // loss_cut_threshold
-            10.0, // initial_score
-            0.05, // 0.05 day
-            1.0,  // Predict the price in 1 hour
+            1.01,  // buy_signal_threshold
+            0.99,  // loss_cut_threshold
+            10.0,  // initial_score
+            0.125, // 0.125 day
+            3.0,   // Predict the price in 3 hour
         ),
         (
             "trend-follow-medium",
@@ -42,8 +42,8 @@ pub fn get(
             1.01,  // buy_signal_threshold
             0.985, // loss_cut_threshold
             10.0,  // initial_score
-            0.5,   // 0.5 day
-            12.0,  // Predict the price in 12 hour
+            0.25,  // 0.25 day
+            6.0,   // Predict the price in 6 hour
         ),
         (
             "trend-follow-long",
@@ -55,8 +55,8 @@ pub fn get(
             1.01, // buy_signal_threshold
             0.98, // loss_cut_threshold
             10.0, // initial_score
-            1.0,  // 1 day
-            24.0, // Predict the price in 24 hour
+            0.5,  // 0.5 day
+            12.0, // Predict the price in 12 hour
         ),
     ];
 
