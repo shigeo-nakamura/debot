@@ -18,7 +18,6 @@ const LOWER_STRONG_LEVEL_MULTIPLIER: f64 = 0.988;
 pub enum MarketStatus {
     StrongUp,
     Up,
-    WeakUp,
     Down,
     #[default]
     Neutral,
@@ -69,6 +68,7 @@ pub struct PriceHistory {
     interval: u64,
     first_timestamp: Option<i64>,
     market_status: MarketStatus,
+    prev_market_status: MarketStatus,
     prev_ema_short: f64,
     prev_ema_medium: f64,
     prev_ema_long: f64,
@@ -114,6 +114,7 @@ impl PriceHistory {
             interval,
             first_timestamp: None,
             market_status: MarketStatus::Neutral,
+            prev_market_status: MarketStatus::Neutral,
             prev_ema_short: 0.0,
             prev_ema_medium: 0.0,
             prev_ema_long: 0.0,
@@ -167,7 +168,7 @@ impl PriceHistory {
         };
 
         self.update_ema(price, price_point.timestamp, prev_timestamp);
-        self.update_market_status();
+        self.update_market_status(price);
         self.last_price = price;
 
         self.calculate_atr();
@@ -246,55 +247,60 @@ impl PriceHistory {
         }
     }
 
-    fn update_market_status(&mut self) {
-        if self.ema_short > self.ema_medium && self.ema_medium > self.ema_long {
-            if self.ema_short > self.prev_ema_short && self.ema_medium > self.prev_ema_medium {
+    fn update_market_status(&mut self, price: f64) {
+        self.prev_market_status = self.market_status;
+
+        if self.ema_short > self.ema_medium
+            && self.ema_short > self.prev_ema_short
+            && self.ema_medium > self.prev_ema_medium
+        {
+            if self.ema_medium > self.ema_long && price > self.ema_short {
                 self.market_status = MarketStatus::StrongUp;
-            } else {
-                self.market_status = MarketStatus::Up;
+            } else if self.ema_short > self.ema_long || self.ema_short > self.ema_medium {
+                if self.prev_market_status == MarketStatus::Neutral
+                    || self.prev_market_status == MarketStatus::Down
+                {
+                    self.market_status = MarketStatus::Up;
+                }
             }
-        } else if self.ema_short > self.ema_medium && self.ema_medium <= self.ema_long {
-            if self.ema_short < self.prev_ema_short {
-                self.market_status = MarketStatus::Down;
-            } else {
-                self.market_status = MarketStatus::WeakUp;
-            }
-        } else if self.ema_short > self.ema_long && self.ema_short <= self.ema_medium {
-            self.market_status = MarketStatus::Up;
         } else if self.ema_short < self.ema_medium {
             self.market_status = MarketStatus::Down;
         } else {
             self.market_status = MarketStatus::Neutral;
         }
 
-        // update previous EMAs
-        self.prev_ema_short = self.ema_short;
-        self.prev_ema_medium = self.ema_medium;
-        self.prev_ema_long = self.ema_long;
+        log::info!(
+            "{:6.3}, {:6.3}/{:6.3}/{:6.3}, {:?}",
+            price,
+            self.ema_short,
+            self.ema_medium,
+            self.ema_long,
+            self.market_status
+        );
     }
 
-    pub fn predict_next_price_ema(&self, period: usize) -> f64 {
-        let predict = |len, ema| {
-            if self.prices.len() >= len {
-                2.0 * ema - self.prices[self.prices.len() - 1].price
-            } else {
-                self.prices[self.prices.len() - 1].price
-            }
+    pub fn predict_next_price_ema(&self, _period: usize) -> f64 {
+        let price = self.prices[self.prices.len() - 1].price;
+
+        let adjusted_predict = |price, ema_short, ema_medium| match self.market_status {
+            MarketStatus::StrongUp => price * 2.0 - ema_short,
+            MarketStatus::Up => price * 2.0 - ema_medium,
+            MarketStatus::Neutral => price,
+            MarketStatus::Down => price,
         };
 
-        match period {
-            x if x == self.short_period => predict(self.short_period, self.ema_short),
-            x if x == self.medium_period => predict(self.medium_period, self.ema_medium),
-            x if x == self.long_period => predict(self.long_period, self.ema_long),
-            _ => {
-                log::error!("Invalid period");
-                predict(self.short_period, self.ema_short)
-            }
-        }
+        adjusted_predict(price, self.ema_short, self.ema_medium)
     }
 
     pub fn predict_next_price_sma(&self, period: usize) -> f64 {
-        self.calculate_sma(period)
+        let sma = self.calculate_sma(period);
+
+        match self.market_status {
+            MarketStatus::StrongUp => sma * 1.01,
+            MarketStatus::Up => sma * 1.015,
+            MarketStatus::Neutral => sma,
+            MarketStatus::Down => sma * 0.99,
+        }
     }
 
     fn predict_next_price_regression(&self, next_relative_timestamp: i64, period: usize) -> f64 {
@@ -463,6 +469,10 @@ impl PriceHistory {
     }
 
     fn update_ema(&mut self, price: f64, timestamp: i64, prev_timestamp: Option<i64>) {
+        self.prev_ema_short = self.ema_short;
+        self.prev_ema_medium = self.ema_medium;
+        self.prev_ema_long = self.ema_long;
+
         let weight_short = 2.0 / (self.short_period as f64 + 1.0);
         let weight_medium = 2.0 / (self.medium_period as f64 + 1.0);
         let weight_long = 2.0 / (self.long_period as f64 + 1.0);
@@ -494,9 +504,11 @@ impl PriceHistory {
     }
 
     fn calculate_sma(&self, period: usize) -> f64 {
+        let price = self.prices[self.prices.len() - 1].price;
         if self.prices.len() < period {
-            return self.prices[self.prices.len() - 1].price;
+            return price;
         }
+
         let sum: f64 = self
             .prices
             .iter()

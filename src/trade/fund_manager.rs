@@ -218,7 +218,7 @@ impl FundManager {
                 }
 
                 if atr.unwrap() < sell_price * 0.01 {
-                    log::info!("ATR is too small = {:6.3}", atr.unwrap());
+                    log::info!("ATR: {:6.3} < {:6.3}", atr.unwrap(), sell_price * 0.01);
                     return None;
                 }
 
