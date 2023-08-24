@@ -69,6 +69,7 @@ pub struct PriceHistory {
     first_timestamp: Option<i64>,
     market_status: MarketStatus,
     prev_market_status: MarketStatus,
+    market_status_change_counter: u32,
     prev_ema_short: f64,
     prev_ema_medium: f64,
     prev_ema_long: f64,
@@ -115,6 +116,7 @@ impl PriceHistory {
             first_timestamp: None,
             market_status: MarketStatus::Neutral,
             prev_market_status: MarketStatus::Neutral,
+            market_status_change_counter: 0,
             prev_ema_short: 0.0,
             prev_ema_medium: 0.0,
             prev_ema_long: 0.0,
@@ -249,24 +251,36 @@ impl PriceHistory {
 
     fn update_market_status(&mut self, price: f64) {
         self.prev_market_status = self.market_status;
+        let mut new_market_status = self.market_status;
 
         if self.ema_short > self.ema_medium
             && self.ema_short > self.prev_ema_short
             && self.ema_medium > self.prev_ema_medium
         {
             if self.ema_medium > self.ema_long && price > self.ema_short {
-                self.market_status = MarketStatus::StrongUp;
+                new_market_status = MarketStatus::StrongUp;
             } else if self.ema_short > self.ema_long || self.ema_short > self.ema_medium {
                 if self.prev_market_status == MarketStatus::Neutral
                     || self.prev_market_status == MarketStatus::Down
                 {
-                    self.market_status = MarketStatus::Up;
+                    new_market_status = MarketStatus::Up;
                 }
             }
         } else if self.ema_short < self.ema_medium {
-            self.market_status = MarketStatus::Down;
+            new_market_status = MarketStatus::Down;
         } else {
-            self.market_status = MarketStatus::Neutral;
+            new_market_status = MarketStatus::Neutral;
+        }
+
+        if new_market_status != self.market_status {
+            self.market_status_change_counter += 1;
+
+            if self.market_status_change_counter >= 5 {
+                self.market_status = new_market_status;
+                self.market_status_change_counter = 0;
+            }
+        } else {
+            self.market_status_change_counter = 0;
         }
 
         log::info!(
@@ -286,7 +300,7 @@ impl PriceHistory {
             MarketStatus::StrongUp => price * 2.0 - ema_short,
             MarketStatus::Up => price * 2.0 - ema_medium,
             MarketStatus::Neutral => price,
-            MarketStatus::Down => price,
+            MarketStatus::Down => price * 0.99,
         };
 
         adjusted_predict(price, self.ema_short, self.ema_medium)
