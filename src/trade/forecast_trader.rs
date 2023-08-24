@@ -83,7 +83,6 @@ impl ForcastTrader {
         max_price_size: u32,
         interval: u64,
         risk_reward: f64,
-        position_creation_inteval_seconds: Option<u64>,
         reward_multiplier: f64,
         penalty_multiplier: f64,
         db_client: Arc<Mutex<ClientHolder>>,
@@ -120,12 +119,7 @@ impl ForcastTrader {
             scores: scores.clone(),
         };
 
-        let fund_manager_configurations = fund_configurations::get(
-            chain_name,
-            short_trade_period,
-            medium_trade_period,
-            long_trade_period,
-        );
+        let fund_manager_configurations = fund_configurations::get(chain_name);
 
         let db_handler = Arc::new(Mutex::new(DBHandler::new(
             db_client.clone(),
@@ -137,18 +131,7 @@ impl ForcastTrader {
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
             .filter_map(
-                |(
-                    name,
-                    token_name,
-                    strategy,
-                    take_profit_strategy,
-                    period,
-                    buy_signal,
-                    cut_loss,
-                    score,
-                    days,
-                    hours,
-                )| {
+                |(name, token_name, strategy, period_minutes, buy_signal, score)| {
                     let mut token_found = false;
                     for token in tokens.iter() {
                         if token_name == token.symbol_name() {
@@ -168,23 +151,20 @@ impl ForcastTrader {
                         Some(prev_score) => prev_score,
                         None => &score,
                     };
-
                     state.scores.insert(fund_name.to_owned(), *intial_score);
+
+                    let period = period_minutes * 60 / (interval as usize);
 
                     Some(FundManager::new(
                         &fund_name,
                         token_name,
                         open_positions_map.get(&fund_name).cloned(),
                         strategy,
-                        take_profit_strategy,
                         period,
                         amount_per_fund,
                         *intial_score,
-                        position_creation_inteval_seconds,
                         buy_signal,
-                        cut_loss,
-                        days,
-                        hours,
+                        period as u64 * interval,
                         risk_reward,
                         db_handler.clone(),
                     ))
@@ -452,6 +432,7 @@ impl ForcastTrader {
     fn find_sell_opportunities(
         &self,
         current_prices: &HashMap<String, DexPrices>,
+        histories: &HashMap<String, PriceHistory>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
 
@@ -467,12 +448,15 @@ impl ForcastTrader {
                 .ok_or("Dex not found")?;
 
             // Check if the prices are reliable
-            if Self::is_wide_spread(prices, self.config.spread) {
-                continue;
-            }
+            let limited_sell = Self::is_wide_spread(prices, self.config.spread);
 
             for fund_manager in self.state.fund_manager_map.values() {
-                let proposal = fund_manager.find_sell_opportunities(token_name, prices.sell.price);
+                let proposal = fund_manager.find_sell_opportunities(
+                    token_name,
+                    prices.sell.price,
+                    histories,
+                    limited_sell,
+                );
 
                 if let Some(proposal) = proposal {
                     opportunities.push(TradeOpportunity {
@@ -533,7 +517,7 @@ impl ForcastTrader {
             self.find_buy_opportunities(amount, &current_prices, histories)?;
         results.append(&mut result_for_open);
 
-        let mut result_for_close = self.find_sell_opportunities(&current_prices)?;
+        let mut result_for_close = self.find_sell_opportunities(&current_prices, histories)?;
         results.append(&mut result_for_close);
 
         Ok(results)
@@ -626,8 +610,6 @@ impl ForcastTrader {
         }
 
         if changed {
-            log::info!("rebalanced scores: {:?}", self.state.scores);
-
             self.base_trader
                 .db_handler()
                 .lock()
@@ -835,7 +817,7 @@ impl AbstractTrader for ForcastTrader {
             }
         }
 
-        self.rebalance(address, false).await;
+        // self.rebalance(address, false).await;
 
         Ok(())
     }

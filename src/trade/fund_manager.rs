@@ -12,8 +12,6 @@ use std::f64;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
-const SECONDS_PER_HOUR: u64 = 60;
 const MOVING_AVERAGE_WINDOW_SIZE: usize = 5;
 
 #[derive(PartialEq)]
@@ -36,13 +34,9 @@ pub struct FundManagerConfig {
     name: String,
     token_name: String,
     strategy: TradingStrategy,
-    take_profit_strategy: TakeProfitStrategy,
     trade_period: usize,
-    position_creation_inteval_seconds: Option<u64>,
     buy_signal_threshold: f64,
-    cut_loss_threshold: f64,
     max_hold_interval_in_secs: u64,
-    prediction_interval_secs: u64,
     risk_reward: f64,
 }
 
@@ -68,15 +62,11 @@ impl FundManager {
         token_name: &str,
         open_positions: Option<HashMap<String, TradePosition>>,
         strategy: TradingStrategy,
-        take_profit_strategy: TakeProfitStrategy,
         trade_period: usize,
         initial_amount: f64,
         initial_score: f64,
-        position_creation_inteval_seconds: Option<u64>,
         buy_signal_threshold: f64,
-        cut_loss_threshold: f64,
-        max_hold_interval_in_days: f64,
-        prediction_interval_hours: f64,
+        max_hold_interval_in_secs: u64,
         risk_reward: f64,
         db_handler: Arc<Mutex<DBHandler>>,
     ) -> Self {
@@ -84,14 +74,9 @@ impl FundManager {
             name: fund_name.to_owned(),
             token_name: token_name.to_owned(),
             strategy,
-            take_profit_strategy,
             trade_period,
-            position_creation_inteval_seconds,
             buy_signal_threshold,
-            cut_loss_threshold,
-            max_hold_interval_in_secs: (max_hold_interval_in_days * (SECONDS_PER_DAY as f64))
-                as u64,
-            prediction_interval_secs: (prediction_interval_hours * SECONDS_PER_HOUR as f64) as u64,
+            max_hold_interval_in_secs,
             risk_reward,
         };
 
@@ -166,11 +151,8 @@ impl FundManager {
         }
 
         if let Some(history) = histories.get_mut(token_name) {
-            let predicted_price = history.majority_vote_predictions(
-                self.config.trade_period,
-                self.config.prediction_interval_secs,
-                self.config.strategy,
-            );
+            let predicted_price =
+                history.majority_vote_predictions(self.config.trade_period, self.config.strategy);
 
             let price_spread = (buy_price - sell_price) / buy_price;
             let profit_ratio = (predicted_price - sell_price) / sell_price;
@@ -193,7 +175,7 @@ impl FundManager {
             );
 
             if profit_ratio * 100.0 >= self.config.buy_signal_threshold {
-                if !self.can_create_new_position(token_name, buy_price) {
+                if !self.can_create_new_position(token_name) {
                     log::debug!(
                         "{} Need to wait for a while to create a new position",
                         self.name()
@@ -266,10 +248,12 @@ impl FundManager {
         &self,
         token_name: &str,
         sell_price: f64,
+        histories: &HashMap<String, PriceHistory>,
+        limitied_sell: bool,
     ) -> Option<TradeProposal> {
         if let Some(position) = self.state.open_positions.get(token_name) {
-            let amount;
-            let reason_for_sell;
+            let mut amount = 0.0;
+            let mut reason_for_sell;
 
             let should_liquidate =
                 *self.state.fund_state.lock().unwrap() == FundState::ShouldLiquidate;
@@ -280,16 +264,20 @@ impl FundManager {
                     token_name,
                     sell_price
                 );
-                amount = position.amount;
                 reason_for_sell = Some(ReasonForSell::Liquidated);
             } else {
-                reason_for_sell = position.should_close(
-                    sell_price,
-                    self.config.max_hold_interval_in_secs.try_into().unwrap(),
-                );
-                if reason_for_sell.is_none() {
-                    return None;
+                reason_for_sell =
+                    position.is_expired(self.config.max_hold_interval_in_secs.try_into().unwrap());
+            }
+
+            if limitied_sell == false && reason_for_sell.is_none() {
+                if let Some(history) = histories.get(token_name) {
+                    reason_for_sell =
+                        position.should_close(sell_price, history.rsi(self.config.trade_period));
                 }
+            }
+
+            if reason_for_sell.is_some() {
                 amount = position.amount;
             }
 
@@ -310,21 +298,8 @@ impl FundManager {
         None
     }
 
-    fn can_create_new_position(&self, token_name: &str, buy_price: f64) -> bool {
-        if let Some(position) = self.state.open_positions.get(token_name) {
-            if position.average_buy_price > buy_price {
-                return false;
-            }
-            if self.config.position_creation_inteval_seconds.is_none() {
-                return false;
-            }
-            let current_time = chrono::Utc::now().timestamp();
-            let time_since_last_creation = current_time - position.open_time;
-
-            return time_since_last_creation
-                > (self.config.position_creation_inteval_seconds.unwrap() as i64);
-        }
-        true
+    fn can_create_new_position(&self, token_name: &str) -> bool {
+        self.state.open_positions.get(token_name).is_none()
     }
 
     pub async fn update_position(
@@ -377,7 +352,7 @@ impl FundManager {
                 let mut position = TradePosition::new(
                     token_name,
                     self.name(),
-                    self.config.take_profit_strategy.clone(),
+                    TakeProfitStrategy::TrailingStop,
                     average_price,
                     take_profit_price,
                     cut_loss_price,

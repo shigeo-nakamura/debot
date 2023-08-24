@@ -9,6 +9,7 @@ pub mod fund_manager;
 pub mod price_history;
 pub mod trade_position;
 pub mod transaction_log;
+pub mod trend_value;
 
 pub use abstract_trader::find_index;
 pub use abstract_trader::AbstractTrader;
@@ -27,3 +28,6 @@ pub use trade_position::TradePosition;
 pub use transaction_log::BalanceLog;
 pub use transaction_log::HasId;
 pub use transaction_log::TransactionLog;
+pub use trend_value::Trend;
+pub use trend_value::TrendValue;
+pub use trend_value::ValueChange;

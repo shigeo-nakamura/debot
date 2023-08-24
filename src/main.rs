@@ -243,7 +243,6 @@ async fn prepare_algorithm_trader_instance(
         config.max_price_size,
         config.interval,
         config.risk_reward,
-        config.position_creation_inteval_seconds,
         config.reward_multiplier,
         config.penalty_multiplier,
         client_holder.clone(),

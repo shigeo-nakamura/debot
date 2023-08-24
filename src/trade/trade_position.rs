@@ -5,7 +5,10 @@ use std::sync::Arc;
 
 use crate::utils::{DateTimeUtils, ToDateTimeString};
 
-use super::{abstract_trader::ReasonForSell, price_history::MarketStatus, HasId};
+use super::{
+    abstract_trader::ReasonForSell, price_history::MarketStatus, HasId, Trend, TrendValue,
+    ValueChange,
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub enum TakeProfitStrategy {
@@ -129,12 +132,21 @@ impl TradePosition {
     pub fn should_close(
         &self,
         sell_price: f64,
-        max_holding_interval: i64,
+        rsi_trend: Option<TrendValue>,
     ) -> Option<ReasonForSell> {
         if self.should_take_profit(sell_price) {
             return Some(ReasonForSell::TakeProfit);
         }
-        self.should_cut_loss(sell_price, max_holding_interval)
+        self.should_cut_loss(sell_price, rsi_trend)
+    }
+
+    pub fn is_expired(&self, max_holding_interval: i64) -> Option<ReasonForSell> {
+        let current_time = chrono::Utc::now().timestamp();
+        let holding_interval = current_time - self.open_time;
+        if holding_interval > max_holding_interval {
+            return Some(ReasonForSell::Expired);
+        }
+        None
     }
 
     fn should_take_profit(&self, sell_price: f64) -> bool {
@@ -145,9 +157,12 @@ impl TradePosition {
             TakeProfitStrategy::TrailingStop => self.should_take_profit_trailing_stop(sell_price),
         }
     }
-    fn should_cut_loss(&self, sell_price: f64, max_holding_interval: i64) -> Option<ReasonForSell> {
-        let current_time = chrono::Utc::now().timestamp();
-        let holding_interval = current_time - self.open_time;
+
+    fn should_cut_loss(
+        &self,
+        sell_price: f64,
+        rsi_trend: Option<TrendValue>,
+    ) -> Option<ReasonForSell> {
         let cut_loss_price = *self.cut_loss_price.lock().unwrap();
 
         if sell_price < cut_loss_price {
@@ -162,13 +177,6 @@ impl TradePosition {
             return None;
         }
 
-        if holding_interval > max_holding_interval * 2 {
-            return Some(ReasonForSell::Expired);
-        } else if holding_interval > max_holding_interval {
-            if sell_price > self.average_buy_price {
-                return Some(ReasonForSell::Closed);
-            }
-        }
         None
     }
 

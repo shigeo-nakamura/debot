@@ -3,24 +3,22 @@
 use crate::utils::ToDateTimeString;
 use serde::{Deserialize, Serialize};
 
-// RSI thresholds
-const RSI_OVERBOUGHT: f64 = 80.0;
-const RSI_BOUGHT: f64 = 70.0;
-const RSI_SOLD: f64 = 30.0;
-const RSI_OVERSOLD: f64 = 20.0;
+use super::{Trend, TrendValue, ValueChange};
 
-const UPPER_STRONG_LEVEL_MULTIPLIER: f64 = 1.012;
-const UPPER_WEAK_LEVEL_MULTIPLIER: f64 = 1.001;
-const LOWER_WEAK_LEVEL_MULTIPLIER: f64 = 0.999;
-const LOWER_STRONG_LEVEL_MULTIPLIER: f64 = 0.988;
+// RSI thresholds
+const RSI_OVERBOUGHT: f64 = 70.0;
+const RSI_OVERSOLD: f64 = 30.0;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub enum MarketStatus {
-    StrongUp,
-    Up,
-    Down,
+    Bull,
     #[default]
-    Neutral,
+    Stay,
+    Bear,
+    GoldenCross,
+    DeadCross,
+    OverBull,
+    OverBear,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -54,13 +52,16 @@ impl Default for PricePoint {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct PriceHistory {
     prices: Vec<PricePoint>,
     last_price: f64,
-    ema_short: f64,
-    ema_medium: f64,
-    ema_long: f64,
+    ema_short: TrendValue,
+    ema_medium: TrendValue,
+    ema_long: TrendValue,
+    rsi_short: TrendValue,
+    rsi_medium: TrendValue,
+    rsi_long: TrendValue,
     short_period: usize,
     medium_period: usize,
     long_period: usize,
@@ -70,28 +71,12 @@ pub struct PriceHistory {
     market_status: MarketStatus,
     prev_market_status: MarketStatus,
     market_status_change_counter: u32,
-    prev_ema_short: f64,
-    prev_ema_medium: f64,
-    prev_ema_long: f64,
-    // Add the high and low price points over a given period
-    high_price: f64,
-    low_price: f64,
-    // Add the ATR value over a given period
-    atr_short: Option<f64>,
-    atr_medium: Option<f64>,
-    atr_long: Option<f64>,
-    // ATR period
-    atr_short_period: usize,
-    atr_medium_period: usize,
-    atr_long_period: usize,
 }
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub enum TradingStrategy {
     TrendFollowing,
-    MeanReversion,
-    MLSGDPredictive,
 }
 
 impl PriceHistory {
@@ -105,29 +90,21 @@ impl PriceHistory {
         PriceHistory {
             prices: Vec::with_capacity(max_size),
             last_price: 0.0,
-            ema_short: 0.0,
-            ema_medium: 0.0,
-            ema_long: 0.0,
+            ema_short: TrendValue::new(10, 0.0),
+            ema_medium: TrendValue::new(20, 0.0),
+            ema_long: TrendValue::new(40, 0.0),
+            rsi_short: TrendValue::new(10, 4.0),
+            rsi_medium: TrendValue::new(10, 2.0),
+            rsi_long: TrendValue::new(10, 1.0),
             short_period,
             medium_period,
             long_period,
             max_size,
             interval,
             first_timestamp: None,
-            market_status: MarketStatus::Neutral,
-            prev_market_status: MarketStatus::Neutral,
+            market_status: MarketStatus::Stay,
+            prev_market_status: MarketStatus::Stay,
             market_status_change_counter: 0,
-            prev_ema_short: 0.0,
-            prev_ema_medium: 0.0,
-            prev_ema_long: 0.0,
-            high_price: 0.0,
-            low_price: 0.0,
-            atr_short: None,
-            atr_medium: None,
-            atr_long: None,
-            atr_short_period: short_period,
-            atr_medium_period: medium_period,
-            atr_long_period: long_period,
         }
     }
 
@@ -135,13 +112,17 @@ impl PriceHistory {
         self.market_status
     }
 
-    pub fn atr(&self, period: usize) -> Option<f64> {
+    pub fn rsi(&self, period: usize) -> Option<TrendValue> {
         match period {
-            p if p == self.atr_short_period => self.atr_short,
-            p if p == self.atr_medium_period => self.atr_medium,
-            p if p == self.atr_long_period => self.atr_long,
+            p if p == self.short_period => Some(self.rsi_short.clone()),
+            p if p == self.medium_period => Some(self.rsi_medium.clone()),
+            p if p == self.long_period => Some(self.rsi_long.clone()),
             _ => None,
         }
+    }
+
+    pub fn atr(&self, period: usize) -> Option<f64> {
+        self.calculate_atr(period)
     }
 
     pub fn add_price(&mut self, price: f64, timestamp: Option<i64>) -> PricePoint {
@@ -170,351 +151,263 @@ impl PriceHistory {
         };
 
         self.update_ema(price, price_point.timestamp, prev_timestamp);
+        self.update_rsi();
         self.update_market_status(price);
         self.last_price = price;
-
-        self.calculate_atr();
 
         price_point
     }
 
-    fn calculate_atr(&mut self) {
+    fn calculate_atr(&self, period: usize) -> Option<f64> {
         let one_hour_ago_index = (3600 / self.interval) as usize;
-        if self.prices.len() < one_hour_ago_index + self.atr_long_period + 1 {
-            return;
+        if self.prices.len() < one_hour_ago_index + period + 1 {
+            return None;
         }
 
         let previous_close = self.prices[self.prices.len() - one_hour_ago_index - 1].price;
+        let atr_prices = &self.prices[self.prices.len() - period..];
 
-        let periods = [
-            self.atr_short_period,
-            self.atr_medium_period,
-            self.atr_long_period,
+        let current_high = atr_prices
+            .iter()
+            .map(|p| p.price)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let current_low = atr_prices
+            .iter()
+            .map(|p| p.price)
+            .fold(f64::INFINITY, f64::min);
+
+        let tr = [
+            current_high - current_low,
+            (current_high - previous_close).abs(),
+            (current_low - previous_close).abs(),
+        ]
+        .iter()
+        .cloned()
+        .fold(f64::NAN, f64::max);
+
+        let mut atr: Option<f64> = None;
+
+        if atr.is_none() {
+            let tr_sum: f64 = atr_prices
+                .windows(2)
+                .map(|window| {
+                    let high = window
+                        .iter()
+                        .map(|pp| pp.price)
+                        .fold(f64::NEG_INFINITY, f64::max);
+                    let low = window
+                        .iter()
+                        .map(|pp| pp.price)
+                        .fold(f64::INFINITY, f64::min);
+                    let previous_close = window[0].price;
+                    [
+                        high - low,
+                        (high - previous_close).abs(),
+                        (low - previous_close).abs(),
+                    ]
+                    .iter()
+                    .cloned()
+                    .fold(f64::NAN, f64::max)
+                })
+                .sum();
+            atr = Some(tr_sum / period as f64);
+        } else {
+            atr = Some((atr.unwrap() * (period as f64 - 1.0) + tr) / period as f64);
+        }
+
+        atr
+    }
+
+    fn update_rsi(&mut self) {
+        let new_rsi_short = self.calculate_rsi(self.short_period);
+        if new_rsi_short > 0.0 {
+            self.rsi_short.update_value(new_rsi_short);
+        }
+
+        let new_rsi_medium = self.calculate_rsi(self.medium_period);
+        if new_rsi_medium > 0.0 {
+            self.rsi_medium.update_value(new_rsi_medium);
+        }
+
+        let new_rsi_long = self.calculate_rsi(self.long_period);
+        if new_rsi_long > 0.0 {
+            self.rsi_long.update_value(new_rsi_long);
+        }
+    }
+
+    pub fn combine_market_status(
+        ema_short: &mut TrendValue,
+        ema_medium: &mut TrendValue,
+        ema_long: &mut TrendValue,
+        rsi_short: &mut TrendValue,
+        rsi_medium: &mut TrendValue,
+        rsi_long: &mut TrendValue,
+    ) -> MarketStatus {
+        if rsi_short.current == 0.0 || rsi_medium.current == 0.0 || rsi_long.current == 0.0 {
+            return MarketStatus::Stay;
+        }
+        if rsi_short.current > RSI_OVERBOUGHT
+            || rsi_medium.current > RSI_OVERBOUGHT
+            || rsi_long.current > RSI_OVERBOUGHT
+        {
+            return MarketStatus::OverBull;
+        }
+        if rsi_short.current < RSI_OVERSOLD
+            || rsi_medium.current < RSI_OVERSOLD
+            || rsi_long.current < RSI_OVERSOLD
+        {
+            return MarketStatus::OverBear;
+        }
+
+        if ema_short.is_up() == Trend::Rise
+            && rsi_short.is_up() == Trend::Rise
+            && ema_short.current > ema_medium.current
+            && ema_short.previous().is_some()
+            && ema_medium.previous().is_some()
+        {
+            if ema_short.previous().unwrap() <= ema_medium.previous().unwrap() {
+                return MarketStatus::GoldenCross;
+            }
+        }
+        if ema_short.is_up() == Trend::Fall
+            && rsi_short.is_up() == Trend::Fall
+            && ema_short.current < ema_medium.current
+            && ema_short.previous().is_some()
+            && ema_medium.previous().is_some()
+        {
+            if ema_short.previous().unwrap() >= ema_medium.previous().unwrap() {
+                return MarketStatus::DeadCross;
+            }
+        }
+
+        let bull_conditions = [
+            ema_short.is_up() == Trend::Rise,
+            ema_medium.is_up() == Trend::Rise,
+            ema_long.is_up() == Trend::Rise,
+            rsi_short.is_up() == Trend::Rise,
+            rsi_medium.is_up() == Trend::Rise,
+            rsi_long.is_up() == Trend::Rise,
         ];
 
-        for (i, period) in periods.iter().enumerate() {
-            let atr_prices = &self.prices[self.prices.len() - *period..];
-            let current_high = atr_prices
-                .iter()
-                .map(|p| p.price)
-                .fold(f64::NEG_INFINITY, f64::max);
-            let current_low = atr_prices
-                .iter()
-                .map(|p| p.price)
-                .fold(f64::INFINITY, f64::min);
+        let bear_conditions = [
+            ema_short.is_up() == Trend::Fall,
+            ema_medium.is_up() == Trend::Fall,
+            ema_long.is_up() == Trend::Fall,
+            rsi_short.is_up() == Trend::Fall,
+            rsi_medium.is_up() == Trend::Fall,
+            rsi_long.is_up() == Trend::Fall,
+        ];
 
-            let tr = [
-                current_high - current_low,
-                (current_high - previous_close).abs(),
-                (current_low - previous_close).abs(),
-            ]
-            .iter()
-            .cloned()
-            .fold(f64::NAN, f64::max);
+        let stay_conditions = [
+            ema_short.is_up() == Trend::Stay,
+            ema_medium.is_up() == Trend::Stay,
+            ema_long.is_up() == Trend::Stay,
+            rsi_short.is_up() == Trend::Stay,
+            rsi_medium.is_up() == Trend::Stay,
+            rsi_long.is_up() == Trend::Stay,
+        ];
 
-            let atr = match i {
-                0 => &mut self.atr_short,
-                1 => &mut self.atr_medium,
-                2 => &mut self.atr_long,
-                _ => unreachable!(),
-            };
+        let bull_count = bull_conditions.iter().filter(|&&x| x).count();
+        let bear_count = bear_conditions.iter().filter(|&&x| x).count();
+        let stay_count = stay_conditions.iter().filter(|&&x| x).count();
 
-            if atr.is_none() {
-                let tr_sum: f64 = atr_prices
-                    .windows(2)
-                    .map(|window| {
-                        let high = window
-                            .iter()
-                            .map(|pp| pp.price)
-                            .fold(f64::NEG_INFINITY, f64::max);
-                        let low = window
-                            .iter()
-                            .map(|pp| pp.price)
-                            .fold(f64::INFINITY, f64::min);
-                        let previous_close = window[0].price;
-                        [
-                            high - low,
-                            (high - previous_close).abs(),
-                            (low - previous_close).abs(),
-                        ]
-                        .iter()
-                        .cloned()
-                        .fold(f64::NAN, f64::max)
-                    })
-                    .sum();
-                *atr = Some(tr_sum / *period as f64);
+        if stay_count >= bull_count && stay_count >= bear_count {
+            return MarketStatus::Stay;
+        } else if bull_count > bear_count {
+            if rsi_short.current > 60.0 {
+                return MarketStatus::Stay;
             } else {
-                *atr = Some((atr.unwrap() * (*period as f64 - 1.0) + tr) / *period as f64);
+                return MarketStatus::Bull;
             }
+        } else if bear_count > bull_count {
+            return MarketStatus::Bear;
+        } else {
+            return MarketStatus::Stay;
         }
     }
 
     fn update_market_status(&mut self, price: f64) {
         self.prev_market_status = self.market_status;
-        let mut new_market_status = self.market_status;
 
-        if self.ema_short > self.ema_medium
-            && self.ema_short > self.prev_ema_short
-            && self.ema_medium > self.prev_ema_medium
-        {
-            if self.ema_medium > self.ema_long && price > self.ema_short {
-                new_market_status = MarketStatus::StrongUp;
-            } else if self.ema_short > self.ema_long || self.ema_short > self.ema_medium {
-                if self.prev_market_status == MarketStatus::Neutral
-                    || self.prev_market_status == MarketStatus::Down
-                {
-                    new_market_status = MarketStatus::Up;
-                }
-            }
-        } else if self.ema_short < self.ema_medium {
-            new_market_status = MarketStatus::Down;
-        } else {
-            new_market_status = MarketStatus::Neutral;
-        }
+        let new_market_status = Self::combine_market_status(
+            &mut self.ema_short,
+            &mut self.ema_medium,
+            &mut self.ema_long,
+            &mut self.rsi_short,
+            &mut self.rsi_medium,
+            &mut self.rsi_long,
+        );
 
         if new_market_status != self.market_status {
-            self.market_status_change_counter += 1;
-
-            if self.market_status_change_counter >= 5 {
+            if new_market_status == MarketStatus::GoldenCross
+                || new_market_status == MarketStatus::DeadCross
+            {
                 self.market_status = new_market_status;
                 self.market_status_change_counter = 0;
+            } else {
+                self.market_status_change_counter += 1;
+                if self.market_status_change_counter >= 5 {
+                    self.market_status = new_market_status;
+                    self.market_status_change_counter = 0;
+                }
             }
         } else {
             self.market_status_change_counter = 0;
         }
 
         log::info!(
-            "{:6.3}, {:6.3}/{:6.3}/{:6.3}, {:?}",
+            "{:6.3}({:?}), {:6.2}[{:?}, {:2.1}({:?})] {:6.2}[{:?}, {:2.1}({:?})] {:6.2}[{:?}, {:2.1}({:?})]",
             price,
-            self.ema_short,
-            self.ema_medium,
-            self.ema_long,
-            self.market_status
+            self.market_status,
+            self.ema_short.current.clone(),
+            self.ema_short.is_up(),
+            self.rsi_short.current.clone(),
+            self.rsi_short.is_up(),
+            self.ema_medium.current.clone(),
+            self.ema_medium.is_up(),
+            self.rsi_medium.current.clone(),
+            self.rsi_medium.is_up(),
+            self.ema_long.current.clone(),
+            self.ema_long.is_up(),
+            self.rsi_long.current.clone(),
+            self.rsi_long.is_up(),
         );
     }
 
-    pub fn predict_next_price_ema(&self, _period: usize) -> f64 {
-        let price = self.prices[self.prices.len() - 1].price;
-
-        let adjusted_predict = |price, ema_short, ema_medium| match self.market_status {
-            MarketStatus::StrongUp => price * 2.0 - ema_short,
-            MarketStatus::Up => price * 2.0 - ema_medium,
-            MarketStatus::Neutral => price,
-            MarketStatus::Down => price * 0.99,
-        };
-
-        adjusted_predict(price, self.ema_short, self.ema_medium)
-    }
-
     pub fn predict_next_price_sma(&self, period: usize) -> f64 {
+        let price = self.prices[self.prices.len() - 1].price;
         let sma = self.calculate_sma(period);
 
         match self.market_status {
-            MarketStatus::StrongUp => sma * 1.01,
-            MarketStatus::Up => sma * 1.015,
-            MarketStatus::Neutral => sma,
-            MarketStatus::Down => sma * 0.99,
+            MarketStatus::GoldenCross => price * 1.02,
+            MarketStatus::Bull => price * 1.015,
+            MarketStatus::Stay => sma * 2.0 - price,
+            MarketStatus::Bear => sma * 0.99,
+            MarketStatus::DeadCross => sma * 0.98,
+            MarketStatus::OverBull => sma * 0.98,
+            MarketStatus::OverBear => price * 1.02,
         }
-    }
-
-    fn predict_next_price_regression(&self, next_relative_timestamp: i64, period: usize) -> f64 {
-        if self.first_timestamp.is_none() || self.prices.len() < period {
-            return self.prices.last().unwrap().price;
-        }
-
-        let recent_prices = &self.prices[self.prices.len() - period..];
-
-        let x_mean: f64 = recent_prices
-            .iter()
-            .filter_map(|p| p.relative_timestamp) // Only consider PricePoints with a defined relative_timestamp
-            .sum::<i64>() as f64
-            / period as f64;
-        let y_mean: f64 = recent_prices.iter().map(|p| p.price).sum::<f64>() / period as f64;
-
-        let mut numerator: f64 = 0.0;
-        let mut denominator: f64 = 0.0;
-
-        for price_point in recent_prices {
-            if let Some(relative_timestamp) = price_point.relative_timestamp {
-                let x = relative_timestamp as f64 - x_mean;
-                numerator += x * (price_point.price - y_mean);
-                denominator += x.powi(2);
-            }
-        }
-
-        let slope: f64 = if denominator != 0.0 {
-            numerator / denominator
-        } else {
-            0.0
-        };
-        let intercept: f64 = y_mean - slope * x_mean;
-
-        return slope
-            * (next_relative_timestamp as f64
-                + recent_prices
-                    .last()
-                    .unwrap()
-                    .relative_timestamp
-                    .unwrap_or(0) as f64)
-            + intercept;
-    }
-
-    pub fn predict_next_price_rsi(&self, period: usize) -> f64 {
-        let rsi = self.calculate_rsi(period);
-        let last_price = self.prices.last().unwrap().price;
-
-        let (lower_rsi, upper_rsi, lower_multiplier, upper_multiplier) = if rsi < RSI_OVERSOLD {
-            (
-                0.0,
-                RSI_OVERSOLD,
-                UPPER_STRONG_LEVEL_MULTIPLIER,
-                UPPER_WEAK_LEVEL_MULTIPLIER,
-            )
-        } else if rsi < RSI_SOLD {
-            (RSI_OVERSOLD, RSI_SOLD, UPPER_WEAK_LEVEL_MULTIPLIER, 1.0)
-        } else if rsi < RSI_BOUGHT {
-            (RSI_SOLD, RSI_BOUGHT, 1.0, LOWER_WEAK_LEVEL_MULTIPLIER)
-        } else if rsi <= RSI_OVERBOUGHT {
-            (
-                RSI_BOUGHT,
-                RSI_OVERBOUGHT,
-                LOWER_WEAK_LEVEL_MULTIPLIER,
-                LOWER_STRONG_LEVEL_MULTIPLIER,
-            )
-        } else {
-            (
-                RSI_OVERBOUGHT,
-                100.0,
-                LOWER_STRONG_LEVEL_MULTIPLIER,
-                LOWER_STRONG_LEVEL_MULTIPLIER,
-            )
-        };
-
-        let position_in_band = (rsi - lower_rsi) / (upper_rsi - lower_rsi);
-        let predicted_multiplier =
-            lower_multiplier + position_in_band * (upper_multiplier - lower_multiplier);
-
-        last_price * predicted_multiplier
-    }
-
-    pub fn predict_next_price_bollinger(&mut self, period: usize) -> f64 {
-        let (lower_band, _, upper_band) = self.calculate_bollinger_bands(period);
-        let last_price = self.prices.last().unwrap().price;
-
-        let position_in_band = (last_price - lower_band) / (upper_band - lower_band); // Position in band as a percentage, where lower_band is 0 and upper_band is 1
-
-        let lower_multiplier = UPPER_STRONG_LEVEL_MULTIPLIER;
-        let upper_multiplier = LOWER_STRONG_LEVEL_MULTIPLIER;
-
-        let predicted_multiplier =
-            lower_multiplier - position_in_band * (lower_multiplier - upper_multiplier); // Linear interpolation between lower_multiplier and upper_multiplier based on position_in_band
-
-        last_price * predicted_multiplier
-    }
-
-    pub fn predict_next_price_fibonacci(&mut self, period: usize) -> f64 {
-        let prices_period = if self.prices.len() < period {
-            &self.prices
-        } else {
-            &self.prices[self.prices.len() - period..]
-        };
-
-        let high = prices_period
-            .iter()
-            .map(|p| p.price)
-            .fold(f64::NEG_INFINITY, f64::max);
-        let low = prices_period
-            .iter()
-            .map(|p| p.price)
-            .fold(f64::INFINITY, f64::min);
-        let diff = high - low;
-
-        let level1 = high - 0.236 * diff;
-        let level2 = high - 0.382 * diff;
-        let level3 = high - 0.618 * diff;
-
-        let last_price = self.prices.last().unwrap().price;
-
-        let (lower_level, upper_level, lower_multiplier, upper_multiplier) = if last_price < level1
-        {
-            (
-                0.0,
-                level1,
-                UPPER_STRONG_LEVEL_MULTIPLIER,
-                UPPER_WEAK_LEVEL_MULTIPLIER,
-            )
-        } else if last_price < level2 {
-            (
-                level1,
-                level2,
-                UPPER_WEAK_LEVEL_MULTIPLIER,
-                UPPER_WEAK_LEVEL_MULTIPLIER,
-            )
-        } else if last_price < level3 {
-            (level2, level3, UPPER_WEAK_LEVEL_MULTIPLIER, 1.0)
-        } else {
-            (level3, last_price, 1.0, LOWER_STRONG_LEVEL_MULTIPLIER)
-        };
-
-        if upper_level == lower_level {
-            return last_price;
-        }
-
-        let position_in_band = (last_price - lower_level) / (upper_level - lower_level);
-        let predicted_multiplier =
-            lower_multiplier - position_in_band * (lower_multiplier - upper_multiplier);
-
-        last_price * predicted_multiplier
-    }
-
-    pub fn predict_next_price_sdg(&self, _period: usize) -> f64 {
-        self.prices.last().unwrap().price
-    }
-
-    pub fn calculate_std_dev(&self) -> f64 {
-        let mean = self.prices.iter().map(|p| p.price).sum::<f64>() / self.prices.len() as f64;
-        let variance = self
-            .prices
-            .iter()
-            .map(|p| (p.price - mean).powi(2))
-            .sum::<f64>()
-            / self.prices.len() as f64;
-        variance.sqrt()
     }
 
     fn update_ema(&mut self, price: f64, timestamp: i64, prev_timestamp: Option<i64>) {
-        self.prev_ema_short = self.ema_short;
-        self.prev_ema_medium = self.ema_medium;
-        self.prev_ema_long = self.ema_long;
+        let time_difference =
+            prev_timestamp.map_or(1.0, |prev| (timestamp - prev) as f64 / self.interval as f64);
 
-        let weight_short = 2.0 / (self.short_period as f64 + 1.0);
-        let weight_medium = 2.0 / (self.medium_period as f64 + 1.0);
-        let weight_long = 2.0 / (self.long_period as f64 + 1.0);
-
-        let time_difference = match prev_timestamp {
-            Some(prev_timestamp) => (timestamp - prev_timestamp) as f64 / self.interval as f64,
-            None => 1.0,
+        let update_one_ema = |ema: &mut TrendValue, period: usize| {
+            let weight = 2.0 / (period as f64 + 1.0);
+            let prev_ema = ema.current;
+            ema.update_value(if ema.current == 0.0 {
+                price
+            } else if self.prices.len() >= period {
+                (price - prev_ema) * weight * time_difference + prev_ema
+            } else {
+                ema.current
+            });
         };
 
-        if self.ema_short == 0.0 {
-            self.ema_short = price;
-        } else {
-            self.ema_short =
-                (price - self.ema_short) * weight_short * time_difference + self.ema_short;
-        }
-
-        if self.ema_medium == 0.0 {
-            self.ema_medium = price;
-        } else if self.prices.len() >= self.medium_period {
-            self.ema_medium =
-                (price - self.ema_medium) * weight_medium * time_difference + self.ema_medium;
-        }
-
-        if self.ema_long == 0.0 {
-            self.ema_long = price;
-        } else if self.prices.len() >= self.long_period {
-            self.ema_long = (price - self.ema_long) * weight_long * time_difference + self.ema_long;
-        }
+        update_one_ema(&mut self.ema_short, self.short_period);
+        update_one_ema(&mut self.ema_medium, self.medium_period);
+        update_one_ema(&mut self.ema_long, self.long_period);
     }
 
     fn calculate_sma(&self, period: usize) -> f64 {
@@ -531,14 +424,6 @@ impl PriceHistory {
             .sum();
         let sma = sum / period as f64;
         sma
-    }
-
-    fn calculate_bollinger_bands(&self, period: usize) -> (f64, f64, f64) {
-        let sma = self.calculate_sma(period);
-        let std_dev = self.calculate_std_dev();
-        let upper_band = sma + (2.0 * std_dev);
-        let lower_band = sma - (2.0 * std_dev);
-        (upper_band, sma, lower_band)
     }
 
     fn calculate_rsi(&self, period: usize) -> f64 {
@@ -570,47 +455,13 @@ impl PriceHistory {
         100.0 - (100.0 / (1.0 + rs))
     }
 
-    pub fn majority_vote_predictions(
-        &mut self,
-        period: usize,
-        prediction_interval_secs: u64,
-        strategy: TradingStrategy,
-    ) -> f64 {
+    pub fn majority_vote_predictions(&mut self, period: usize, strategy: TradingStrategy) -> f64 {
         let mut predictions = vec![];
 
         match strategy {
             TradingStrategy::TrendFollowing => {
                 let sma = self.predict_next_price_sma(period);
-                let ema = self.predict_next_price_ema(period);
-                let regression_prediction =
-                    self.predict_next_price_regression(prediction_interval_secs as i64, period);
                 predictions.push(sma);
-                predictions.push(ema);
-                predictions.push(regression_prediction);
-                log::trace!(
-                    "SMA: {:6.3}, EMA: {:6.3}, REG: {:6.3}",
-                    sma,
-                    ema,
-                    regression_prediction
-                );
-            }
-            TradingStrategy::MeanReversion => {
-                let bollinger_prediction = self.predict_next_price_bollinger(period);
-                let fibonacci_prediction = self.predict_next_price_fibonacci(period);
-                let rsi_prediction = self.predict_next_price_rsi(period);
-                predictions.push(bollinger_prediction);
-                predictions.push(fibonacci_prediction);
-                predictions.push(rsi_prediction);
-                log::trace!(
-                    "BOLLINGER: {:6.3}, FIBONACCI: {:6.3}, RSI: {:6.3}",
-                    bollinger_prediction,
-                    fibonacci_prediction,
-                    rsi_prediction,
-                );
-            }
-            TradingStrategy::MLSGDPredictive => {
-                let sdg = self.predict_next_price_sdg(period);
-                predictions.push(sdg);
             }
         }
 

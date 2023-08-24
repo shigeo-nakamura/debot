@@ -1,94 +1,44 @@
 use super::TradingStrategy;
-use crate::trade::trade_position::TakeProfitStrategy;
 
 pub fn get(
     chain_name: &str,
-    short_trade_period: usize,
-    medium_trade_period: usize,
-    long_trade_period: usize,
-) -> Vec<(
-    &'static str,
-    &'static str,
-    TradingStrategy,
-    TakeProfitStrategy,
-    usize,
-    f64,
-    f64,
-    f64,
-    f64,
-    f64,
-)> {
+) -> Vec<(&'static str, &'static str, TradingStrategy, usize, f64, f64)> {
     let configs = vec![
         (
-            "trend-follow-short",
+            "trend-follow-2h",
             "BSC",
             "WBNB",
             TradingStrategy::TrendFollowing,
-            TakeProfitStrategy::TrailingStop,
-            short_trade_period,
-            1.01,  // buy_signal_threshold
-            0.99,  // loss_cut_threshold
-            10.0,  // initial_score
-            0.125, // 0.125 day
-            3.0,   // Predict the price in 3 hour
-        ),
-        (
-            "trend-follow-medium",
-            "BSC",
-            "WBNB",
-            TradingStrategy::TrendFollowing,
-            TakeProfitStrategy::TrailingStop,
-            medium_trade_period,
-            1.01,  // buy_signal_threshold
-            0.985, // loss_cut_threshold
-            10.0,  // initial_score
-            0.25,  // 0.25 day
-            6.0,   // Predict the price in 6 hour
-        ),
-        (
-            "trend-follow-long",
-            "BSC",
-            "WBNB",
-            TradingStrategy::TrendFollowing,
-            TakeProfitStrategy::TrailingStop,
-            long_trade_period,
+            120,  // minutes
             1.01, // buy_signal_threshold
-            0.98, // loss_cut_threshold
             10.0, // initial_score
-            0.5,  // 0.5 day
-            12.0, // Predict the price in 12 hour
+        ),
+        (
+            "trend-follow-4h",
+            "BSC",
+            "WBNB",
+            TradingStrategy::TrendFollowing,
+            240,  // minutes
+            1.01, // buy_signal_threshold
+            10.0, // initial_score
+        ),
+        (
+            "trend-follow-6h",
+            "BSC",
+            "WBNB",
+            TradingStrategy::TrendFollowing,
+            360,  // minutes
+            1.01, // buy_signal_threshold
+            10.0, // initial_score
         ),
     ];
 
     configs
         .into_iter()
         .filter_map(
-            |(
-                name,
-                target_chain_name,
-                token_name,
-                strategy,
-                period,
-                buy_signal,
-                take_profit,
-                cut_loss,
-                score,
-                days,
-                hours,
-            )| {
+            |(name, target_chain_name, token_name, strategy, period, buy_signal, score)| {
                 if target_chain_name == chain_name {
-                    Some((
-                        name,
-                        token_name,
-                        strategy,
-                        period,
-                        buy_signal,
-                        take_profit,
-                        cut_loss,
-                        score,
-                        days,
-                        hours,
-                    ))
+                    Some((name, token_name, strategy, period, buy_signal, score))
                 } else {
                     None
                 }

@@ -131,10 +131,10 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
         let num_swaps = get_env_var("NUM_SWAPS", "3")?;
-        let short_trade_period_minutes: usize = get_env_var("SHORT_TRADE_PEREIOD_MINUTES", "180")?;
+        let short_trade_period_minutes: usize = get_env_var("SHORT_TRADE_PEREIOD_MINUTES", "60")?;
         let medium_trade_period_minutes: usize =
-            get_env_var("MEDIUM_TRADE_PEREIOD_MINUTES", "360")?;
-        let long_trade_period_minutes: usize = get_env_var("LONG_TRACE_PEREIOD_MINUTES", "720")?;
+            get_env_var("MEDIUM_TRADE_PEREIOD_MINUTES", "120")?;
+        let long_trade_period_minutes: usize = get_env_var("LONG_TRACE_PEREIOD_MINUTES", "180")?;
         let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "36")?;
 
         let position_creation_inteval_hours_str =
