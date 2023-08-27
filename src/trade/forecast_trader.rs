@@ -365,10 +365,6 @@ impl ForcastTrader {
         }
     }
 
-    fn is_wide_spread(prices: &DexPrices, relative_spread: f64) -> bool {
-        prices.relative_spread > relative_spread
-    }
-
     fn get_token_index(&self, token_name: &str) -> Result<usize, Box<dyn Error + Send + Sync>> {
         let index = find_index(&self.tokens(), |token| token.symbol_name() == token_name)
             .ok_or("Token not found")?;
@@ -395,7 +391,7 @@ impl ForcastTrader {
             let dex_index = self.get_dex_index(&prices.buy.dex_string)?;
 
             // Check if the prices are reliable
-            if Self::is_wide_spread(prices, self.config.spread) {
+            if prices.relative_spread > self.config.spread {
                 continue;
             }
 
@@ -404,6 +400,7 @@ impl ForcastTrader {
                     token_name,
                     prices.buy.price,
                     prices.sell.price,
+                    prices.relative_spread,
                     amount,
                     histories,
                 );
@@ -432,7 +429,6 @@ impl ForcastTrader {
     fn find_sell_opportunities(
         &self,
         current_prices: &HashMap<String, DexPrices>,
-        histories: &HashMap<String, PriceHistory>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
 
@@ -448,13 +444,12 @@ impl ForcastTrader {
                 .ok_or("Dex not found")?;
 
             // Check if the prices are reliable
-            let limited_sell = Self::is_wide_spread(prices, self.config.spread);
+            let limited_sell = prices.relative_spread > self.config.spread;
 
             for fund_manager in self.state.fund_manager_map.values() {
                 let proposal = fund_manager.find_sell_opportunities(
                     token_name,
                     prices.sell.price,
-                    histories,
                     limited_sell,
                 );
 
@@ -517,7 +512,7 @@ impl ForcastTrader {
             self.find_buy_opportunities(amount, &current_prices, histories)?;
         results.append(&mut result_for_open);
 
-        let mut result_for_close = self.find_sell_opportunities(&current_prices, histories)?;
+        let mut result_for_close = self.find_sell_opportunities(&current_prices)?;
         results.append(&mut result_for_close);
 
         Ok(results)

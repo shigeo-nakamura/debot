@@ -37,7 +37,6 @@ pub enum Operation {
 pub enum ReasonForSell {
     Liquidated,
     Expired,
-    Closed,
     TakeProfit,
     CutLoss,
 }

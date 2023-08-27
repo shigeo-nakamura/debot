@@ -5,10 +5,7 @@ use std::sync::Arc;
 
 use crate::utils::{DateTimeUtils, ToDateTimeString};
 
-use super::{
-    abstract_trader::ReasonForSell, price_history::MarketStatus, HasId, Trend, TrendValue,
-    ValueChange,
-};
+use super::{abstract_trader::ReasonForSell, price_history::MarketStatus, HasId};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub enum TakeProfitStrategy {
@@ -129,15 +126,11 @@ impl TradePosition {
         false
     }
 
-    pub fn should_close(
-        &self,
-        sell_price: f64,
-        rsi_trend: Option<TrendValue>,
-    ) -> Option<ReasonForSell> {
+    pub fn should_close(&self, sell_price: f64) -> Option<ReasonForSell> {
         if self.should_take_profit(sell_price) {
             return Some(ReasonForSell::TakeProfit);
         }
-        self.should_cut_loss(sell_price, rsi_trend)
+        self.should_cut_loss(sell_price)
     }
 
     pub fn is_expired(&self, max_holding_interval: i64) -> Option<ReasonForSell> {
@@ -158,11 +151,7 @@ impl TradePosition {
         }
     }
 
-    fn should_cut_loss(
-        &self,
-        sell_price: f64,
-        rsi_trend: Option<TrendValue>,
-    ) -> Option<ReasonForSell> {
+    fn should_cut_loss(&self, sell_price: f64) -> Option<ReasonForSell> {
         let cut_loss_price = *self.cut_loss_price.lock().unwrap();
 
         if sell_price < cut_loss_price {

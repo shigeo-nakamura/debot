@@ -1,5 +1,7 @@
 // price_history.rs
 
+use std::collections::HashMap;
+
 use crate::utils::ToDateTimeString;
 use serde::{Deserialize, Serialize};
 
@@ -71,6 +73,7 @@ pub struct PriceHistory {
     market_status: MarketStatus,
     prev_market_status: MarketStatus,
     market_status_change_counter: u32,
+    atr: HashMap<usize, f64>,
 }
 
 #[allow(dead_code)]
@@ -105,6 +108,7 @@ impl PriceHistory {
             market_status: MarketStatus::Stay,
             prev_market_status: MarketStatus::Stay,
             market_status_change_counter: 0,
+            atr: HashMap::new(),
         }
     }
 
@@ -112,17 +116,8 @@ impl PriceHistory {
         self.market_status
     }
 
-    pub fn rsi(&self, period: usize) -> Option<TrendValue> {
-        match period {
-            p if p == self.short_period => Some(self.rsi_short.clone()),
-            p if p == self.medium_period => Some(self.rsi_medium.clone()),
-            p if p == self.long_period => Some(self.rsi_long.clone()),
-            _ => None,
-        }
-    }
-
-    pub fn atr(&self, period: usize) -> Option<f64> {
-        self.calculate_atr(period)
+    pub fn atr(&mut self, period: usize) -> Option<f64> {
+        self.atr.get(&period).copied()
     }
 
     pub fn add_price(&mut self, price: f64, timestamp: Option<i64>) -> PricePoint {
@@ -158,64 +153,48 @@ impl PriceHistory {
         price_point
     }
 
-    fn calculate_atr(&self, period: usize) -> Option<f64> {
-        let one_hour_ago_index = (3600 / self.interval) as usize;
-        if self.prices.len() < one_hour_ago_index + period + 1 {
-            return None;
+    pub fn update_atr(&mut self, period: usize) {
+        if self.prices.len() < period {
+            return;
         }
 
-        let previous_close = self.prices[self.prices.len() - one_hour_ago_index - 1].price;
-        let atr_prices = &self.prices[self.prices.len() - period..];
+        let window_size = period;
+        let atr_prices = &self.prices;
 
         let current_high = atr_prices
             .iter()
             .map(|p| p.price)
             .fold(f64::NEG_INFINITY, f64::max);
+
         let current_low = atr_prices
             .iter()
             .map(|p| p.price)
             .fold(f64::INFINITY, f64::min);
 
-        let tr = [
-            current_high - current_low,
-            (current_high - previous_close).abs(),
-            (current_low - previous_close).abs(),
-        ]
-        .iter()
-        .cloned()
-        .fold(f64::NAN, f64::max);
+        let tr = current_high - current_low;
 
-        let mut atr: Option<f64> = None;
+        let atr = self.atr.get(&period);
+        let mut tr_sum = 0.0;
 
         if atr.is_none() {
-            let tr_sum: f64 = atr_prices
-                .windows(2)
-                .map(|window| {
-                    let high = window
-                        .iter()
-                        .map(|pp| pp.price)
-                        .fold(f64::NEG_INFINITY, f64::max);
-                    let low = window
-                        .iter()
-                        .map(|pp| pp.price)
-                        .fold(f64::INFINITY, f64::min);
-                    let previous_close = window[0].price;
-                    [
-                        high - low,
-                        (high - previous_close).abs(),
-                        (low - previous_close).abs(),
-                    ]
+            for window in atr_prices.windows(window_size) {
+                let high = window
                     .iter()
-                    .cloned()
-                    .fold(f64::NAN, f64::max)
-                })
-                .sum();
-            atr = Some(tr_sum / period as f64);
+                    .map(|pp| pp.price)
+                    .fold(f64::NEG_INFINITY, f64::max);
+                let low = window
+                    .iter()
+                    .map(|pp| pp.price)
+                    .fold(f64::INFINITY, f64::min);
+                let window_tr = high - low;
+                tr_sum += window_tr;
+            }
+            let new_atr = tr_sum / atr_prices.windows(window_size).len() as f64;
+            self.atr.insert(period, new_atr);
         } else {
-            atr = Some((atr.unwrap() * (period as f64 - 1.0) + tr) / period as f64);
+            let new_atr = (atr.unwrap() * (period as f64 - 1.0) + tr) / period as f64;
+            self.atr.insert(period, new_atr);
         }
-
-        atr
     }
 
     fn update_rsi(&mut self) {

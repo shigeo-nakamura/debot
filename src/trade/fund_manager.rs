@@ -143,6 +143,7 @@ impl FundManager {
         token_name: &str,
         buy_price: f64,
         sell_price: f64,
+        spread: f64,
         amount: f64,
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Option<TradeProposal> {
@@ -151,6 +152,9 @@ impl FundManager {
         }
 
         if let Some(history) = histories.get_mut(token_name) {
+            // update ATR
+            history.update_atr(self.config.trade_period);
+
             let predicted_price =
                 history.majority_vote_predictions(self.config.trade_period, self.config.strategy);
 
@@ -199,8 +203,8 @@ impl FundManager {
                     return None;
                 }
 
-                if atr.unwrap() < sell_price * 0.01 {
-                    log::info!("ATR: {:6.3} < {:6.3}", atr.unwrap(), sell_price * 0.01);
+                if atr.unwrap() < spread * sell_price {
+                    log::info!("ATR: {:6.3} < {:6.3}", atr.unwrap(), spread * sell_price);
                     return None;
                 }
 
@@ -248,7 +252,6 @@ impl FundManager {
         &self,
         token_name: &str,
         sell_price: f64,
-        histories: &HashMap<String, PriceHistory>,
         limitied_sell: bool,
     ) -> Option<TradeProposal> {
         if let Some(position) = self.state.open_positions.get(token_name) {
@@ -271,10 +274,7 @@ impl FundManager {
             }
 
             if limitied_sell == false && reason_for_sell.is_none() {
-                if let Some(history) = histories.get(token_name) {
-                    reason_for_sell =
-                        position.should_close(sell_price, history.rsi(self.config.trade_period));
-                }
+                reason_for_sell = position.should_close(sell_price);
             }
 
             if reason_for_sell.is_some() {
@@ -326,7 +326,7 @@ impl FundManager {
             self.state.amount -= amount_in;
 
             let average_price = amount_in / amount_out;
-            let cut_loss_price = average_price - atr.unwrap();
+            let cut_loss_price = average_price - atr.unwrap() * 2.0;
             let distance = (average_price - cut_loss_price) * self.config.risk_reward;
             let take_profit_price = average_price + distance;
 
@@ -391,7 +391,6 @@ impl FundManager {
                     ReasonForSell::Expired => State::Expired,
                     ReasonForSell::TakeProfit => State::TakeProfit,
                     ReasonForSell::CutLoss => State::CutLoss,
-                    ReasonForSell::Closed => State::Closed,
                 };
 
                 position.del(sold_price, amount_in, new_state);
