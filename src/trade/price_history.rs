@@ -7,10 +7,6 @@ use serde::{Deserialize, Serialize};
 
 use super::{Trend, TrendValue, ValueChange};
 
-// RSI thresholds
-const RSI_OVERBOUGHT: f64 = 70.0;
-const RSI_OVERSOLD: f64 = 30.0;
-
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub enum MarketStatus {
     Bull,
@@ -19,8 +15,6 @@ pub enum MarketStatus {
     Bear,
     GoldenCross,
     DeadCross,
-    OverBull,
-    OverBear,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -93,9 +87,9 @@ impl PriceHistory {
         PriceHistory {
             prices: Vec::with_capacity(max_size),
             last_price: 0.0,
-            ema_short: TrendValue::new(10, 0.0),
-            ema_medium: TrendValue::new(20, 0.0),
-            ema_long: TrendValue::new(40, 0.0),
+            ema_short: TrendValue::new(100, 0.004),
+            ema_medium: TrendValue::new(100, 0.002),
+            ema_long: TrendValue::new(100, 0.001),
             rsi_short: TrendValue::new(10, 4.0),
             rsi_medium: TrendValue::new(10, 2.0),
             rsi_long: TrendValue::new(10, 1.0),
@@ -225,21 +219,8 @@ impl PriceHistory {
         if rsi_short.current == 0.0 || rsi_medium.current == 0.0 || rsi_long.current == 0.0 {
             return MarketStatus::Stay;
         }
-        if rsi_short.current > RSI_OVERBOUGHT
-            || rsi_medium.current > RSI_OVERBOUGHT
-            || rsi_long.current > RSI_OVERBOUGHT
-        {
-            return MarketStatus::OverBull;
-        }
-        if rsi_short.current < RSI_OVERSOLD
-            || rsi_medium.current < RSI_OVERSOLD
-            || rsi_long.current < RSI_OVERSOLD
-        {
-            return MarketStatus::OverBear;
-        }
 
         if ema_short.is_up() == Trend::Rise
-            && rsi_short.is_up() == Trend::Rise
             && ema_short.current > ema_medium.current
             && ema_short.previous().is_some()
             && ema_medium.previous().is_some()
@@ -249,7 +230,6 @@ impl PriceHistory {
             }
         }
         if ema_short.is_up() == Trend::Fall
-            && rsi_short.is_up() == Trend::Fall
             && ema_short.current < ema_medium.current
             && ema_short.previous().is_some()
             && ema_medium.previous().is_some()
@@ -263,9 +243,9 @@ impl PriceHistory {
             ema_short.is_up() == Trend::Rise,
             ema_medium.is_up() == Trend::Rise,
             ema_long.is_up() == Trend::Rise,
-            rsi_short.is_up() == Trend::Rise,
-            rsi_medium.is_up() == Trend::Rise,
-            rsi_long.is_up() == Trend::Rise,
+            rsi_short.is_up() == Trend::Rise && rsi_short.current < 40.0,
+            rsi_medium.is_up() == Trend::Rise && rsi_medium.current < 40.0,
+            rsi_long.is_up() == Trend::Rise && rsi_long.current < 40.0,
         ];
 
         let bear_conditions = [
@@ -275,6 +255,9 @@ impl PriceHistory {
             rsi_short.is_up() == Trend::Fall,
             rsi_medium.is_up() == Trend::Fall,
             rsi_long.is_up() == Trend::Fall,
+            rsi_short.is_up() == Trend::Rise && rsi_short.current > 60.0,
+            rsi_medium.is_up() == Trend::Rise && rsi_medium.current > 60.0,
+            rsi_long.is_up() == Trend::Rise && rsi_long.current > 60.0,
         ];
 
         let stay_conditions = [
@@ -284,22 +267,24 @@ impl PriceHistory {
             rsi_short.is_up() == Trend::Stay,
             rsi_medium.is_up() == Trend::Stay,
             rsi_long.is_up() == Trend::Stay,
+            rsi_short.is_up() == Trend::Rise && rsi_short.current > 50.0,
+            rsi_medium.is_up() == Trend::Rise && rsi_medium.current > 50.0,
+            rsi_long.is_up() == Trend::Rise && rsi_long.current > 50.0,
         ];
 
         let bull_count = bull_conditions.iter().filter(|&&x| x).count();
         let bear_count = bear_conditions.iter().filter(|&&x| x).count();
         let stay_count = stay_conditions.iter().filter(|&&x| x).count();
 
-        if stay_count >= bull_count && stay_count >= bear_count {
+        if stay_count >= bull_count && stay_count >= bear_count
+            || bear_count + stay_count >= bull_count
+            || bull_count == bear_count
+        {
             return MarketStatus::Stay;
-        } else if bull_count > bear_count {
-            if rsi_short.current > 60.0 {
-                return MarketStatus::Stay;
-            } else {
-                return MarketStatus::Bull;
-            }
         } else if bear_count > bull_count {
             return MarketStatus::Bear;
+        } else if bull_count - bear_count > 1 {
+            return MarketStatus::Bull;
         } else {
             return MarketStatus::Stay;
         }
@@ -325,7 +310,7 @@ impl PriceHistory {
                 self.market_status_change_counter = 0;
             } else {
                 self.market_status_change_counter += 1;
-                if self.market_status_change_counter >= 5 {
+                if self.market_status_change_counter >= 2 {
                     self.market_status = new_market_status;
                     self.market_status_change_counter = 0;
                 }
@@ -363,8 +348,6 @@ impl PriceHistory {
             MarketStatus::Stay => sma * 2.0 - price,
             MarketStatus::Bear => sma * 0.99,
             MarketStatus::DeadCross => sma * 0.98,
-            MarketStatus::OverBull => sma * 0.98,
-            MarketStatus::OverBear => price * 1.02,
         }
     }
 
