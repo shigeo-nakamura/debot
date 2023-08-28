@@ -18,13 +18,13 @@ pub enum MarketStatus {
 }
 
 impl MarketStatus {
-    pub fn to_int(&self) -> i32 {
+    pub fn to_int(&self) -> f64 {
         match *self {
-            MarketStatus::Bull => 2,
-            MarketStatus::Stay => 0,
-            MarketStatus::Bear => -2,
-            MarketStatus::GoldenCross => 1,
-            MarketStatus::DeadCross => -1,
+            MarketStatus::Bull => 1.0,
+            MarketStatus::GoldenCross => 0.75,
+            MarketStatus::Stay => 0.5,
+            MarketStatus::DeadCross => 0.25,
+            MarketStatus::Bear => 0.0,
         }
     }
 }
@@ -35,7 +35,7 @@ pub struct PricePoint {
     pub timestamp_str: String,
     relative_timestamp: Option<i64>,
     pub price: f64,
-    pub strength: i32,
+    pub strength: f64,
 }
 
 impl PricePoint {
@@ -58,7 +58,7 @@ impl Default for PricePoint {
             timestamp_str: String::new(),
             relative_timestamp: None,
             price: 0.0,
-            strength: 0,
+            strength: 0.0,
         }
     }
 }
