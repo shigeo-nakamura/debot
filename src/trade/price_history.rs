@@ -65,6 +65,7 @@ impl Default for PricePoint {
 
 #[derive(Debug, Clone)]
 pub struct PriceHistory {
+    name: String,
     prices: Vec<PricePoint>,
     last_price: f64,
     ema_short: TrendValue,
@@ -93,6 +94,7 @@ pub enum TradingStrategy {
 
 impl PriceHistory {
     pub fn new(
+        name: String,
         short_period: usize,
         medium_period: usize,
         long_period: usize,
@@ -100,6 +102,7 @@ impl PriceHistory {
         interval: u64,
     ) -> PriceHistory {
         PriceHistory {
+            name,
             prices: Vec::with_capacity(max_size),
             last_price: 0.0,
             ema_short: TrendValue::new(100, 0.004),
@@ -258,9 +261,9 @@ impl PriceHistory {
             ema_short.is_up() == Trend::Rise,
             ema_medium.is_up() == Trend::Rise,
             ema_long.is_up() == Trend::Rise,
-            rsi_short.is_up() == Trend::Rise && rsi_short.current < 40.0,
-            rsi_medium.is_up() == Trend::Rise && rsi_medium.current < 40.0,
-            rsi_long.is_up() == Trend::Rise && rsi_long.current < 40.0,
+            rsi_short.is_up() == Trend::Rise && rsi_short.current < 60.0,
+            rsi_medium.is_up() == Trend::Rise && rsi_medium.current < 60.0,
+            rsi_long.is_up() == Trend::Rise && rsi_long.current < 60.0,
         ];
 
         let bear_conditions = [
@@ -270,9 +273,9 @@ impl PriceHistory {
             rsi_short.is_up() == Trend::Fall,
             rsi_medium.is_up() == Trend::Fall,
             rsi_long.is_up() == Trend::Fall,
-            rsi_short.is_up() == Trend::Rise && rsi_short.current > 60.0,
-            rsi_medium.is_up() == Trend::Rise && rsi_medium.current > 60.0,
-            rsi_long.is_up() == Trend::Rise && rsi_long.current > 60.0,
+            rsi_short.is_up() == Trend::Rise && rsi_short.current > 70.0,
+            rsi_medium.is_up() == Trend::Rise && rsi_medium.current > 70.0,
+            rsi_long.is_up() == Trend::Rise && rsi_long.current > 70.0,
         ];
 
         let stay_conditions = [
@@ -282,9 +285,6 @@ impl PriceHistory {
             rsi_short.is_up() == Trend::Stay,
             rsi_medium.is_up() == Trend::Stay,
             rsi_long.is_up() == Trend::Stay,
-            rsi_short.is_up() == Trend::Rise && rsi_short.current > 50.0,
-            rsi_medium.is_up() == Trend::Rise && rsi_medium.current > 50.0,
-            rsi_long.is_up() == Trend::Rise && rsi_long.current > 50.0,
         ];
 
         let bull_count = bull_conditions.iter().filter(|&&x| x).count();
@@ -328,7 +328,8 @@ impl PriceHistory {
         }
 
         log::info!(
-            "{:6.3}({:?}), {:6.2}[{:?}, {:2.1}({:?})] {:6.2}[{:?}, {:2.1}({:?})] {:6.2}[{:?}, {:2.1}({:?})]",
+            "{}:{:6.2}({:?}) {:6.2}[{:?},{:2.1}({:?})] {:6.2}[{:?},{:2.1}({:?})] {:6.2}[{:?},{:2.1}({:?})]",
+            self.name,
             price,
             self.market_status,
             self.ema_short.current.clone(),

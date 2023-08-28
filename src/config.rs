@@ -25,9 +25,6 @@ pub struct EnvConfig {
     pub log_limit: u32,
     pub dry_run: bool,
     pub num_swaps: usize,
-    pub short_trade_period: usize,
-    pub medium_trade_period: usize,
-    pub long_trade_period: usize,
     pub max_price_size: u32,
     pub position_creation_inteval_seconds: Option<u64>,
     pub risk_reward: f64,
@@ -131,11 +128,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
         let num_swaps = get_env_var("NUM_SWAPS", "3")?;
-        let short_trade_period_minutes: usize = get_env_var("SHORT_TRADE_PEREIOD_MINUTES", "60")?;
-        let medium_trade_period_minutes: usize =
-            get_env_var("MEDIUM_TRADE_PEREIOD_MINUTES", "120")?;
-        let long_trade_period_minutes: usize = get_env_var("LONG_TRACE_PEREIOD_MINUTES", "180")?;
-        let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "168")?;
+        let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "240")?;
 
         let position_creation_inteval_hours_str =
             env::var("POSITION_CREATION_INVERVAL_HOURS").unwrap_or_default();
@@ -148,17 +141,14 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
 
         let risk_reward = get_env_var("RISK_REWARD", "1.5")?;
         let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;
-        let reward_multiplier = get_env_var("REWARD_MULTIPLIER", "2.0")?;
-        let penalty_multiplier = get_env_var("PENALTY_MULTIPLIER", "0.5")?;
+        let reward_multiplier = get_env_var("REWARD_MULTIPLIER", "1.1")?;
+        let penalty_multiplier = get_env_var("PENALTY_MULTIPLIER", "0.9")?;
         let relative_spread = get_env_var("RELATIVE_SPREAD", "0.005")?;
         let save_prices = get_bool_env_var("SAVE_PRICES", false);
 
         let treasury_str = env::var("TREASURY").unwrap_or_default();
         let treasury: Option<Address> = Some(Address::from_str(&treasury_str).unwrap_or_default());
 
-        let short_trade_period = short_trade_period_minutes * 60 / (interval as usize);
-        let medium_trade_period = medium_trade_period_minutes * 60 / (interval as usize);
-        let long_trade_period = long_trade_period_minutes * 60 / (interval as usize);
         let max_price_size = max_price_size_hours * 60 * 60 / (interval as u32);
 
         let env_config = EnvConfig {
@@ -176,9 +166,6 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             log_limit,
             dry_run,
             num_swaps,
-            short_trade_period,
-            medium_trade_period,
-            long_trade_period,
             max_price_size,
             position_creation_inteval_seconds,
             risk_reward,

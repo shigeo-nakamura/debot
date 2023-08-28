@@ -22,7 +22,7 @@ use tokio::time::{timeout, Duration};
 
 use super::abstract_trader::BaseTrader;
 use super::abstract_trader::TraderState;
-use super::fund_configurations;
+use super::fund_config;
 use super::DBHandler;
 use super::FundManager;
 use super::Operation;
@@ -30,11 +30,30 @@ use super::TradePosition;
 use super::TransactionLog;
 use super::{PriceHistory, TradeOpportunity};
 
+#[derive(Clone)]
+pub struct TradingPeriod {
+    short_term_hour: usize,
+    medium_term_hour: usize,
+    long_term_hour: usize,
+}
+
+impl TradingPeriod {
+    pub fn new(short_term_hour: usize, medium_term_hour: usize, long_term_hour: usize) -> Self {
+        Self {
+            short_term_hour,
+            medium_term_hour,
+            long_term_hour,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct DexPrice {
     pub dex_string: String,
     pub price: f64,
 }
 
+#[derive(Clone)]
 pub struct DexPrices {
     pub buy: DexPrice,
     pub sell: DexPrice,
@@ -43,6 +62,7 @@ pub struct DexPrices {
 }
 
 pub struct ForcastTraderConfig {
+    master: bool,
     chain_name: String,
     short_trade_period: usize,
     medium_trade_period: usize,
@@ -58,6 +78,7 @@ pub struct ForcastTraderState {
     amount: f64,
     fund_manager_map: HashMap<String, FundManager>,
     scores: HashMap<String, f64>,
+    current_prices: Arc<std::sync::Mutex<HashMap<String, DexPrices>>>,
 }
 
 pub struct ForcastTrader {
@@ -68,6 +89,9 @@ pub struct ForcastTrader {
 
 impl ForcastTrader {
     pub fn new(
+        master: bool,
+        index: usize,
+        current_prices: Arc<std::sync::Mutex<HashMap<String, DexPrices>>>,
         chain_name: &str,
         trader_state: HashMap<String, TraderState>,
         initial_amount: f64,
@@ -77,9 +101,7 @@ impl ForcastTrader {
         dexes: Arc<Vec<Box<dyn Dex>>>,
         dry_run: bool,
         gas: f64,
-        short_trade_period: usize,
-        medium_trade_period: usize,
-        long_trade_period: usize,
+        trading_period: TradingPeriod,
         max_price_size: u32,
         interval: u64,
         risk_reward: f64,
@@ -94,10 +116,11 @@ impl ForcastTrader {
         save_prices: bool,
     ) -> Self {
         let config = ForcastTraderConfig {
+            master,
             chain_name: chain_name.to_owned(),
-            short_trade_period,
-            medium_trade_period,
-            long_trade_period,
+            short_trade_period: trading_period.short_term_hour * 3600 / interval as usize,
+            medium_trade_period: trading_period.medium_term_hour * 3600 / interval as usize,
+            long_trade_period: trading_period.long_term_hour * 3600 / interval as usize,
             max_price_size,
             interval,
             reward_multiplier,
@@ -105,7 +128,7 @@ impl ForcastTrader {
             spread,
         };
 
-        let name = format!("{}-AlgoTrader", chain_name);
+        let name = format!("{}-Algo-{}", chain_name, index);
 
         let binding = HashMap::new();
         let scores = match latest_scores.get(&name) {
@@ -117,9 +140,10 @@ impl ForcastTrader {
             amount: initial_amount,
             fund_manager_map: HashMap::new(),
             scores: scores.clone(),
+            current_prices,
         };
 
-        let fund_manager_configurations = fund_configurations::get(chain_name);
+        let fund_manager_configurations = fund_config::get(chain_name);
 
         let db_handler = Arc::new(Mutex::new(DBHandler::new(
             db_client.clone(),
@@ -131,7 +155,7 @@ impl ForcastTrader {
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
             .filter_map(
-                |(name, token_name, strategy, period_minutes, buy_signal, score)| {
+                |(name, token_name, strategy, period_hour, buy_signal, score)| {
                     let mut token_found = false;
                     for token in tokens.iter() {
                         if token_name == token.symbol_name() {
@@ -153,7 +177,7 @@ impl ForcastTrader {
                     };
                     state.scores.insert(fund_name.to_owned(), *intial_score);
 
-                    let period = period_minutes * 60 / (interval as usize);
+                    let period = period_hour * 60 * 60 / (interval as usize);
 
                     Some(FundManager::new(
                         &fund_name,
@@ -208,45 +232,51 @@ impl ForcastTrader {
         amount: f64,
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Result<HashMap<String, DexPrices>, Box<dyn Error + Send + Sync>> {
-        // Get the prices of token pairs
-        let token_pair_prices = self.get_token_pair_prices(amount).await?;
-
         let mut current_prices: HashMap<String, DexPrices> = HashMap::new();
 
-        for token in self.tokens().iter() {
-            let token_name = token.symbol_name();
-            if token_name == self.base_token().symbol_name() {
-                continue;
+        if self.config.master {
+            // Get the prices of token pairs
+            let token_pair_prices = self.get_token_pair_prices(amount).await?;
+
+            for token in self.tokens().iter() {
+                let token_name = token.symbol_name();
+                if token_name == self.base_token().symbol_name() {
+                    continue;
+                }
+
+                let buy_price = self.get_best_buy_price(token_name, &token_pair_prices);
+                let sell_price = self.get_best_sell_price(token_name, &token_pair_prices);
+                if buy_price.is_none() || sell_price.is_none() {
+                    continue;
+                }
+
+                let (buy_price, buy_dex_name) = buy_price.unwrap();
+                let (sell_price, sell_dex_name) = sell_price.unwrap();
+
+                // Calculate spread
+                let key = token_name.to_string();
+                let spread = buy_price - sell_price;
+
+                // Create new DexPrices
+                let new_prices = DexPrices {
+                    buy: DexPrice {
+                        dex_string: buy_dex_name.to_owned(),
+                        price: buy_price,
+                    },
+                    sell: DexPrice {
+                        dex_string: sell_dex_name.to_string(),
+                        price: sell_price,
+                    },
+                    spread: spread,
+                    relative_spread: spread / sell_price,
+                };
+
+                current_prices.insert(key, new_prices);
+                let mut prices = self.state.current_prices.lock().unwrap();
+                *prices = current_prices.clone();
             }
-
-            let buy_price = self.get_best_buy_price(token_name, &token_pair_prices);
-            let sell_price = self.get_best_sell_price(token_name, &token_pair_prices);
-            if buy_price.is_none() || sell_price.is_none() {
-                continue;
-            }
-
-            let (buy_price, buy_dex_name) = buy_price.unwrap();
-            let (sell_price, sell_dex_name) = sell_price.unwrap();
-
-            // Calculate spread
-            let key = token_name.to_string();
-            let spread = buy_price - sell_price;
-
-            // Create new DexPrices
-            let new_prices = DexPrices {
-                buy: DexPrice {
-                    dex_string: buy_dex_name.to_owned(),
-                    price: buy_price,
-                },
-                sell: DexPrice {
-                    dex_string: sell_dex_name.to_string(),
-                    price: sell_price,
-                },
-                spread: spread,
-                relative_spread: spread / sell_price,
-            };
-
-            current_prices.insert(key, new_prices);
+        } else {
+            current_prices = self.state.current_prices.lock().unwrap().clone();
         }
 
         // Update the price history and predict next prices
@@ -257,7 +287,7 @@ impl ForcastTrader {
                 .or_insert_with(|| self.create_price_history());
             let price_point = history.add_price(prices.sell.price, None);
 
-            if self.base_trader.save_prices() {
+            if self.config.master && self.base_trader.save_prices() {
                 self.base_trader
                     .db_handler()
                     .lock()
@@ -630,6 +660,7 @@ impl ForcastTrader {
 
     pub fn create_price_history(&self) -> PriceHistory {
         PriceHistory::new(
+            self.base_trader.name().to_owned(),
             self.config.short_trade_period,
             self.config.medium_trade_period,
             self.config.long_trade_period,

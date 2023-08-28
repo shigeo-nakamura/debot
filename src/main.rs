@@ -12,14 +12,15 @@ use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
 use trade::abstract_trader::BaseTrader;
+use trade::forecast_trader::TradingPeriod;
 use trade::price_history::PricePoint;
-use trade::{ForcastTrader, PriceHistory, TradePosition, TransactionLog};
+use trade::{
+    forecast_config, DexPrices, ForcastTrader, PriceHistory, TradePosition, TransactionLog,
+};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
 use crate::trade::{AbstractTrader, DBHandler, TraderState};
 use std::collections::HashMap;
-use std::env;
-use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use wallet::{create_wallet, get_balance_of_native_token};
@@ -41,10 +42,6 @@ type WalletAndProvider = Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Ht
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
-
-    // Just to satisfy Heroku
-    let port = env::var("PORT").expect("PORT is not set");
-    let _listener = TcpListener::bind(("0.0.0.0", port.parse().unwrap())).unwrap();
 
     // Load the configs
     let configs = config::get_config_from_env().expect("Invalid configuration");
@@ -98,6 +95,8 @@ async fn main() -> std::io::Result<()> {
     // Read the price histories
     let price_histories = TransactionLog::get_price_histories(&db).await;
 
+    let current_prices = Arc::new(std::sync::Mutex::new(HashMap::<String, DexPrices>::new()));
+
     // Initialize an empty vector to hold trader instances
     let mut trader_instances = prepare_trader_instances(
         &configs,
@@ -106,6 +105,7 @@ async fn main() -> std::io::Result<()> {
         app_state.prev_balance,
         app_state.trader_state,
         price_histories,
+        current_prices,
     )
     .await;
 
@@ -124,6 +124,7 @@ async fn prepare_trader_instances(
     prev_balance: HashMap<String, Option<f64>>,
     trader_state: HashMap<String, TraderState>,
     price_histories: HashMap<String, HashMap<String, Vec<PricePoint>>>,
+    current_prices: Arc<std::sync::Mutex<HashMap<String, DexPrices>>>,
 ) -> Vec<(
     ForcastTrader,
     WalletAndProvider,
@@ -142,32 +143,42 @@ async fn prepare_trader_instances(
     let mut trader_instances = Vec::new();
 
     for config in configs {
-        let trader_instance = prepare_algorithm_trader_instance(
-            config,
-            client_holder.clone(),
-            transaction_log.clone(),
-            prev_balance.clone(),
-            trader_state.clone(),
-            price_histories.clone(),
-            open_positions_map.clone(),
-            scores.clone(),
-        )
-        .await;
-        trader_instances.push(trader_instance);
+        for (index, trading_period) in forecast_config::get().iter().enumerate() {
+            let trader_instance = prepare_algorithm_trader_instance(
+                forecast_config::get().len(),
+                index,
+                config,
+                client_holder.clone(),
+                transaction_log.clone(),
+                prev_balance.clone(),
+                trading_period.clone(),
+                trader_state.clone(),
+                price_histories.clone(),
+                open_positions_map.clone(),
+                scores.clone(),
+                current_prices.clone(),
+            )
+            .await;
+            trader_instances.push(trader_instance);
+        }
     }
 
     trader_instances
 }
 
 async fn prepare_algorithm_trader_instance(
+    num_traders: usize,
+    index: usize,
     config: &EnvConfig,
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
     prev_balance: HashMap<String, Option<f64>>,
+    tradeding_preiod: TradingPeriod,
     trader_state: HashMap<String, TraderState>,
     price_histories: HashMap<String, HashMap<String, Vec<PricePoint>>>,
     open_positions_map: HashMap<String, HashMap<String, TradePosition>>,
     scores: HashMap<String, HashMap<String, f64>>,
+    current_prices: Arc<std::sync::Mutex<HashMap<String, DexPrices>>>,
 ) -> (
     ForcastTrader,
     WalletAndProvider,
@@ -228,18 +239,19 @@ async fn prepare_algorithm_trader_instance(
     }
 
     let mut trader = ForcastTrader::new(
+        index == 0,
+        index,
+        current_prices,
         config.chain_params.chain_name,
         trader_state.clone(),
-        initial_amount,
+        initial_amount / num_traders as f64,
         config.allowance_factor,
         tokens.clone(),
         base_token.clone(),
         dexes.clone(),
         config.dry_run,
         config.chain_params.gas,
-        config.short_trade_period,
-        config.medium_trade_period,
-        config.long_trade_period,
+        tradeding_preiod,
         config.max_price_size,
         config.interval,
         config.risk_reward,

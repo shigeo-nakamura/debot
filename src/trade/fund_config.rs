@@ -5,29 +5,29 @@ pub fn get(
 ) -> Vec<(&'static str, &'static str, TradingStrategy, usize, f64, f64)> {
     let configs = vec![
         (
-            "trend-follow-2h",
-            "BSC",
-            "WBNB",
-            TradingStrategy::TrendFollowing,
-            120,  // minutes
-            1.01, // buy_signal_threshold
-            10.0, // initial_score
-        ),
-        (
-            "trend-follow-4h",
-            "BSC",
-            "WBNB",
-            TradingStrategy::TrendFollowing,
-            240,  // minutes
-            1.01, // buy_signal_threshold
-            10.0, // initial_score
-        ),
-        (
             "trend-follow-6h",
             "BSC",
             "WBNB",
             TradingStrategy::TrendFollowing,
-            360,  // minutes
+            6,    // h
+            1.01, // buy_signal_threshold
+            10.0, // initial_score
+        ),
+        (
+            "trend-follow-12h",
+            "BSC",
+            "WBNB",
+            TradingStrategy::TrendFollowing,
+            12,   // h
+            1.01, // buy_signal_threshold
+            10.0, // initial_score
+        ),
+        (
+            "trend-follow-24h",
+            "BSC",
+            "WBNB",
+            TradingStrategy::TrendFollowing,
+            24,   // h
             1.01, // buy_signal_threshold
             10.0, // initial_score
         ),

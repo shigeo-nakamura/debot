@@ -3,8 +3,9 @@
 pub mod abstract_trader;
 pub mod arbitrage_trader;
 pub mod db_handler;
+pub mod forecast_config;
 pub mod forecast_trader;
-mod fund_configurations;
+mod fund_config;
 pub mod fund_manager;
 pub mod price_history;
 pub mod trade_position;
