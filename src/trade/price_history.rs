@@ -17,22 +17,36 @@ pub enum MarketStatus {
     DeadCross,
 }
 
+impl MarketStatus {
+    pub fn to_int(&self) -> i32 {
+        match *self {
+            MarketStatus::Bull => 2,
+            MarketStatus::Stay => 0,
+            MarketStatus::Bear => -2,
+            MarketStatus::GoldenCross => 1,
+            MarketStatus::DeadCross => -1,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PricePoint {
     pub timestamp: i64,
     pub timestamp_str: String,
     relative_timestamp: Option<i64>,
     pub price: f64,
+    pub strength: i32,
 }
 
 impl PricePoint {
-    pub fn new(price: f64, timestamp: Option<i64>) -> Self {
+    pub fn new(price: f64, market_status: MarketStatus, timestamp: Option<i64>) -> Self {
         let time = timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp());
         Self {
             timestamp: time,
             timestamp_str: time.to_datetime_string(),
             relative_timestamp: None,
             price,
+            strength: market_status.to_int(),
         }
     }
 }
@@ -44,6 +58,7 @@ impl Default for PricePoint {
             timestamp_str: String::new(),
             relative_timestamp: None,
             price: 0.0,
+            strength: 0,
         }
     }
 }
@@ -119,7 +134,7 @@ impl PriceHistory {
             self.prices.remove(0);
         }
 
-        let mut price_point = PricePoint::new(price, timestamp);
+        let mut price_point = PricePoint::new(price, self.market_status, timestamp);
 
         if let Some(prev_point) = self.prices.last() {
             if let Some(relative_time) = price_point.timestamp.checked_sub(prev_point.timestamp) {
