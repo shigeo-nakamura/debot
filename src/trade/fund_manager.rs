@@ -326,7 +326,7 @@ impl FundManager {
             self.state.amount -= amount_in;
 
             let average_price = amount_in / amount_out;
-            let cut_loss_price = average_price - atr.unwrap() * 2.0;
+            let cut_loss_price = average_price - atr.unwrap() * 1.5;
             let distance = (average_price - cut_loss_price) * self.config.risk_reward;
             let take_profit_price = average_price + distance;
 

@@ -20,11 +20,11 @@ pub enum MarketStatus {
 impl MarketStatus {
     pub fn to_int(&self) -> f64 {
         match *self {
-            MarketStatus::Bull => 1.0,
-            MarketStatus::GoldenCross => 0.75,
+            MarketStatus::GoldenCross => 1.0,
+            MarketStatus::Bull => 0.75,
             MarketStatus::Stay => 0.5,
-            MarketStatus::DeadCross => 0.25,
-            MarketStatus::Bear => 0.0,
+            MarketStatus::Bear => 0.25,
+            MarketStatus::DeadCross => 0.0,
         }
     }
 }
@@ -236,20 +236,20 @@ impl PriceHistory {
         }
 
         if ema_short.is_up() == Trend::Rise
-            && ema_short.current > ema_medium.current
+            && ema_short.current > ema_long.current
             && ema_short.previous().is_some()
-            && ema_medium.previous().is_some()
+            && ema_long.previous().is_some()
         {
-            if ema_short.previous().unwrap() <= ema_medium.previous().unwrap() {
+            if ema_short.previous().unwrap() <= ema_long.previous().unwrap() {
                 return MarketStatus::GoldenCross;
             }
         }
         if ema_short.is_up() == Trend::Fall
-            && ema_short.current < ema_medium.current
+            && ema_short.current < ema_long.current
             && ema_short.previous().is_some()
-            && ema_medium.previous().is_some()
+            && ema_long.previous().is_some()
         {
-            if ema_short.previous().unwrap() >= ema_medium.previous().unwrap() {
+            if ema_short.previous().unwrap() >= ema_long.previous().unwrap() {
                 return MarketStatus::DeadCross;
             }
         }
@@ -318,17 +318,10 @@ impl PriceHistory {
         );
 
         if new_market_status != self.market_status {
-            if new_market_status == MarketStatus::GoldenCross
-                || new_market_status == MarketStatus::DeadCross
-            {
+            self.market_status_change_counter += 1;
+            if self.market_status_change_counter >= 2 {
                 self.market_status = new_market_status;
                 self.market_status_change_counter = 0;
-            } else {
-                self.market_status_change_counter += 1;
-                if self.market_status_change_counter >= 2 {
-                    self.market_status = new_market_status;
-                    self.market_status_change_counter = 0;
-                }
             }
         } else {
             self.market_status_change_counter = 0;
@@ -356,14 +349,17 @@ impl PriceHistory {
     pub fn predict_next_price_sma(&self, period: usize) -> f64 {
         let price = self.prices[self.prices.len() - 1].price;
         let sma = self.calculate_sma(period);
+        let diff = sma - price;
 
-        match self.market_status {
-            MarketStatus::GoldenCross => price * 1.02,
-            MarketStatus::Bull => price * 1.015,
-            MarketStatus::Stay => sma * 2.0 - price,
-            MarketStatus::Bear => sma * 0.99,
-            MarketStatus::DeadCross => sma * 0.98,
-        }
+        let multiplier = match self.market_status {
+            MarketStatus::GoldenCross => 1.02,
+            MarketStatus::Bull => 1.015,
+            MarketStatus::Stay => 1.0,
+            MarketStatus::Bear => 0.99,
+            MarketStatus::DeadCross => 0.98,
+        };
+
+        price + diff * multiplier
     }
 
     fn update_ema(&mut self, price: f64, timestamp: i64, prev_timestamp: Option<i64>) {
