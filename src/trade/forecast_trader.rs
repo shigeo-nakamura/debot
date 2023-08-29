@@ -155,7 +155,7 @@ impl ForcastTrader {
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
             .filter_map(
-                |(name, token_name, strategy, period_hour, buy_signal, score)| {
+                |(name, token_name, strategy, period_hour, buy_signal, trading_amount, score)| {
                     let mut token_found = false;
                     for token in tokens.iter() {
                         if token_name == token.symbol_name() {
@@ -168,7 +168,7 @@ impl ForcastTrader {
                         return None;
                     }
 
-                    let fund_name = format!("{}-{}-{}", chain_name, token_name, name);
+                    let fund_name = format!("{}-{}-{}-{}", chain_name, index, token_name, name);
 
                     let prev_score = scores.get(&fund_name);
                     let intial_score = match prev_score {
@@ -185,6 +185,7 @@ impl ForcastTrader {
                         open_positions_map.get(&fund_name).cloned(),
                         strategy,
                         period,
+                        trading_amount,
                         amount_per_fund,
                         *intial_score,
                         buy_signal,

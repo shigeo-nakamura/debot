@@ -38,6 +38,7 @@ pub struct FundManagerConfig {
     buy_signal_threshold: f64,
     max_hold_interval_in_secs: u64,
     risk_reward: f64,
+    trading_amount: f64,
 }
 
 pub struct FundManager {
@@ -63,6 +64,7 @@ impl FundManager {
         open_positions: Option<HashMap<String, TradePosition>>,
         strategy: TradingStrategy,
         trade_period: usize,
+        trading_amount: f64,
         initial_amount: f64,
         initial_score: f64,
         buy_signal_threshold: f64,
@@ -78,6 +80,7 @@ impl FundManager {
             buy_signal_threshold,
             max_hold_interval_in_secs,
             risk_reward,
+            trading_amount,
         };
 
         let open_positions = match open_positions {
@@ -151,6 +154,12 @@ impl FundManager {
             return None;
         }
 
+        let trading_amount = if amount < self.config.trading_amount {
+            amount
+        } else {
+            self.config.trading_amount
+        };
+
         if let Some(history) = histories.get_mut(token_name) {
             // update ATR
             history.update_atr(self.config.trade_period);
@@ -187,12 +196,12 @@ impl FundManager {
                     return None;
                 }
 
-                if self.state.amount < amount {
+                if self.state.amount < trading_amount {
                     log::debug!(
-                        "No enough fund left({}): remaining = {:6.3} < amount = {:6.3}, invested = {:6.3}",
+                        "No enough fund left({}): remaining = {:6.3} < trading_amount = {:6.3}, invested = {:6.3}",
                         self.name(),
                         self.state.amount,
-                        amount,
+                        trading_amount,
                         self.amount_of_positinos_in_base_token(),
                     );
                     return None;
@@ -214,7 +223,7 @@ impl FundManager {
                     profit,
                     predicted_price: Some(predicted_price),
                     execution_price: buy_price,
-                    amount,
+                    amount: trading_amount,
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell: None,
                     atr,
