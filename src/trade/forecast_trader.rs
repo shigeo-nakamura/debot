@@ -23,6 +23,7 @@ use tokio::time::{timeout, Duration};
 use super::abstract_trader::BaseTrader;
 use super::abstract_trader::TraderState;
 use super::fund_config;
+use super::fund_config::TradingStyle;
 use super::DBHandler;
 use super::FundManager;
 use super::Operation;
@@ -128,7 +129,15 @@ impl ForcastTrader {
             spread,
         };
 
-        let name = format!("{}-Algo-{}", chain_name, index);
+        let target_trading_style = if index == 0 {
+            TradingStyle::Day
+        } else if index == 1 {
+            TradingStyle::Swing
+        } else {
+            panic!("Unknown trayding style");
+        };
+
+        let name = format!("{}-Algo-{}", chain_name, target_trading_style.to_string());
 
         let binding = HashMap::new();
         let scores = match latest_scores.get(&name) {
@@ -143,7 +152,7 @@ impl ForcastTrader {
             current_prices,
         };
 
-        let fund_manager_configurations = fund_config::get(chain_name);
+        let fund_manager_configurations = fund_config::get(target_trading_style, chain_name);
 
         let db_handler = Arc::new(Mutex::new(DBHandler::new(
             db_client.clone(),
@@ -155,8 +164,18 @@ impl ForcastTrader {
         let fund_managers: Vec<_> = fund_manager_configurations
             .into_iter()
             .filter_map(
-                |(name, token_name, strategy, period_hour, buy_signal, trading_amount, score)| {
+                |(
+                    name,
+                    trading_style,
+                    token_name,
+                    strategy,
+                    period_hour,
+                    buy_signal,
+                    trading_amount,
+                    score,
+                )| {
                     let mut token_found = false;
+
                     for token in tokens.iter() {
                         if token_name == token.symbol_name() {
                             token_found = true;
@@ -168,7 +187,8 @@ impl ForcastTrader {
                         return None;
                     }
 
-                    let fund_name = format!("{}-{}-{}-{}", chain_name, index, token_name, name);
+                    let fund_name =
+                        format!("{}-{}-{}-{}", chain_name, trading_style, token_name, name);
 
                     let prev_score = scores.get(&fund_name);
                     let intial_score = match prev_score {
@@ -181,7 +201,7 @@ impl ForcastTrader {
 
                     Some(FundManager::new(
                         &fund_name,
-                        token_name,
+                        &token_name,
                         open_positions_map.get(&fund_name).cloned(),
                         strategy,
                         period,
