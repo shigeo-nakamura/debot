@@ -291,15 +291,16 @@ impl PriceHistory {
         let bear_count = bear_conditions.iter().filter(|&&x| x).count();
         let stay_count = stay_conditions.iter().filter(|&&x| x).count();
 
-        if stay_count >= bull_count && stay_count >= bear_count
-            || bear_count + stay_count >= bull_count
-            || bull_count == bear_count
-        {
+        if stay_count >= bull_count && stay_count >= bear_count || bull_count == bear_count {
             return MarketStatus::Stay;
         } else if bear_count > bull_count {
             return MarketStatus::Bear;
         } else if bull_count - bear_count > 1 {
-            return MarketStatus::Bull;
+            if bear_count + stay_count >= bull_count {
+                return MarketStatus::Stay;
+            } else {
+                return MarketStatus::Bull;
+            }
         } else {
             return MarketStatus::Stay;
         }
