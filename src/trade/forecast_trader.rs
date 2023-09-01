@@ -828,6 +828,7 @@ impl AbstractTrader for ForcastTrader {
                         amount_out,
                         atr,
                         market_status,
+                        opportunity.predicted_price,
                     )
                     .await;
             } else {
@@ -841,6 +842,7 @@ impl AbstractTrader for ForcastTrader {
                         amount_out,
                         atr,
                         market_status,
+                        None,
                     )
                     .await;
 

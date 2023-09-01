@@ -37,6 +37,7 @@ pub struct TradePosition {
     pub realized_pnl: Option<f64>,
     pub market_status: Option<MarketStatus>,
     pub atr: Option<f64>,
+    pub predicted_price: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -68,6 +69,7 @@ impl TradePosition {
         amount_in_base_token: f64,
         atr: Option<f64>,
         market_status: Option<MarketStatus>,
+        predicted_price: Option<f64>,
     ) -> Self {
         log::debug!(
             "Created new open position for token: {}, average_buy_price: {:6.3}, take_profit_price: {:6.3}, cut_loss_price: {:6.3}, atr:{:?}",
@@ -98,7 +100,8 @@ impl TradePosition {
             amount_in_base_token,
             realized_pnl: None,
             market_status,
-            atr: atr,
+            atr,
+            predicted_price,
         }
     }
 

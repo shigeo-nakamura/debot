@@ -320,6 +320,7 @@ impl FundManager {
         amount_out: f64,
         atr: Option<f64>,
         market_status: Option<MarketStatus>,
+        predicted_price: Option<f64>,
     ) {
         log::debug!(
             "update_position: amount_in = {:6.6}, amount_out = {:6.6}",
@@ -369,6 +370,7 @@ impl FundManager {
                     amount_in,
                     atr,
                     market_status,
+                    predicted_price,
                 );
                 position.id = self
                     .state
