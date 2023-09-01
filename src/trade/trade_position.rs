@@ -45,7 +45,7 @@ pub enum State {
     #[default]
     Open,
     CutLoss,
-    TakeProfit,
+    TookProfit,
     Closed,
     Liquidated,
     Expired,
@@ -129,10 +129,19 @@ impl TradePosition {
         false
     }
 
-    pub fn should_close(&self, sell_price: f64) -> Option<ReasonForSell> {
+    pub fn should_close(
+        &self,
+        sell_price: f64,
+        max_holding_interval: i64,
+    ) -> Option<ReasonForSell> {
         if self.should_take_profit(sell_price) {
             return Some(ReasonForSell::TakeProfit);
         }
+
+        if self.should_early_close(sell_price, max_holding_interval) {
+            return Some(ReasonForSell::Close);
+        }
+
         self.should_cut_loss(sell_price)
     }
 
@@ -143,6 +152,16 @@ impl TradePosition {
             return Some(ReasonForSell::Expired);
         }
         None
+    }
+
+    fn should_early_close(&self, sell_price: f64, max_holding_interval: i64) -> bool {
+        let current_time = chrono::Utc::now().timestamp();
+        let holding_interval = current_time - self.open_time;
+        if holding_interval > max_holding_interval / 2 {
+            sell_price > self.average_buy_price
+        } else {
+            return false;
+        }
     }
 
     fn should_take_profit(&self, sell_price: f64) -> bool {

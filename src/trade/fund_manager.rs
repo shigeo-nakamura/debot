@@ -266,6 +266,7 @@ impl FundManager {
         if let Some(position) = self.state.open_positions.get(token_name) {
             let mut amount = 0.0;
             let mut reason_for_sell;
+            let max_holding_interval = self.config.max_hold_interval_in_secs.try_into().unwrap();
 
             let should_liquidate =
                 *self.state.fund_state.lock().unwrap() == FundState::ShouldLiquidate;
@@ -278,12 +279,11 @@ impl FundManager {
                 );
                 reason_for_sell = Some(ReasonForSell::Liquidated);
             } else {
-                reason_for_sell =
-                    position.is_expired(self.config.max_hold_interval_in_secs.try_into().unwrap());
+                reason_for_sell = position.is_expired(max_holding_interval);
             }
 
             if limitied_sell == false && reason_for_sell.is_none() {
-                reason_for_sell = position.should_close(sell_price);
+                reason_for_sell = position.should_close(sell_price, max_holding_interval);
             }
 
             if reason_for_sell.is_some() {
@@ -400,8 +400,9 @@ impl FundManager {
                 let new_state = match reason_for_sell.unwrap() {
                     ReasonForSell::Liquidated => State::Liquidated,
                     ReasonForSell::Expired => State::Expired,
-                    ReasonForSell::TakeProfit => State::TakeProfit,
+                    ReasonForSell::TakeProfit => State::TookProfit,
                     ReasonForSell::CutLoss => State::CutLoss,
+                    ReasonForSell::Close => State::Closed,
                 };
 
                 position.del(sold_price, amount_in, new_state);

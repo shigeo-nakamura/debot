@@ -39,6 +39,7 @@ pub enum ReasonForSell {
     Expired,
     TakeProfit,
     CutLoss,
+    Close,
 }
 
 #[derive(Debug, Clone)]
