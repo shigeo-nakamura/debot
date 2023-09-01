@@ -102,11 +102,11 @@ impl DBHandler {
         }
     }
 
-    pub async fn log_price(&self, trader_name: &str, token_name: &str, price_point: PricePoint) {
+    pub async fn log_price(&self, name: &str, token_name: &str, price_point: PricePoint) {
         if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
             let mut item = PriceLog::default();
             item.id = self.increment_counter(CounterType::Price);
-            item.trader_name = trader_name.to_owned();
+            item.name = name.to_owned();
             item.token_name = token_name.to_owned();
             item.price_point = price_point;
             if let Err(e) = TransactionLog::update_price(&db, item).await {

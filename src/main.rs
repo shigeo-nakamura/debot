@@ -485,7 +485,7 @@ fn restore_histories(
     trader: &ForcastTrader,
     price_histories: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
 ) {
-    let price_pionts_map = match price_histories.get(trader.name()) {
+    let price_pionts_map = match price_histories.get(trader.chain_name()) {
         Some(map) => map,
         None => return,
     };

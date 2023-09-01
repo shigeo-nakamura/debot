@@ -124,6 +124,10 @@ impl PriceHistory {
         }
     }
 
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub fn market_status(&self) -> MarketStatus {
         self.market_status
     }

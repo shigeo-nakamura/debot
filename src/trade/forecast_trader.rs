@@ -248,6 +248,10 @@ impl ForcastTrader {
         }
     }
 
+    pub fn chain_name(&self) -> &str {
+        &self.config.chain_name
+    }
+
     async fn get_current_prices(
         &self,
         amount: f64,
@@ -313,7 +317,7 @@ impl ForcastTrader {
                     .db_handler()
                     .lock()
                     .await
-                    .log_price(self.name(), token_name, price_point)
+                    .log_price(history.name(), token_name, price_point)
                     .await;
             }
         }
@@ -681,7 +685,7 @@ impl ForcastTrader {
 
     pub fn create_price_history(&self) -> PriceHistory {
         PriceHistory::new(
-            self.base_trader.name().to_owned(),
+            self.config.chain_name.to_owned(),
             self.config.short_trade_period,
             self.config.medium_trade_period,
             self.config.long_trade_period,

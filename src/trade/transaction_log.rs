@@ -71,7 +71,7 @@ impl HasId for BalanceLog {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PriceLog {
     pub id: Option<u32>,
-    pub trader_name: String,
+    pub name: String,
     pub token_name: String,
     pub price_point: PricePoint,
 }
@@ -227,7 +227,7 @@ impl TransactionLog {
 
         for price_log in items {
             result
-                .entry(price_log.trader_name)
+                .entry(price_log.name)
                 .or_insert_with(HashMap::new)
                 .entry(price_log.token_name)
                 .or_insert_with(Vec::new)
