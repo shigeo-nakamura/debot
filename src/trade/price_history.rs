@@ -352,23 +352,6 @@ impl PriceHistory {
         );
     }
 
-    #[allow(dead_code)]
-    pub fn predict_next_price_sma(&self, period: usize) -> f64 {
-        let price = self.prices[self.prices.len() - 1].price;
-        let sma = self.calculate_sma(period);
-        let diff = sma - price;
-
-        let multiplier = match self.market_status {
-            MarketStatus::GoldenCross => 1.02,
-            MarketStatus::Bull => 1.015,
-            MarketStatus::Stay => 1.0,
-            MarketStatus::Bear => 0.99,
-            MarketStatus::DeadCross => 0.98,
-        };
-
-        price + diff * multiplier
-    }
-
     pub fn predict_next_price_ema(&self, period: usize) -> f64 {
         let price = self.prices[self.prices.len() - 1].price;
         let ema = self.calculate_ema(period);
