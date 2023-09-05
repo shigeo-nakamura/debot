@@ -357,15 +357,16 @@ impl PriceHistory {
         let ema = self.calculate_ema(period);
         let diff = ema - price;
 
-        let multiplier = match self.market_status {
-            MarketStatus::GoldenCross => 1.02,
-            MarketStatus::Bull => 1.015,
-            MarketStatus::Stay => 1.0,
-            MarketStatus::Bear => 0.99,
-            MarketStatus::DeadCross => 0.98,
-        };
+        // let multiplier = match self.market_status {
+        //     MarketStatus::GoldenCross => 1.02,
+        //     MarketStatus::Bull => 1.015,
+        //     MarketStatus::Stay => 1.0,
+        //     MarketStatus::Bear => 0.99,
+        //     MarketStatus::DeadCross => 0.98,
+        // };
+        let multiplier = 1.0;
 
-        price + diff * multiplier
+        ema + diff * multiplier
     }
 
     fn update_ema(&mut self, price: f64, timestamp: i64, prev_timestamp: Option<i64>) {
