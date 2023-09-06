@@ -262,6 +262,7 @@ impl FundManager {
         token_name: &str,
         sell_price: f64,
         limitied_sell: bool,
+        histories: &mut HashMap<String, PriceHistory>,
     ) -> Option<TradeProposal> {
         if let Some(position) = self.state.open_positions.get(token_name) {
             let mut amount = 0.0;
@@ -284,6 +285,12 @@ impl FundManager {
 
             if limitied_sell == false && reason_for_sell.is_none() {
                 reason_for_sell = position.should_close(sell_price, max_holding_interval);
+            }
+
+            if let Some(history) = histories.get(token_name) {
+                if history.market_status() == MarketStatus::Bull {
+                    reason_for_sell = Some(ReasonForSell::Bullish);
+                }
             }
 
             if reason_for_sell.is_some() {
@@ -403,6 +410,7 @@ impl FundManager {
                     ReasonForSell::TakeProfit => State::TookProfit,
                     ReasonForSell::CutLoss => State::CutLoss,
                     ReasonForSell::Close => State::Closed,
+                    ReasonForSell::Bullish => State::Bullish,
                 };
 
                 position.del(sold_price, amount_in, new_state);

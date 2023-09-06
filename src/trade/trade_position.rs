@@ -49,6 +49,7 @@ pub enum State {
     Closed,
     Liquidated,
     Expired,
+    Bullish,
 }
 
 impl HasId for TradePosition {

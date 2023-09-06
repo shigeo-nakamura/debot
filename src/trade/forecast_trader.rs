@@ -484,6 +484,7 @@ impl ForcastTrader {
     fn find_sell_opportunities(
         &self,
         current_prices: &HashMap<String, DexPrices>,
+        histories: &mut HashMap<String, PriceHistory>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
 
@@ -506,6 +507,7 @@ impl ForcastTrader {
                     token_name,
                     prices.sell.price,
                     limited_sell,
+                    histories,
                 );
 
                 if let Some(proposal) = proposal {
@@ -567,7 +569,7 @@ impl ForcastTrader {
             self.find_buy_opportunities(amount, &current_prices, histories)?;
         results.append(&mut result_for_open);
 
-        let mut result_for_close = self.find_sell_opportunities(&current_prices)?;
+        let mut result_for_close = self.find_sell_opportunities(&current_prices, histories)?;
         results.append(&mut result_for_close);
 
         Ok(results)
