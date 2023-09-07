@@ -324,7 +324,7 @@ impl PriceHistory {
 
         if new_market_status != self.market_status {
             self.market_status_change_counter += 1;
-            if self.market_status_change_counter >= 2 {
+            if self.market_status_change_counter >= 5 {
                 self.market_status = new_market_status;
                 self.market_status_change_counter = 0;
             }
