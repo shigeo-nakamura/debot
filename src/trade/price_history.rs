@@ -7,17 +7,25 @@ use serde::{Deserialize, Serialize};
 
 use super::{Trend, TrendValue, ValueChange};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PricePoint {
     pub timestamp: i64,
     pub timestamp_str: String,
     relative_timestamp: Option<i64>,
     pub price: f64,
     pub strength: f64,
+    pub derivative: f64,
+    pub derivative2: f64,
 }
 
 impl PricePoint {
-    pub fn new(price: f64, sentiment: f64, timestamp: Option<i64>) -> Self {
+    pub fn new(
+        price: f64,
+        sentiment: f64,
+        sentiment_derivative: f64,
+        sentiment_second_derivative: f64,
+        timestamp: Option<i64>,
+    ) -> Self {
         let time = timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp());
         Self {
             timestamp: time,
@@ -25,18 +33,8 @@ impl PricePoint {
             relative_timestamp: None,
             price,
             strength: sentiment,
-        }
-    }
-}
-
-impl Default for PricePoint {
-    fn default() -> Self {
-        Self {
-            timestamp: 0,
-            timestamp_str: String::new(),
-            relative_timestamp: None,
-            price: 0.0,
-            strength: 0.0,
+            derivative: sentiment_derivative,
+            derivative2: sentiment_second_derivative,
         }
     }
 }
@@ -59,7 +57,11 @@ pub struct PriceHistory {
     interval: u64,
     first_timestamp: Option<i64>,
     sentiment: f64,
+    previous_sentiment: f64,
     smoothed_sentiment: f64,
+    sentiment_derivative: f64,
+    previous_sentiment_derivative: f64,
+    sentiment_second_derivative: f64,
     atr: HashMap<usize, f64>,
 }
 
@@ -95,7 +97,11 @@ impl PriceHistory {
             interval,
             first_timestamp: None,
             sentiment: 0.0,
+            previous_sentiment: 0.0,
             smoothed_sentiment: 0.0,
+            sentiment_derivative: 0.0,
+            previous_sentiment_derivative: 0.0,
+            sentiment_second_derivative: 0.0,
             atr: HashMap::new(),
         }
     }
@@ -117,7 +123,13 @@ impl PriceHistory {
             self.prices.remove(0);
         }
 
-        let mut price_point = PricePoint::new(price, self.sentiment, timestamp);
+        let mut price_point = PricePoint::new(
+            price,
+            self.sentiment,
+            self.sentiment_derivative,
+            self.sentiment_second_derivative,
+            timestamp,
+        );
 
         if let Some(prev_point) = self.prices.last() {
             if let Some(relative_time) = price_point.timestamp.checked_sub(prev_point.timestamp) {
@@ -253,6 +265,15 @@ impl PriceHistory {
             &mut self.rsi_medium,
             &mut self.rsi_long,
         );
+
+        self.sentiment_derivative = new_sentiment - self.previous_sentiment;
+
+        self.sentiment_second_derivative =
+            self.sentiment_derivative - self.previous_sentiment_derivative;
+
+        self.previous_sentiment = new_sentiment;
+        self.previous_sentiment_derivative = self.sentiment_derivative;
+
         self.sentiment = new_sentiment;
 
         let alpha = 0.2;
