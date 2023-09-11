@@ -4,7 +4,6 @@ use crate::db::CounterType;
 use crate::trade::trade_position::State;
 
 use super::abstract_trader::ReasonForSell;
-use super::price_history::MarketStatus;
 use super::trade_position::TakeProfitStrategy;
 use super::{DBHandler, DexPrices, PriceHistory, TradePosition, TradingStrategy};
 use std::collections::HashMap;
@@ -54,7 +53,7 @@ pub struct TradeProposal {
     pub fund_name: String,
     pub reason_for_sell: Option<ReasonForSell>,
     pub atr: Option<f64>,
-    pub market_status: Option<MarketStatus>,
+    pub sentiment: Option<f64>,
 }
 
 impl FundManager {
@@ -227,7 +226,7 @@ impl FundManager {
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell: None,
                     atr,
-                    market_status: Some(history.market_status()),
+                    sentiment: Some(history.sentiment()),
                 });
             }
         }
@@ -288,9 +287,7 @@ impl FundManager {
             }
 
             if let Some(history) = histories.get(token_name) {
-                if history.market_status() == MarketStatus::Bull {
-                    reason_for_sell = Some(ReasonForSell::Bullish);
-                }
+                // todo
             }
 
             if reason_for_sell.is_some() {
@@ -307,7 +304,7 @@ impl FundManager {
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell,
                     atr: None,
-                    market_status: None,
+                    sentiment: None,
                 });
             }
         }
@@ -326,7 +323,7 @@ impl FundManager {
         amount_in: f64,
         amount_out: f64,
         atr: Option<f64>,
-        market_status: Option<MarketStatus>,
+        sentiment: Option<f64>,
         predicted_price: Option<f64>,
     ) {
         log::debug!(
@@ -376,7 +373,7 @@ impl FundManager {
                     amount_out,
                     amount_in,
                     atr,
-                    market_status,
+                    sentiment,
                     predicted_price,
                 );
                 position.id = self
@@ -410,7 +407,6 @@ impl FundManager {
                     ReasonForSell::TakeProfit => State::TookProfit,
                     ReasonForSell::CutLoss => State::CutLoss,
                     ReasonForSell::Close => State::Closed,
-                    ReasonForSell::Bullish => State::Bullish,
                 };
 
                 position.del(sold_price, amount_in, new_state);

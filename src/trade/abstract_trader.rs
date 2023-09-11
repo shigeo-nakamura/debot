@@ -18,7 +18,7 @@ use crate::{
     token::Token,
 };
 
-use super::{price_history::MarketStatus, DBHandler};
+use super::DBHandler;
 
 pub fn find_index<T, F>(list: &[T], predicate: F) -> Option<usize>
 where
@@ -39,7 +39,6 @@ pub enum ReasonForSell {
     Expired,
     TakeProfit,
     CutLoss,
-    Bullish,
     Close,
 }
 
@@ -55,7 +54,7 @@ pub struct TradeOpportunity {
     pub currect_price: Option<f64>,
     pub predicted_price: Option<f64>,
     pub atr: Option<f64>,
-    pub market_status: Option<MarketStatus>,
+    pub sentiment: Option<f64>,
 }
 
 impl TradeOpportunity {

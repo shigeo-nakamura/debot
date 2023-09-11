@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::utils::{DateTimeUtils, ToDateTimeString};
 
-use super::{abstract_trader::ReasonForSell, price_history::MarketStatus, HasId};
+use super::{abstract_trader::ReasonForSell, HasId};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub enum TakeProfitStrategy {
@@ -35,7 +35,7 @@ pub struct TradePosition {
     pub amount: f64,
     pub amount_in_base_token: f64,
     pub realized_pnl: Option<f64>,
-    pub market_status: Option<MarketStatus>,
+    pub sentiment: Option<f64>,
     pub atr: Option<f64>,
     pub predicted_price: Option<f64>,
 }
@@ -69,7 +69,7 @@ impl TradePosition {
         amount: f64,
         amount_in_base_token: f64,
         atr: Option<f64>,
-        market_status: Option<MarketStatus>,
+        sentiment: Option<f64>,
         predicted_price: Option<f64>,
     ) -> Self {
         log::debug!(
@@ -100,7 +100,7 @@ impl TradePosition {
             amount,
             amount_in_base_token,
             realized_pnl: None,
-            market_status,
+            sentiment,
             atr,
             predicted_price,
         }

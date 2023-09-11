@@ -284,7 +284,7 @@ impl ArbitrageTrader {
                 trader_name: self.name().to_owned(),
                 reason_for_sell: None,
                 atr: None,
-                market_status: None,
+                sentiment: None,
             };
 
             results.push(opportunity);

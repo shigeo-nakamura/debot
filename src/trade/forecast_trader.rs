@@ -472,7 +472,7 @@ impl ForcastTrader {
                         trader_name: proposal.fund_name.to_owned(),
                         reason_for_sell: None,
                         atr: proposal.atr,
-                        market_status: proposal.market_status,
+                        sentiment: proposal.sentiment,
                     });
                 }
             }
@@ -522,7 +522,7 @@ impl ForcastTrader {
                         trader_name: proposal.fund_name.to_owned(),
                         reason_for_sell: proposal.reason_for_sell,
                         atr: None,
-                        market_status: None,
+                        sentiment: None,
                     });
                 }
             }
@@ -809,7 +809,7 @@ impl AbstractTrader for ForcastTrader {
             let token_b = &self.tokens()[opportunity.token_index[1]];
             let amount_in = opportunity.amounts[0];
             let atr = opportunity.atr;
-            let market_status = opportunity.market_status;
+            let sentiment = opportunity.sentiment;
 
             let token_a_name = token_a.symbol_name();
             let token_b_name = token_b.symbol_name();
@@ -833,7 +833,7 @@ impl AbstractTrader for ForcastTrader {
                         amount_in,
                         amount_out,
                         atr,
-                        market_status,
+                        sentiment,
                         opportunity.predicted_price,
                     )
                     .await;
@@ -847,7 +847,7 @@ impl AbstractTrader for ForcastTrader {
                         amount_in,
                         amount_out,
                         atr,
-                        market_status,
+                        sentiment,
                         None,
                     )
                     .await;
