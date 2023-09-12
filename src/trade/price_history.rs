@@ -247,7 +247,7 @@ impl PriceHistory {
         let bear_ratio =
             bear_conditions.iter().filter(|&&x| x).count() as f64 / bear_conditions.len() as f64;
 
-        0.5 + 0.5 * (bull_ratio - bear_ratio)
+        0.5 * (bull_ratio - bear_ratio)
     }
 
     fn update_market_sentiment(&mut self, price: f64) {
