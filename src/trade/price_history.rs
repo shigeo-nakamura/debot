@@ -57,10 +57,7 @@ pub struct PriceHistory {
     interval: u64,
     first_timestamp: Option<i64>,
     sentiment: f64,
-    previous_sentiment: f64,
-    smoothed_sentiment: f64,
     sentiment_derivative: f64,
-    previous_sentiment_derivative: f64,
     sentiment_second_derivative: f64,
     atr: HashMap<usize, f64>,
 }
@@ -97,10 +94,7 @@ impl PriceHistory {
             interval,
             first_timestamp: None,
             sentiment: 0.0,
-            previous_sentiment: 0.0,
-            smoothed_sentiment: 0.0,
             sentiment_derivative: 0.0,
-            previous_sentiment_derivative: 0.0,
             sentiment_second_derivative: 0.0,
             atr: HashMap::new(),
         }
@@ -266,18 +260,17 @@ impl PriceHistory {
             &mut self.rsi_long,
         );
 
-        self.sentiment_derivative = new_sentiment - self.previous_sentiment;
-
-        self.sentiment_second_derivative =
-            self.sentiment_derivative - self.previous_sentiment_derivative;
-
-        self.previous_sentiment = new_sentiment;
-        self.previous_sentiment_derivative = self.sentiment_derivative;
-
-        self.sentiment = new_sentiment;
+        let previous_sentiment = self.sentiment;
 
         let alpha = 0.2;
-        self.smoothed_sentiment = (1.0 - alpha) * self.smoothed_sentiment + alpha * new_sentiment;
+        let smoothed_sentiment = (1.0 - alpha) * self.sentiment + alpha * new_sentiment;
+        self.sentiment = smoothed_sentiment;
+
+        let previous_sentiment_derivative = self.sentiment_derivative;
+        self.sentiment_derivative = self.sentiment - previous_sentiment;
+
+        self.sentiment_second_derivative =
+            self.sentiment_derivative - previous_sentiment_derivative;
 
         log::info!(
             "{}:{:6.2}({:0.2}) {:6.2}[{:?},{:2.1}({:?})] {:6.2}[{:?},{:2.1}({:?})] {:6.2}[{:?},{:2.1}({:?})]",
