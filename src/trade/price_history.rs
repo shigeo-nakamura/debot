@@ -262,15 +262,17 @@ impl PriceHistory {
 
         let previous_sentiment = self.sentiment;
 
-        let alpha = 0.2;
+        let alpha = 0.1;
         let smoothed_sentiment = (1.0 - alpha) * self.sentiment + alpha * new_sentiment;
         self.sentiment = smoothed_sentiment;
 
-        let previous_sentiment_derivative = self.sentiment_derivative;
-        self.sentiment_derivative = self.sentiment - previous_sentiment;
+        let smoothed_sentiment_derivative = (1.0 - alpha) * self.sentiment_derivative
+            + alpha * (self.sentiment - previous_sentiment);
+        self.sentiment_derivative = smoothed_sentiment_derivative;
 
-        self.sentiment_second_derivative =
-            self.sentiment_derivative - previous_sentiment_derivative;
+        let smoothed_sentiment_second_derivative = (1.0 - alpha) * self.sentiment_second_derivative
+            + alpha * (self.sentiment_derivative - smoothed_sentiment_derivative);
+        self.sentiment_second_derivative = smoothed_sentiment_second_derivative;
 
         log::info!(
             "{}:{:6.2}({:0.2}) {:6.2}[{:?},{:2.1}({:?})] {:6.2}[{:?},{:2.1}({:?})] {:6.2}[{:?},{:2.1}({:?})]",
@@ -297,8 +299,9 @@ impl PriceHistory {
         let ema = self.calculate_ema(period);
         let diff = ema - price;
 
-        // todo
-        return ema + diff;
+        let prescaler = if self.sentiment < -0.25 { 2.0 } else { 1.0 };
+
+        return ema + diff * prescaler;
     }
 
     fn update_ema(&mut self, price: f64, timestamp: i64, prev_timestamp: Option<i64>) {
