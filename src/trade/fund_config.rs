@@ -29,17 +29,17 @@ pub fn get(
     f64,
 )> {
     let configs = vec![
-        (
-            "trend-follow-6h",
-            TradingStyle::Day,
-            "BSC",
-            "WBNB",
-            TradingStrategy::TrendFollowing,
-            6,     // h
-            1.01,  // buy_signal_threshold
-            100.0, // trading_amount(base token)
-            10.0,  // initial_score
-        ),
+        // (
+        //     "trend-follow-6h",
+        //     TradingStyle::Day,
+        //     "BSC",
+        //     "WBNB",
+        //     TradingStrategy::TrendFollowing,
+        //     6,     // h
+        //     1.01,  // buy_signal_threshold
+        //     100.0, // trading_amount(base token)
+        //     10.0,  // initial_score
+        // ),
         (
             "trend-follow-12h",
             TradingStyle::Day,
