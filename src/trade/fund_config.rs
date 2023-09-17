@@ -29,17 +29,6 @@ pub fn get(
     f64,
 )> {
     let configs = vec![
-        // (
-        //     "trend-follow-6h",
-        //     TradingStyle::Day,
-        //     "BSC",
-        //     "WBNB",
-        //     TradingStrategy::TrendFollowing,
-        //     6,     // h
-        //     1.01,  // buy_signal_threshold
-        //     100.0, // trading_amount(base token)
-        //     10.0,  // initial_score
-        // ),
         (
             "trend-follow-12h",
             TradingStyle::Day,
@@ -56,6 +45,28 @@ pub fn get(
             TradingStyle::Day,
             "BSC",
             "WBNB",
+            TradingStrategy::TrendFollowing,
+            18,    // h
+            1.01,  // buy_signal_threshold
+            100.0, // trading_amount(base token)
+            10.0,  // initial_score
+        ),
+        (
+            "trend-follow-12h",
+            TradingStyle::Day,
+            "BSC",
+            "ETH",
+            TradingStrategy::TrendFollowing,
+            12,    // h
+            1.01,  // buy_signal_threshold
+            100.0, // trading_amount(base token)
+            10.0,  // initial_score
+        ),
+        (
+            "trend-follow-18h",
+            TradingStyle::Day,
+            "BSC",
+            "ETH",
             TradingStrategy::TrendFollowing,
             18,    // h
             1.01,  // buy_signal_threshold
@@ -89,6 +100,39 @@ pub fn get(
             TradingStyle::Swing,
             "BSC",
             "WBNB",
+            TradingStrategy::TrendFollowing,
+            48,    // h
+            1.03,  // buy_signal_threshold
+            200.0, // trading_amount(base token)
+            10.0,  // initial_score
+        ),
+        (
+            "trend-follow-24h",
+            TradingStyle::Swing,
+            "BSC",
+            "ETH",
+            TradingStrategy::TrendFollowing,
+            24,    // h
+            1.015, // buy_signal_threshold
+            200.0, // trading_amount(base token)
+            10.0,  // initial_score
+        ),
+        (
+            "trend-follow-36h",
+            TradingStyle::Swing,
+            "BSC",
+            "ETH",
+            TradingStrategy::TrendFollowing,
+            36,    // h
+            1.02,  // buy_signal_threshold
+            200.0, // trading_amount(base token)
+            10.0,  // initial_score
+        ),
+        (
+            "trend-follow-48h",
+            TradingStyle::Swing,
+            "BSC",
+            "ETH",
             TradingStrategy::TrendFollowing,
             48,    // h
             1.03,  // buy_signal_threshold
