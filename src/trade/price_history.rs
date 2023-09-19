@@ -294,12 +294,51 @@ impl PriceHistory {
         );
     }
 
+    pub fn calculate_sentiment_stats(&self, mut period: usize) -> Option<(f64, f64)> {
+        let n = self.prices.len();
+        const SECONDS_IN_A_DAY: u32 = 60 * 60 * 24;
+        let max_period: usize = (SECONDS_IN_A_DAY / self.interval as u32)
+            .try_into()
+            .unwrap();
+        if period > max_period {
+            period = max_period;
+        }
+        if n < period {
+            return None; // Not enough data points
+        }
+
+        // Slice the last `period` prices
+        let last_prices = &self.prices[n - period..];
+
+        // Calculate average
+        let sum: f64 = last_prices.iter().map(|x| x.strength).sum();
+        let avg = sum / (period as f64);
+
+        // Calculate standard deviation
+        let sum_of_squares: f64 = last_prices.iter().map(|x| (x.strength - avg).powi(2)).sum();
+        let std_dev = (sum_of_squares / (period as f64)).sqrt();
+
+        log::trace!("avg = {}, std_dev = {}", avg, std_dev);
+
+        Some((avg, std_dev))
+    }
+
     pub fn predict_next_price_ema(&self, period: usize) -> f64 {
         let price = self.prices[self.prices.len() - 1].price;
         let ema = self.calculate_ema(period);
         let diff = ema - price;
 
-        let prescaler = if self.sentiment < -0.25 { 2.0 } else { 1.0 };
+        let status = self.calculate_sentiment_stats(period);
+
+        let prescaler = if status == None {
+            1.0
+        } else {
+            if status.unwrap().0 - status.unwrap().1 > self.sentiment {
+                2.0
+            } else {
+                1.0
+            }
+        };
 
         return ema + diff * prescaler;
     }

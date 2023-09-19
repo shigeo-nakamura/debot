@@ -286,10 +286,6 @@ impl FundManager {
                 reason_for_sell = position.should_close(sell_price, max_holding_interval);
             }
 
-            if let Some(history) = histories.get(token_name) {
-                // todo
-            }
-
             if reason_for_sell.is_some() {
                 amount = position.amount;
             }
