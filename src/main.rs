@@ -143,10 +143,11 @@ async fn prepare_trader_instances(
     let mut trader_instances = Vec::new();
 
     for config in configs {
-        for (index, trading_period) in forecast_config::get().iter().enumerate() {
+        for (index, (trading_period, fund_weight)) in forecast_config::get().iter().enumerate() {
             let trader_instance = prepare_algorithm_trader_instance(
                 forecast_config::get().len(),
                 index,
+                *fund_weight,
                 config,
                 client_holder.clone(),
                 transaction_log.clone(),
@@ -169,6 +170,7 @@ async fn prepare_trader_instances(
 async fn prepare_algorithm_trader_instance(
     num_traders: usize,
     index: usize,
+    fund_weight: f64,
     config: &EnvConfig,
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
@@ -244,7 +246,7 @@ async fn prepare_algorithm_trader_instance(
         current_prices,
         config.chain_params.chain_name,
         trader_state.clone(),
-        initial_amount / num_traders as f64,
+        initial_amount * fund_weight,
         config.allowance_factor,
         tokens.clone(),
         base_token.clone(),
