@@ -274,7 +274,7 @@ impl PriceHistory {
             + alpha * (self.sentiment_derivative - smoothed_sentiment_derivative);
         self.sentiment_second_derivative = smoothed_sentiment_second_derivative;
 
-        log::info!(
+        log::debug!(
             "{}:{:6.2}({:0.2}) {:6.2}[{:?},{:2.1}({:?})] {:6.2}[{:?},{:2.1}({:?})] {:6.2}[{:?},{:2.1}({:?})]",
             self.name,
             price,
