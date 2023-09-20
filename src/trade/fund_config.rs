@@ -36,7 +36,7 @@ pub fn get(
             "WBNB",
             TradingStrategy::TrendFollowing,
             18,    // h
-            1.01,  // buy_signal_threshold
+            1.0,   // 1.0% (buy_signal_threshold)
             100.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
@@ -47,7 +47,7 @@ pub fn get(
             "ETH",
             TradingStrategy::TrendFollowing,
             18,    // h
-            1.01,  // buy_signal_threshold
+            1.0,   // 1.0% (buy_signal_threshold)
             100.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
@@ -58,7 +58,7 @@ pub fn get(
             "WBNB",
             TradingStrategy::TrendFollowing,
             24,    // h
-            1.012, // buy_signal_threshold
+            1.2,   // 1.2% (buy_signal_threshold)
             200.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
@@ -69,7 +69,7 @@ pub fn get(
             "WBNB",
             TradingStrategy::TrendFollowing,
             30,    // h
-            1.015, // buy_signal_threshold
+            1.5,   // 1.5% (buy_signal_threshold)
             200.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
@@ -80,7 +80,7 @@ pub fn get(
             "WBNB",
             TradingStrategy::TrendFollowing,
             36,    // h
-            1.02,  // buy_signal_threshold
+            2.0,   // 2.0% (buy_signal_threshold)
             200.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
@@ -91,7 +91,7 @@ pub fn get(
             "WBNB",
             TradingStrategy::TrendFollowing,
             42,    // h
-            1.025, // buy_signal_threshold
+            2.5,   // 2.5% (buy_signal_threshold)
             200.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
@@ -102,7 +102,7 @@ pub fn get(
             "WBNB",
             TradingStrategy::TrendFollowing,
             48,    // h
-            1.03,  // buy_signal_threshold
+            3.0,   // 3.0% (buy_signal_threshold)
             200.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
@@ -113,7 +113,7 @@ pub fn get(
             "ETH",
             TradingStrategy::TrendFollowing,
             24,    // h
-            1.012, // buy_signal_threshold
+            1.2,   // 1.2% (buy_signal_threshold)
             200.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
@@ -124,7 +124,7 @@ pub fn get(
             "ETH",
             TradingStrategy::TrendFollowing,
             30,    // h
-            1.015, // buy_signal_threshold
+            1.5,   // 1.5% (buy_signal_threshold)
             200.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
@@ -135,7 +135,7 @@ pub fn get(
             "ETH",
             TradingStrategy::TrendFollowing,
             36,    // h
-            1.02,  // buy_signal_threshold
+            2.0,   // 2.0% (buy_signal_threshold)
             200.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
@@ -146,7 +146,7 @@ pub fn get(
             "ETH",
             TradingStrategy::TrendFollowing,
             42,    // h
-            1.025, // buy_signal_threshold
+            2.5,   // 2.5% (buy_signal_threshold)
             200.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
@@ -157,7 +157,7 @@ pub fn get(
             "ETH",
             TradingStrategy::TrendFollowing,
             48,    // h
-            1.03,  // buy_signal_threshold
+            3.0,   // 3.0% (buy_signal_threshold)
             200.0, // trading_amount(base token)
             10.0,  // initial_score
         ),
