@@ -24,142 +24,203 @@ pub fn get(
     String,
     TradingStrategy,
     usize,
+    (u32, u32),
     f64,
     f64,
     f64,
 )> {
     let configs = vec![
         (
-            "trend-follow-18h",
+            "trend-follow-24h-1",
             TradingStyle::Day,
             "BSC",
             "WBNB",
             TradingStrategy::TrendFollowing,
-            18,    // h
-            1.0,   // 1.0% (buy_signal_threshold)
-            100.0, // trading_amount(base token)
-            10.0,  // initial_score
+            24,     // h
+            (0, 3), // activity time
+            1.0,    // 1.0% (buy_signal_threshold)
+            100.0,  // trading_amount(base token)
+            10.0,   // initial_score
         ),
         (
-            "trend-follow-18h",
+            "trend-follow-24h-2",
             TradingStyle::Day,
             "BSC",
-            "ETH",
+            "WBNB",
             TradingStrategy::TrendFollowing,
-            18,    // h
-            1.0,   // 1.0% (buy_signal_threshold)
-            100.0, // trading_amount(base token)
-            10.0,  // initial_score
+            24,     // h
+            (3, 6), // activity time
+            1.0,    // 1.0% (buy_signal_threshold)
+            100.0,  // trading_amount(base token)
+            10.0,   // initial_score
         ),
         (
-            "trend-follow-24h",
+            "trend-follow-24h-3",
+            TradingStyle::Day,
+            "BSC",
+            "WBNB",
+            TradingStrategy::TrendFollowing,
+            24,     // h
+            (6, 9), // activity time
+            1.0,    // 1.0% (buy_signal_threshold)
+            100.0,  // trading_amount(base token)
+            10.0,   // initial_score
+        ),
+        (
+            "trend-follow-24h-4",
+            TradingStyle::Day,
+            "BSC",
+            "WBNB",
+            TradingStrategy::TrendFollowing,
+            24,      // h
+            (9, 12), // activity time
+            1.0,     // 1.0% (buy_signal_threshold)
+            100.0,   // trading_amount(base token)
+            10.0,    // initial_score
+        ),
+        (
+            "trend-follow-24h-5",
+            TradingStyle::Day,
+            "BSC",
+            "WBNB",
+            TradingStrategy::TrendFollowing,
+            24,       // h
+            (12, 15), // activity time
+            1.0,      // 1.0% (buy_signal_threshold)
+            100.0,    // trading_amount(base token)
+            10.0,     // initial_score
+        ),
+        (
+            "trend-follow-24h-6",
+            TradingStyle::Day,
+            "BSC",
+            "WBNB",
+            TradingStrategy::TrendFollowing,
+            24,       // h
+            (15, 18), // activity time
+            1.0,      // 1.0% (buy_signal_threshold)
+            100.0,    // trading_amount(base token)
+            10.0,     // initial_score
+        ),
+        (
+            "trend-follow-24h-7",
+            TradingStyle::Day,
+            "BSC",
+            "WBNB",
+            TradingStrategy::TrendFollowing,
+            24,       // h
+            (18, 21), // activity time
+            1.0,      // 1.0% (buy_signal_threshold)
+            100.0,    // trading_amount(base token)
+            10.0,     // initial_score
+        ),
+        (
+            "trend-follow-24h-8",
+            TradingStyle::Day,
+            "BSC",
+            "WBNB",
+            TradingStrategy::TrendFollowing,
+            24,       // h
+            (21, 24), // activity time
+            1.0,      // 1.0% (buy_signal_threshold)
+            100.0,    // trading_amount(base token)
+            10.0,     // initial_score
+        ),
+        (
+            "trend-follow-30h-1",
             TradingStyle::Swing,
             "BSC",
             "WBNB",
             TradingStrategy::TrendFollowing,
-            24,    // h
-            1.2,   // 1.2% (buy_signal_threshold)
-            200.0, // trading_amount(base token)
-            10.0,  // initial_score
+            30,     // h
+            (0, 3), // activity time
+            1.25,   // 1.25% (buy_signal_threshold)
+            150.0,  // trading_amount(base token)
+            10.0,   // initial_score
         ),
         (
-            "trend-follow-30h",
+            "trend-follow-30h-2",
             TradingStyle::Swing,
             "BSC",
             "WBNB",
             TradingStrategy::TrendFollowing,
-            30,    // h
-            1.5,   // 1.5% (buy_signal_threshold)
-            200.0, // trading_amount(base token)
-            10.0,  // initial_score
+            30,       // h
+            (12, 15), // activity time
+            1.25,     // 1.25% (buy_signal_threshold)
+            150.0,    // trading_amount(base token)
+            10.0,     // initial_score
         ),
         (
-            "trend-follow-36h",
+            "trend-follow-36h-1",
             TradingStyle::Swing,
             "BSC",
             "WBNB",
             TradingStrategy::TrendFollowing,
-            36,    // h
-            2.0,   // 2.0% (buy_signal_threshold)
-            200.0, // trading_amount(base token)
-            10.0,  // initial_score
+            36,     // h
+            (3, 6), // activity time
+            1.5,    // 1.5% (buy_signal_threshold)
+            150.0,  // trading_amount(base token)
+            10.0,   // initial_score
         ),
         (
-            "trend-follow-42h",
+            "trend-follow-36h-2",
             TradingStyle::Swing,
             "BSC",
             "WBNB",
             TradingStrategy::TrendFollowing,
-            42,    // h
-            2.5,   // 2.5% (buy_signal_threshold)
-            200.0, // trading_amount(base token)
-            10.0,  // initial_score
+            36,       // h
+            (15, 18), // activity time
+            1.5,      // 1.5% (buy_signal_threshold)
+            150.0,    // trading_amount(base token)
+            10.0,     // initial_score
         ),
         (
-            "trend-follow-48h",
+            "trend-follow-42h-1",
             TradingStyle::Swing,
             "BSC",
             "WBNB",
             TradingStrategy::TrendFollowing,
-            48,    // h
-            3.0,   // 3.0% (buy_signal_threshold)
-            200.0, // trading_amount(base token)
-            10.0,  // initial_score
+            42,     // h
+            (6, 9), // activity time
+            2.0,    // 2.0% (buy_signal_threshold)
+            150.0,  // trading_amount(base token)
+            10.0,   // initial_score
         ),
         (
-            "trend-follow-24h",
+            "trend-follow-42h-2",
             TradingStyle::Swing,
             "BSC",
-            "ETH",
+            "WBNB",
             TradingStrategy::TrendFollowing,
-            24,    // h
-            1.2,   // 1.2% (buy_signal_threshold)
-            200.0, // trading_amount(base token)
-            10.0,  // initial_score
+            42,       // h
+            (18, 21), // activity time
+            2.0,      // 2.0% (buy_signal_threshold)
+            150.0,    // trading_amount(base token)
+            10.0,     // initial_score
         ),
         (
-            "trend-follow-30h",
+            "trend-follow-48h-1",
             TradingStyle::Swing,
             "BSC",
-            "ETH",
+            "WBNB",
             TradingStrategy::TrendFollowing,
-            30,    // h
-            1.5,   // 1.5% (buy_signal_threshold)
-            200.0, // trading_amount(base token)
-            10.0,  // initial_score
+            48,      // h
+            (9, 12), // activity time
+            2.5,     // 2.5% (buy_signal_threshold)
+            150.0,   // trading_amount(base token)
+            10.0,    // initial_score
         ),
         (
-            "trend-follow-36h",
+            "trend-follow-48h-2",
             TradingStyle::Swing,
             "BSC",
-            "ETH",
+            "WBNB",
             TradingStrategy::TrendFollowing,
-            36,    // h
-            2.0,   // 2.0% (buy_signal_threshold)
-            200.0, // trading_amount(base token)
-            10.0,  // initial_score
-        ),
-        (
-            "trend-follow-42h",
-            TradingStyle::Swing,
-            "BSC",
-            "ETH",
-            TradingStrategy::TrendFollowing,
-            42,    // h
-            2.5,   // 2.5% (buy_signal_threshold)
-            200.0, // trading_amount(base token)
-            10.0,  // initial_score
-        ),
-        (
-            "trend-follow-48h",
-            TradingStyle::Swing,
-            "BSC",
-            "ETH",
-            TradingStrategy::TrendFollowing,
-            48,    // h
-            3.0,   // 3.0% (buy_signal_threshold)
-            200.0, // trading_amount(base token)
-            10.0,  // initial_score
+            48,       // h
+            (21, 24), // activity time
+            2.5,      // 2.5% (buy_signal_threshold)
+            150.0,    // trading_amount(base token)
+            10.0,     // initial_score
         ),
     ];
 
@@ -173,6 +234,7 @@ pub fn get(
                 token_name,
                 strategy,
                 period,
+                activity_time,
                 buy_signal,
                 trading_amount,
                 score,
@@ -184,6 +246,7 @@ pub fn get(
                         token_name.to_owned(),
                         strategy,
                         period,
+                        activity_time,
                         buy_signal,
                         trading_amount,
                         score,

@@ -9,6 +9,7 @@ use super::{DBHandler, DexPrices, PriceHistory, TradePosition, TradingStrategy};
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 
 const MOVING_AVERAGE_WINDOW_SIZE: usize = 5;
@@ -34,6 +35,7 @@ pub struct FundManagerConfig {
     token_name: String,
     strategy: TradingStrategy,
     trade_period: usize,
+    activity_time: (u32, u32),
     buy_signal_threshold: f64,
     max_hold_interval_in_secs: u64,
     risk_reward: f64,
@@ -63,6 +65,7 @@ impl FundManager {
         open_positions: Option<HashMap<String, TradePosition>>,
         strategy: TradingStrategy,
         trade_period: usize,
+        activity_time: (u32, u32),
         trading_amount: f64,
         initial_amount: f64,
         initial_score: f64,
@@ -76,6 +79,7 @@ impl FundManager {
             token_name: token_name.to_owned(),
             strategy,
             trade_period,
+            activity_time,
             buy_signal_threshold,
             max_hold_interval_in_secs,
             risk_reward,
@@ -261,7 +265,7 @@ impl FundManager {
         token_name: &str,
         sell_price: f64,
         limitied_sell: bool,
-        histories: &mut HashMap<String, PriceHistory>,
+        _histories: &mut HashMap<String, PriceHistory>,
     ) -> Option<TradeProposal> {
         if let Some(position) = self.state.open_positions.get(token_name) {
             let mut amount = 0.0;
@@ -308,7 +312,22 @@ impl FundManager {
     }
 
     fn can_create_new_position(&self, token_name: &str) -> bool {
-        self.state.open_positions.get(token_name).is_none()
+        Self::is_within_activity_time(self.config.activity_time)
+            && self.state.open_positions.get(token_name).is_none()
+    }
+
+    fn is_within_activity_time(activity_time: (u32, u32)) -> bool {
+        let start = activity_time.0;
+        let end = activity_time.1;
+
+        if start > 24 || end > 24 {
+            panic!("Invalid hour provided in tuple.");
+        }
+
+        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        let current_hour = (current_time.as_secs() % (24 * 3600)) / 3600;
+
+        current_hour >= start as u64 && current_hour < end as u64
     }
 
     pub async fn update_position(
