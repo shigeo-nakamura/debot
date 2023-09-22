@@ -167,6 +167,14 @@ impl FundManager {
             // update ATR
             history.update_atr(self.config.trade_period);
 
+            if !self.can_create_new_position(token_name) {
+                log::debug!(
+                    "{} Need to wait for a while to create a new position",
+                    self.name()
+                );
+                return None;
+            }
+
             let predicted_price =
                 history.majority_vote_predictions(self.config.trade_period, self.config.strategy);
 
@@ -178,7 +186,7 @@ impl FundManager {
                 x if x < 0.0 => "\x1b[0;31m",
                 _ => "\x1b[0;90m",
             };
-            log::debug!(
+            log::info!(
                 "{} {:>7.3}%\x1b[0m({:>2.2}%), {:<30} \x1b[0;34m{:<6}\x1b[0m {:<6.5}({:<6.5}) - {:<6.5}",
                 color,
                 profit_ratio * 100.0,
@@ -191,14 +199,6 @@ impl FundManager {
             );
 
             if profit_ratio * 100.0 >= self.config.buy_signal_threshold {
-                if !self.can_create_new_position(token_name) {
-                    log::debug!(
-                        "{} Need to wait for a while to create a new position",
-                        self.name()
-                    );
-                    return None;
-                }
-
                 if self.state.amount < trading_amount {
                     log::debug!(
                         "No enough fund left({}): remaining = {:6.3} < trading_amount = {:6.3}, invested = {:6.3}",
