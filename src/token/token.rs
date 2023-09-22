@@ -15,6 +15,7 @@ static ERC20_TOKEN_ABI_JSON: &'static [u8] = include_bytes!("../../resources/ERC
 pub enum BlockChain {
     BscChain { chain_id: u64 },
     PolygonChain { chain_id: u64 },
+    BaseChain { chain_id: u64 },
 }
 
 #[derive(Clone)]
@@ -64,6 +65,7 @@ impl BaseToken {
         match &self.block_chain {
             BlockChain::BscChain { chain_id } => *chain_id,
             BlockChain::PolygonChain { chain_id } => *chain_id,
+            BlockChain::BaseChain { chain_id } => *chain_id,
         }
     }
 

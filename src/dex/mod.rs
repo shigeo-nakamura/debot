@@ -8,7 +8,8 @@ pub mod biswap;
 pub mod dex;
 pub mod dyfn;
 pub mod meshswap;
-pub mod pancakeswap;
+pub mod pancakeswap_base;
+pub mod pancakeswap_bsc;
 pub mod quickswap;
 pub mod sushiswap;
 
@@ -20,6 +21,7 @@ pub use biswap::BiSwap;
 pub use dex::Dex;
 pub use dyfn::Dyfn;
 pub use meshswap::MeshSwap;
-pub use pancakeswap::PancakeSwap;
+pub use pancakeswap_base::PancakeSwapBase;
+pub use pancakeswap_bsc::PancakeSwapBsc;
 pub use quickswap::QuickSwap;
 pub use sushiswap::SushiSwap;

@@ -2,21 +2,22 @@
 
 use crate::{
     addresses::{
-        BSC_BISWAP_ROUTER, BSC_BTCB_ADDRESS, BSC_ETH_ADDRESS, BSC_MAINNET_CHAIN_ID,
-        BSC_PANCAKESWAP_ROUTER, BSC_TESTNET_CHAIN_ID, BSC_USDT_ADDRESS, BSC_WBNB_ADDRESS,
-        POLYGON_MAINNET_CHAIN_ID, POLYGON_QUICKSWAP_ROUTER, POLYGON_SUSHISWAP_ROUTER,
-        POLYGON_TESTNET_CHAIN_ID, POLYGON_USDC_ADDRESS, POLYGON_WMATIC_ADDRESS,
-        TESTNET_BSC_APESWAP_ROUTER, TESTNET_BSC_BUSD_ADDRESS, TESTNET_BSC_PANCAKESWAP_ROUTER,
-        TESTNET_BSC_WBNB_ADDRESS, TESTNET_POLYGON_DAI_ADDRESS, TESTNET_POLYGON_QUICKSWAP_ROUTER,
-        TESTNET_POLYGON_SUSHISWAP_ROUTER, TESTNET_POLYGON_USDC_ADDRESS,
+        BASE_ETH_ADDRESS, BASE_PANCAKESWAP_ROUTER, BSC_BISWAP_ROUTER,
+        BSC_BTCB_ADDRESS, BSC_ETH_ADDRESS, BSC_MAINNET_CHAIN_ID, BSC_PANCAKESWAP_ROUTER,
+        BSC_TESTNET_CHAIN_ID, BSC_USDT_ADDRESS, BSC_WBNB_ADDRESS, POLYGON_MAINNET_CHAIN_ID,
+        POLYGON_QUICKSWAP_ROUTER, POLYGON_SUSHISWAP_ROUTER, POLYGON_TESTNET_CHAIN_ID,
+        POLYGON_USDC_ADDRESS, POLYGON_WMATIC_ADDRESS, TESTNET_BSC_APESWAP_ROUTER,
+        TESTNET_BSC_BUSD_ADDRESS, TESTNET_BSC_PANCAKESWAP_ROUTER, TESTNET_BSC_WBNB_ADDRESS,
+        TESTNET_POLYGON_DAI_ADDRESS, TESTNET_POLYGON_QUICKSWAP_ROUTER,
+        TESTNET_POLYGON_SUSHISWAP_ROUTER, TESTNET_POLYGON_USDC_ADDRESS, BASE_MAINNET_CHAIN_ID, BASE_USDBC_ADDRESS,
     },
     dex::{
-        ApeSwap, ApeSwapPolygon, BabyDoge, BakerySwap, BiSwap, Dex, Dyfn, MeshSwap, PancakeSwap,
-        QuickSwap, SushiSwap,
+        ApeSwap, ApeSwapPolygon, BabyDoge, BakerySwap, BiSwap, Dex, Dyfn, MeshSwap,
+        PancakeSwapBase, PancakeSwapBsc, QuickSwap, SushiSwap,
     },
     token::{
         token::{BlockChain, Token},
-        BscToken, PolygonToken,
+        BASEToken, BscToken, PolygonToken,
     },
 };
 use ethers::providers::{Http, Provider};
@@ -42,7 +43,7 @@ pub struct ChainParams {
 
 lazy_static! {
     pub static ref BSC_CHAIN_PARAMS: ChainParams = ChainParams {
-        chain_id: 56,
+        chain_id: BSC_MAINNET_CHAIN_ID,
         chain_name: "BSC",
         rpc_node_urls: &[
             "https://bsc-dataseed.binance.org/",
@@ -73,7 +74,7 @@ lazy_static! {
             // ("ANKR_BNB", BSC_ANKR_BNB_ADDRESS),
         ],
         dex_list: &[
-            ("PancakeSwap", BSC_PANCAKESWAP_ROUTER),
+            ("PancakeSwapBsc", BSC_PANCAKESWAP_ROUTER),
             ("BiSwap", BSC_BISWAP_ROUTER),
             // ("ApeSwap", BSC_APESWAP_ROUTER),
             // ("BakerySwap", BSC_BAKERYSWAP_ROUTER),
@@ -86,7 +87,7 @@ lazy_static! {
     };
 
     pub static ref TESTNET_BSC_CHAIN_PARAMS: ChainParams = ChainParams {
-        chain_id: 97, // This is the chain ID for Binance Smart Chain Testnet
+        chain_id: BSC_TESTNET_CHAIN_ID,
         chain_name: "BSC_TESTNET",
         rpc_node_urls: &["https://data-seed-prebsc-1-s1.binance.org:8545/"],
         tokens: &[
@@ -105,7 +106,7 @@ lazy_static! {
     };
 
     pub static ref POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
-        chain_id: 137,
+        chain_id: POLYGON_MAINNET_CHAIN_ID,
         chain_name: "POLYGON",
         rpc_node_urls: &[
             "https://rpc-mainnet.maticvigil.com/",
@@ -142,7 +143,7 @@ lazy_static! {
     };
 
     pub static ref TESTNET_POLYGON_CHAIN_PARAMS: ChainParams = ChainParams {
-        chain_id: 80001, // This is the chain ID for Mumbai Testnet
+        chain_id: POLYGON_TESTNET_CHAIN_ID,
         chain_name: "POLYGON_TESTNET",
         rpc_node_urls: &["https://rpc-mumbai.maticvigil.com"],
         tokens: &[
@@ -156,6 +157,23 @@ lazy_static! {
         gas: 0.03,
         current_rpc_url: Arc::new(Mutex::new(0)),
         base_token: "USDC",
+        min_gas_token_amount: 1.0,
+    };
+
+    pub static ref BASE_CHAIN_PARAMS: ChainParams = ChainParams {
+        chain_id: BASE_MAINNET_CHAIN_ID,
+        chain_name: "BASE",
+        rpc_node_urls: &["https://base-mainnet.public.blastapi.io"],
+        tokens: &[
+            ("USDBC", BASE_USDBC_ADDRESS),
+            ("ETH", BASE_ETH_ADDRESS),
+        ],
+        dex_list: &[
+            ("PancakeSwapBase", BASE_PANCAKESWAP_ROUTER),
+        ],
+        gas: 0.03,
+        current_rpc_url: Arc::new(Mutex::new(0)),
+        base_token: "USDBC",
         min_gas_token_amount: 1.0,
     };
 }
@@ -176,6 +194,13 @@ fn create_token(
         ))),
         POLYGON_MAINNET_CHAIN_ID | POLYGON_TESTNET_CHAIN_ID => Ok(Box::new(PolygonToken::new(
             BlockChain::PolygonChain { chain_id },
+            provider.clone(),
+            token_address,
+            symbol,
+            None,
+        ))),
+        BASE_MAINNET_CHAIN_ID => Ok(Box::new(BASEToken::new(
+            BlockChain::BaseChain { chain_id },
             provider.clone(),
             token_address,
             symbol,
@@ -256,7 +281,12 @@ pub async fn create_dexes(
         .map(|&(dex_name, router_address)| {
             let dex_router_address = Address::from_str(router_address).unwrap();
             let dex: Box<dyn Dex> = match dex_name {
-                "PancakeSwap" => Box::new(PancakeSwap::new(provider.clone(), dex_router_address)),
+                "PancakeSwapBsc" => {
+                    Box::new(PancakeSwapBsc::new(provider.clone(), dex_router_address))
+                }
+                "PancakeSwapBase" => {
+                    Box::new(PancakeSwapBase::new(provider.clone(), dex_router_address))
+                }
                 "BiSwap" => Box::new(BiSwap::new(provider.clone(), dex_router_address)),
                 "BakerySwap" => Box::new(BakerySwap::new(provider.clone(), dex_router_address)),
                 "ApeSwap" => Box::new(ApeSwap::new(provider.clone(), dex_router_address)),

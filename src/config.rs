@@ -1,5 +1,6 @@
 use ethers::abi::Address;
 
+use crate::blockchain_factory::BASE_CHAIN_PARAMS;
 use crate::blockchain_factory::{
     ChainParams, BSC_CHAIN_PARAMS, POLYGON_CHAIN_PARAMS, TESTNET_BSC_CHAIN_PARAMS,
     TESTNET_POLYGON_CHAIN_PARAMS,
@@ -93,6 +94,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
 
     let mut polygon_index = 0;
     let mut bsc_index = 0;
+    let mut base_index = 0;
 
     for chain_name in chain_names {
         let mut rpc_node_index = 0;
@@ -111,6 +113,12 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
                 rpc_node_index = polygon_index;
                 polygon_index += 1;
                 &POLYGON_CHAIN_PARAMS
+            }
+            "BASE" => {
+                dry_run = get_bool_env_var("BASE_DRY_RUN", true);
+                rpc_node_index = base_index;
+                base_index += 1;
+                &BASE_CHAIN_PARAMS
             }
             "BSC_TESTNET" => &TESTNET_BSC_CHAIN_PARAMS,
             "POLYGON_TESTNET" => &TESTNET_POLYGON_CHAIN_PARAMS,

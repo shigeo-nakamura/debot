@@ -8,14 +8,14 @@ use std::error::Error;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
-pub struct PancakeSwap {
+pub struct PancakeSwapBase {
     base_dex: BaseDex,
 }
 
-static PANCAKESWAP_ROUTER_ABI_JSON: &'static [u8] =
-    include_bytes!("../../resources/PancakeSwapRouterABI.json");
+static PANCAKESWAP_BASE_ROUTER_ABI_JSON: &'static [u8] =
+    include_bytes!("../../resources/PancakeSwapBaseRouterABI.json");
 
-impl PancakeSwap {
+impl PancakeSwapBase {
     pub fn new(
         provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
         router_address: Address,
@@ -27,10 +27,10 @@ impl PancakeSwap {
 }
 
 #[async_trait]
-impl Dex for PancakeSwap {
+impl Dex for PancakeSwapBase {
     async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.base_dex
-            .create_router_contract(PANCAKESWAP_ROUTER_ABI_JSON)
+            .create_router_contract(PANCAKESWAP_BASE_ROUTER_ABI_JSON)
             .await
     }
 
