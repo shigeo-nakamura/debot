@@ -1,6 +1,6 @@
 use super::TradingStrategy;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum TradingStyle {
     Day,
     Swing,

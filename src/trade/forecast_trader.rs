@@ -1,5 +1,8 @@
 // algorithm_trader.rs
 
+use chrono::Datelike;
+use chrono::Local;
+use chrono::Weekday;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
@@ -65,6 +68,7 @@ pub struct DexPrices {
 pub struct ForcastTraderConfig {
     master: bool,
     chain_name: String,
+    trading_style: TradingStyle,
     short_trade_period: usize,
     medium_trade_period: usize,
     long_trade_period: usize,
@@ -116,9 +120,18 @@ impl ForcastTrader {
         latest_scores: HashMap<String, HashMap<String, f64>>,
         save_prices: bool,
     ) -> Self {
+        let target_trading_style = if index == 0 {
+            TradingStyle::Day
+        } else if index == 1 {
+            TradingStyle::Swing
+        } else {
+            panic!("Unknown trayding style");
+        };
+
         let config = ForcastTraderConfig {
             master,
             chain_name: chain_name.to_owned(),
+            trading_style: target_trading_style.clone(),
             short_trade_period: trading_period.short_term_hour * 3600 / interval as usize,
             medium_trade_period: trading_period.medium_term_hour * 3600 / interval as usize,
             long_trade_period: trading_period.long_term_hour * 3600 / interval as usize,
@@ -127,14 +140,6 @@ impl ForcastTrader {
             reward_multiplier,
             penalty_multiplier,
             spread,
-        };
-
-        let target_trading_style = if index == 0 {
-            TradingStyle::Day
-        } else if index == 1 {
-            TradingStyle::Swing
-        } else {
-            panic!("Unknown trayding style");
         };
 
         let name = format!("{}-Algo-{}", chain_name, target_trading_style.to_string());
@@ -434,6 +439,24 @@ impl ForcastTrader {
         Ok(index)
     }
 
+    fn is_forbidden_to_buy_today(&self) -> bool {
+        let now = Local::now();
+        match now.weekday() {
+            Weekday::Mon => return false,
+            Weekday::Tue => return false,
+            Weekday::Wed => return false,
+            Weekday::Thu => return false,
+            Weekday::Fri => {
+                if self.config.trading_style == TradingStyle::Swing {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            _ => return true,
+        }
+    }
+
     fn find_buy_opportunities(
         &self,
         amount: f64,
@@ -441,6 +464,10 @@ impl ForcastTrader {
         histories: &mut HashMap<String, PriceHistory>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
+
+        if self.is_forbidden_to_buy_today() {
+            return Ok(opportunities);
+        }
 
         for (token_name, prices) in current_prices {
             let token_a_index = self.get_token_index(token_name)?;
