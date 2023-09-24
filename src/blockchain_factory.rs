@@ -2,17 +2,18 @@
 
 use crate::{
     addresses::{
-        BASE_ETH_ADDRESS, BASE_MAINNET_CHAIN_ID, BASE_PANCAKESWAP_ROUTER, BASE_USDBC_ADDRESS,
-        BSC_BISWAP_ROUTER, BSC_BTCB_ADDRESS, BSC_ETH_ADDRESS, BSC_MAINNET_CHAIN_ID,
-        BSC_PANCAKESWAP_ROUTER, BSC_TESTNET_CHAIN_ID, BSC_USDT_ADDRESS, BSC_WBNB_ADDRESS,
-        POLYGON_MAINNET_CHAIN_ID, POLYGON_QUICKSWAP_ROUTER, POLYGON_SUSHISWAP_ROUTER,
-        POLYGON_TESTNET_CHAIN_ID, POLYGON_USDC_ADDRESS, POLYGON_WMATIC_ADDRESS,
-        TESTNET_BSC_APESWAP_ROUTER, TESTNET_BSC_BUSD_ADDRESS, TESTNET_BSC_PANCAKESWAP_ROUTER,
-        TESTNET_BSC_WBNB_ADDRESS, TESTNET_POLYGON_DAI_ADDRESS, TESTNET_POLYGON_QUICKSWAP_ROUTER,
-        TESTNET_POLYGON_SUSHISWAP_ROUTER, TESTNET_POLYGON_USDC_ADDRESS,
+        BASE_BASESWAP_ROUTER, BASE_ETH_ADDRESS, BASE_MAINNET_CHAIN_ID, BASE_PANCAKESWAP_ROUTER,
+        BASE_USDBC_ADDRESS, BSC_BISWAP_ROUTER, BSC_BTCB_ADDRESS, BSC_ETH_ADDRESS,
+        BSC_MAINNET_CHAIN_ID, BSC_PANCAKESWAP_ROUTER, BSC_TESTNET_CHAIN_ID, BSC_USDT_ADDRESS,
+        BSC_WBNB_ADDRESS, POLYGON_MAINNET_CHAIN_ID, POLYGON_QUICKSWAP_ROUTER,
+        POLYGON_SUSHISWAP_ROUTER, POLYGON_TESTNET_CHAIN_ID, POLYGON_USDC_ADDRESS,
+        POLYGON_WMATIC_ADDRESS, TESTNET_BSC_APESWAP_ROUTER, TESTNET_BSC_BUSD_ADDRESS,
+        TESTNET_BSC_PANCAKESWAP_ROUTER, TESTNET_BSC_WBNB_ADDRESS, TESTNET_POLYGON_DAI_ADDRESS,
+        TESTNET_POLYGON_QUICKSWAP_ROUTER, TESTNET_POLYGON_SUSHISWAP_ROUTER,
+        TESTNET_POLYGON_USDC_ADDRESS,
     },
     dex::{
-        ApeSwap, ApeSwapPolygon, BabyDoge, BakerySwap, BiSwap, Dex, Dyfn, MeshSwap,
+        ApeSwap, ApeSwapPolygon, BabyDoge, BakerySwap, BaseSwap, BiSwap, Dex, Dyfn, MeshSwap,
         PancakeSwapBase, PancakeSwapBsc, QuickSwap, SushiSwap,
     },
     token::{
@@ -169,6 +170,7 @@ lazy_static! {
             ("ETH", BASE_ETH_ADDRESS),
         ],
         dex_list: &[
+            ("BaseSwap", BASE_BASESWAP_ROUTER),
             ("PancakeSwapBase", BASE_PANCAKESWAP_ROUTER),
         ],
         gas: 0.03,
@@ -298,6 +300,7 @@ pub async fn create_dexes(
                 "ApeSwapPolygon" => {
                     Box::new(ApeSwapPolygon::new(provider.clone(), dex_router_address))
                 }
+                "BaseSwap" => Box::new(BaseSwap::new(provider.clone(), dex_router_address)),
                 _ => panic!("Unknown DEX: {}", dex_name),
             };
             dex
