@@ -2,6 +2,7 @@
 
 use chrono::Datelike;
 use chrono::Local;
+use chrono::TimeZone;
 use chrono::Weekday;
 use std::collections::HashMap;
 use std::error::Error;
@@ -24,6 +25,7 @@ use shared_mongodb::ClientHolder;
 use tokio::time::{timeout, Duration};
 
 use super::abstract_trader::BaseTrader;
+use super::abstract_trader::ReasonForSell;
 use super::abstract_trader::TraderState;
 use super::fund_config;
 use super::fund_config::TradingStyle;
@@ -77,6 +79,7 @@ pub struct ForcastTraderConfig {
     reward_multiplier: f64,
     penalty_multiplier: f64,
     spread: f64,
+    position_creation_inteval_seconds: Option<u64>,
 }
 
 pub struct ForcastTraderState {
@@ -84,6 +87,7 @@ pub struct ForcastTraderState {
     fund_manager_map: HashMap<String, FundManager>,
     scores: HashMap<String, f64>,
     current_prices: Arc<std::sync::Mutex<HashMap<String, DexPrices>>>,
+    pub last_loss_cut_time: i64,
 }
 
 pub struct ForcastTrader {
@@ -119,6 +123,7 @@ impl ForcastTrader {
         prev_balance: Option<f64>,
         latest_scores: HashMap<String, HashMap<String, f64>>,
         save_prices: bool,
+        position_creation_inteval_seconds: Option<u64>,
     ) -> Self {
         let target_trading_style = if index == 0 {
             TradingStyle::Day
@@ -140,6 +145,7 @@ impl ForcastTrader {
             reward_multiplier,
             penalty_multiplier,
             spread,
+            position_creation_inteval_seconds,
         };
 
         let name = format!("{}-Algo-{}", chain_name, target_trading_style.to_string());
@@ -155,6 +161,7 @@ impl ForcastTrader {
             fund_manager_map: HashMap::new(),
             scores: scores.clone(),
             current_prices,
+            last_loss_cut_time: 0,
         };
 
         let fund_manager_configurations = fund_config::get(target_trading_style, chain_name);
@@ -439,22 +446,33 @@ impl ForcastTrader {
         Ok(index)
     }
 
-    fn is_forbidden_to_buy_today(&self) -> bool {
+    fn is_forbidden_to_buy(&self) -> bool {
         let now = Local::now();
-        match now.weekday() {
-            Weekday::Mon => return false,
-            Weekday::Tue => return false,
-            Weekday::Wed => return false,
-            Weekday::Thu => return false,
+        let is_forbidden = match now.weekday() {
             Weekday::Fri => {
                 if self.config.trading_style == TradingStyle::Swing {
-                    return true;
+                    true
                 } else {
-                    return false;
+                    false
                 }
             }
-            _ => return true,
+            Weekday::Sat => true,
+            Weekday::Sun => true,
+            _ => false,
+        };
+        if is_forbidden {
+            return true;
         }
+
+        if let Some(interval_seconds) = self.config.position_creation_inteval_seconds {
+            let current_time = chrono::Utc::now().timestamp();
+            let elapsed_time = current_time - self.state.last_loss_cut_time;
+            if elapsed_time < interval_seconds.try_into().unwrap() {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     fn find_buy_opportunities(
@@ -465,7 +483,7 @@ impl ForcastTrader {
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
 
-        if self.is_forbidden_to_buy_today() {
+        if self.is_forbidden_to_buy() {
             return Ok(opportunities);
         }
 
@@ -880,6 +898,10 @@ impl AbstractTrader for ForcastTrader {
                         None,
                     )
                     .await;
+
+                if opportunity.reason_for_sell == Some(ReasonForSell::CutLoss) {
+                    self.state.last_loss_cut_time = chrono::Utc::now().timestamp();
+                }
 
                 if opportunity.predicted_profit.is_some() {
                     let multiplier;

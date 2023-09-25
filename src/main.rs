@@ -266,6 +266,7 @@ async fn prepare_algorithm_trader_instance(
         prev_balance,
         scores,
         config.save_prices,
+        config.position_creation_inteval_seconds,
     );
 
     // Create and restore the price histories
