@@ -333,7 +333,7 @@ impl PriceHistory {
         let prescaler = if status == None {
             1.0
         } else {
-            if status.unwrap().0 - status.unwrap().1 > self.sentiment {
+            if status.unwrap().0 - status.unwrap().1 * 1.2 > self.sentiment {
                 2.0
             } else {
                 1.0

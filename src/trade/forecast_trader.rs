@@ -2,7 +2,6 @@
 
 use chrono::Datelike;
 use chrono::Local;
-use chrono::TimeZone;
 use chrono::Weekday;
 use std::collections::HashMap;
 use std::error::Error;
@@ -899,8 +898,11 @@ impl AbstractTrader for ForcastTrader {
                     )
                     .await;
 
-                if opportunity.reason_for_sell == Some(ReasonForSell::CutLoss) {
-                    self.state.last_loss_cut_time = chrono::Utc::now().timestamp();
+                match opportunity.reason_for_sell {
+                    Some(ReasonForSell::CutLoss) => {
+                        self.state.last_loss_cut_time = chrono::Utc::now().timestamp()
+                    }
+                    _ => {}
                 }
 
                 if opportunity.predicted_profit.is_some() {

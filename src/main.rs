@@ -168,7 +168,7 @@ async fn prepare_trader_instances(
 }
 
 async fn prepare_algorithm_trader_instance(
-    num_traders: usize,
+    _num_traders: usize,
     index: usize,
     fund_weight: f64,
     config: &EnvConfig,
