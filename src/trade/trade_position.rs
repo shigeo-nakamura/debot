@@ -158,7 +158,7 @@ impl TradePosition {
     fn should_early_close(&self, sell_price: f64, max_holding_interval: i64) -> bool {
         let current_time = chrono::Utc::now().timestamp();
         let holding_interval = current_time - self.open_time;
-        if holding_interval > max_holding_interval / 2 {
+        if holding_interval > max_holding_interval * 3 / 4 {
             sell_price > self.average_buy_price
         } else {
             return false;
