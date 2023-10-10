@@ -330,10 +330,10 @@ impl PriceHistory {
 
         let status = self.calculate_sentiment_stats(period);
 
-        let prescaler = if status == None {
-            1.0
+        let prescaler = if status == None || self.sentiment > -0.25 {
+            return price;
         } else {
-            if status.unwrap().0 - status.unwrap().1 * 1.2 > self.sentiment {
+            if self.sentiment < status.unwrap().0 - status.unwrap().1 * 1.2 {
                 2.0
             } else {
                 1.0
