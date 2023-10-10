@@ -271,7 +271,9 @@ async fn prepare_algorithm_trader_instance(
 
     // Create and restore the price histories
     let mut histories: HashMap<String, PriceHistory> = HashMap::new();
-    restore_histories(&mut histories, &trader, &price_histories);
+    if config.load_prices {
+        restore_histories(&mut histories, &trader, &price_histories);
+    }
 
     // Do some initialization
     trader.rebalance(wallet.address(), true).await;
