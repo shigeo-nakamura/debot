@@ -85,7 +85,6 @@ impl HasId for PriceLog {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PerformanceLog {
     pub id: Option<u32>,
-    pub system_time: SystemTime,
     pub date: String,
     pub trader_name: String,
     pub scores: HashMap<String, f64>,
@@ -96,7 +95,6 @@ impl Default for PerformanceLog {
         let now = SystemTime::now();
         Self {
             id: None,
-            system_time: now,
             date: now.to_datetime_string(),
             trader_name: String::new(),
             scores: HashMap::new(),
