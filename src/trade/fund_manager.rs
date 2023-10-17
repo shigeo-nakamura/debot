@@ -180,6 +180,9 @@ impl FundManager {
 
             let price_spread = (buy_price - sell_price) / buy_price;
             let profit_ratio = (predicted_price - sell_price) / sell_price;
+            if profit_ratio == 0.0 {
+                return None;
+            }
 
             let color = match profit_ratio {
                 x if x > 0.0 => "\x1b[0;32m",
