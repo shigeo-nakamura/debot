@@ -295,13 +295,13 @@ impl PriceHistory {
         let last_prices = &self.prices[n - period..];
 
         // Calculate average
-        let sum: f64 = last_prices.iter().map(|x| x.sentiment).sum();
+        let sum: f64 = last_prices.iter().map(|x| x.sentiment_moving_avg).sum();
         let avg = sum / (period as f64);
 
         // Calculate standard deviation
         let sum_of_squares: f64 = last_prices
             .iter()
-            .map(|x| (x.sentiment - avg).powi(2))
+            .map(|x| (x.sentiment_moving_avg - avg).powi(2))
             .sum();
         let std_dev = (sum_of_squares / (period as f64)).sqrt();
 
@@ -315,18 +315,17 @@ impl PriceHistory {
         let ema = self.calculate_ema(period);
         let diff = ema - price;
 
-        let status = self.calculate_sentiment_stats(period);
-        let change = self.sentiment - self.sentiment_moving_avg;
-
-        let prescaler = if status == None || change > -0.2 {
-            return price;
-        } else {
-            if self.sentiment < status.unwrap().0 - status.unwrap().1 * 1.2 {
-                2.0
+        let prescaler =
+            if let Some((avg, std_dev)) = self.calculate_sentiment_stats(self.medium_period) {
+                match self.sentiment_moving_avg {
+                    x if x < avg - std_dev * 2.0 => 3.0,
+                    x if x < avg - std_dev * 1.5 => 2.0,
+                    x if x < avg - std_dev * 1.2 => 1.5,
+                    _ => 1.0,
+                }
             } else {
                 1.0
-            }
-        };
+            };
 
         return ema + diff * prescaler;
     }
