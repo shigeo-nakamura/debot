@@ -14,14 +14,16 @@ pub struct PricePoint {
     relative_timestamp: Option<i64>,
     pub price: f64,
     pub sentiment: f64,
-    pub sentiment_moving_avg: f64,
+    pub sentiment_moving_avg_short: f64,
+    pub sentiment_moving_avg_long: f64,
 }
 
 impl PricePoint {
     pub fn new(
         price: f64,
         sentiment: f64,
-        sentiment_moving_avg: f64,
+        sentiment_moving_avg_short: f64,
+        sentiment_moving_avg_long: f64,
         timestamp: Option<i64>,
     ) -> Self {
         let time = timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp());
@@ -31,7 +33,8 @@ impl PricePoint {
             relative_timestamp: None,
             price,
             sentiment,
-            sentiment_moving_avg,
+            sentiment_moving_avg_short,
+            sentiment_moving_avg_long,
         }
     }
 }
@@ -54,7 +57,8 @@ pub struct PriceHistory {
     interval: u64,
     first_timestamp: Option<i64>,
     sentiment: f64,
-    sentiment_moving_avg: f64,
+    sentiment_moving_avg_short: f64,
+    sentiment_moving_avg_long: f64,
     atr: HashMap<usize, f64>,
 }
 
@@ -90,7 +94,8 @@ impl PriceHistory {
             interval,
             first_timestamp: None,
             sentiment: 0.0,
-            sentiment_moving_avg: 0.0,
+            sentiment_moving_avg_short: 0.0,
+            sentiment_moving_avg_long: 0.0,
             atr: HashMap::new(),
         }
     }
@@ -112,8 +117,13 @@ impl PriceHistory {
             self.prices.remove(0);
         }
 
-        let mut price_point =
-            PricePoint::new(price, self.sentiment, self.sentiment_moving_avg, timestamp);
+        let mut price_point = PricePoint::new(
+            price,
+            self.sentiment,
+            self.sentiment_moving_avg_short,
+            self.sentiment_moving_avg_long,
+            timestamp,
+        );
 
         if let Some(prev_point) = self.prices.last() {
             if let Some(relative_time) = price_point.timestamp.checked_sub(prev_point.timestamp) {
@@ -133,9 +143,13 @@ impl PriceHistory {
             None
         };
 
-        let alpha = 0.002;
-        self.sentiment_moving_avg =
-            (1.0 - alpha) * self.sentiment_moving_avg + alpha * self.sentiment;
+        let alpha_short = 0.02;
+        self.sentiment_moving_avg_short =
+            (1.0 - alpha_short) * self.sentiment_moving_avg_short + alpha_short * self.sentiment;
+
+        let alpha_long = 0.002;
+        self.sentiment_moving_avg_long =
+            (1.0 - alpha_long) * self.sentiment_moving_avg_long + alpha_long * self.sentiment;
 
         self.update_ema(price, price_point.timestamp, prev_timestamp);
         self.update_rsi();
@@ -316,12 +330,14 @@ impl PriceHistory {
         let diff = ema - price;
 
         let status = self.calculate_sentiment_stats(period);
-        let change = self.sentiment - self.sentiment_moving_avg;
+        let change = self.sentiment - self.sentiment_moving_avg_long;
 
         let prescaler = if status == None || change > -0.2 {
             return price;
         } else {
-            if self.sentiment < status.unwrap().0 - status.unwrap().1 * 1.2 {
+            let avg = status.unwrap().0;
+            let std = status.unwrap().1;
+            if self.sentiment < avg - std * 1.2 {
                 2.0
             } else {
                 1.0
