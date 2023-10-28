@@ -1,13 +1,14 @@
 // transaction_log.rs
 
-use super::{market_data::PricePoint, TradePosition, TraderState};
+use super::{TradePosition, TraderState};
 use crate::db::{
     insert_item,
     item::{search_items, update_item},
     Entity,
 };
 use crate::db::{search_item, Counter, CounterType};
-use crate::utils::{DateTimeUtils, ToDateTimeString};
+use debot_market_analyzer::PricePoint;
+use debot_utils::{DateTimeUtils, ToDateTimeString};
 use mongodb::Database;
 use serde::{Deserialize, Serialize};
 use shared_mongodb::{database, ClientHolder};
@@ -201,14 +202,14 @@ impl TransactionLog {
         Ok(())
     }
 
-    pub async fn get_price_histories(
+    pub async fn get_price_market_data(
         db: &Database,
     ) -> HashMap<String, HashMap<String, Vec<PricePoint>>> {
         let item = PriceLog::default();
         let items = match search_items(db, &item).await {
             Ok(items) => items,
             Err(e) => {
-                log::warn!("get_price_histories: {:?}", e);
+                log::warn!("get_price_market_data: {:?}", e);
                 return HashMap::new();
             }
         };

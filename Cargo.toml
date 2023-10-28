@@ -35,6 +35,9 @@ web3 = "0.19.0"
 bigdecimal = "0.3.1"
 chrono-tz = "0.8.2"
 
+debot-utils ="0.1.1"
+debot-market-analyzer ="0.1.4"
+
 [dependencies.mongodb]
 version = "2.2.1"
 default-features = false

@@ -3,6 +3,7 @@
 use blockchain_factory::create_dexes;
 use config::EnvConfig;
 use db::create_unique_index;
+use debot_market_analyzer::{MarketData, PricePoint};
 use error_manager::ErrorManager;
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Address;
@@ -13,8 +14,7 @@ use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
 use trade::abstract_trader::BaseTrader;
 use trade::forecast_trader::TradingPeriod;
-use trade::market_data::PricePoint;
-use trade::{forecast_config, DexPrices, ForcastTrader, MarketData, TradePosition, TransactionLog};
+use trade::{forecast_config, DexPrices, ForcastTrader, TradePosition, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
 use crate::trade::{AbstractTrader, DBHandler, TraderState};
@@ -32,7 +32,6 @@ mod error_manager;
 mod kws_decrypt;
 mod token;
 mod trade;
-mod utils;
 mod wallet;
 
 type WalletAndProvider = Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>;
@@ -90,8 +89,8 @@ async fn main() -> std::io::Result<()> {
     // Read the last App state
     let app_state = TransactionLog::get_app_state(&db).await;
 
-    // Read the price histories
-    let price_histories = TransactionLog::get_price_histories(&db).await;
+    // Read the price market_data
+    let price_market_data = TransactionLog::get_price_market_data(&db).await;
 
     let current_prices = Arc::new(std::sync::Mutex::new(HashMap::<String, DexPrices>::new()));
 
@@ -102,7 +101,7 @@ async fn main() -> std::io::Result<()> {
         transaction_log.clone(),
         app_state.prev_balance,
         app_state.trader_state,
-        price_histories,
+        price_market_data,
         current_prices,
     )
     .await;
@@ -121,7 +120,7 @@ async fn prepare_trader_instances(
     transaction_log: Arc<TransactionLog>,
     prev_balance: HashMap<String, Option<f64>>,
     trader_state: HashMap<String, TraderState>,
-    price_histories: HashMap<String, HashMap<String, Vec<PricePoint>>>,
+    price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
     current_prices: Arc<std::sync::Mutex<HashMap<String, DexPrices>>>,
 ) -> Vec<(
     ForcastTrader,
@@ -134,9 +133,6 @@ async fn prepare_trader_instances(
     // Read open positions from the DB
     let open_positions_map =
         DBHandler::get_open_positions_map(transaction_log.clone(), client_holder.clone()).await;
-
-    // Read the last scores from the DB
-    let scores = DBHandler::get_last_scores(transaction_log.clone(), client_holder.clone()).await;
 
     let mut trader_instances = Vec::new();
 
@@ -152,9 +148,8 @@ async fn prepare_trader_instances(
                 prev_balance.clone(),
                 trading_period.clone(),
                 trader_state.clone(),
-                price_histories.clone(),
+                price_market_data.clone(),
                 open_positions_map.clone(),
-                scores.clone(),
                 current_prices.clone(),
             )
             .await;
@@ -175,9 +170,8 @@ async fn prepare_algorithm_trader_instance(
     prev_balance: HashMap<String, Option<f64>>,
     tradeding_preiod: TradingPeriod,
     trader_state: HashMap<String, TraderState>,
-    price_histories: HashMap<String, HashMap<String, Vec<PricePoint>>>,
+    price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
     open_positions_map: HashMap<String, HashMap<String, TradePosition>>,
-    scores: HashMap<String, HashMap<String, f64>>,
     current_prices: Arc<std::sync::Mutex<HashMap<String, DexPrices>>>,
 ) -> (
     ForcastTrader,
@@ -255,26 +249,23 @@ async fn prepare_algorithm_trader_instance(
         config.max_price_size,
         config.interval,
         config.risk_reward,
-        config.reward_multiplier,
-        config.penalty_multiplier,
         client_holder.clone(),
         transaction_log,
         config.relative_spread,
         open_positions_map,
         prev_balance,
-        scores,
         config.save_prices,
         config.position_creation_inteval_seconds,
     );
 
-    // Create and restore the price histories
-    let mut histories: HashMap<String, MarketData> = HashMap::new();
+    // Create and restore the price market_data
+    let mut market_data: HashMap<String, MarketData> = HashMap::new();
     if config.load_prices {
-        restore_histories(&mut histories, &trader, &price_histories);
+        restore_market_data(&mut market_data, &trader, &price_market_data);
     }
 
     // Do some initialization
-    trader.rebalance(wallet.address(), true).await;
+    trader.rebalance(wallet.address()).await;
 
     trader
         .init(wallet.address(), config.min_managed_amount)
@@ -286,7 +277,7 @@ async fn prepare_algorithm_trader_instance(
         wallet_and_provider,
         wallet.address(),
         config,
-        histories,
+        market_data,
         error_manager,
     )
 }
@@ -306,7 +297,7 @@ async fn main_loop(
     let one_day = Duration::from_secs(24 * 60 * 60);
     let interval = configs[0].interval as f64 / trader_instances.len() as f64;
 
-    for (_trader, _wallet_and_provider, _wallet_address, config, _histories, _error_manager) in
+    for (_trader, _wallet_and_provider, _wallet_address, config, _market_data, _error_manager) in
         trader_instances.iter_mut()
     {
         let last_execution_time = last_execution_time_map
@@ -330,7 +321,7 @@ async fn main_loop(
     loop {
         let now = SystemTime::now();
 
-        for (trader, wallet_and_provider, wallet_address, config, histories, error_manager) in
+        for (trader, wallet_and_provider, wallet_address, config, market_data, error_manager) in
             trader_instances.iter_mut()
         {
             if trader.is_any_fund_liquidated() {
@@ -378,11 +369,11 @@ async fn main_loop(
             }
 
             if let Some(_amount) = manage_token_amount(trader, &wallet_address, config).await {
-                trader.rebalance(*wallet_address, true).await;
+                trader.rebalance(*wallet_address).await;
             }
 
             let mut opportunities = match trader
-                .find_opportunities(config.trading_amount, histories)
+                .find_opportunities(config.trading_amount, market_data)
                 .await
             {
                 Ok(opportunities) => {
@@ -483,22 +474,22 @@ async fn handle_sleep_and_signal(interval: f64) -> Result<(), &'static str> {
     Ok(())
 }
 
-fn restore_histories(
-    histories: &mut HashMap<String, MarketData>,
+fn restore_market_data(
+    market_data: &mut HashMap<String, MarketData>,
     trader: &ForcastTrader,
-    price_histories: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
+    price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
 ) {
-    let price_pionts_map = match price_histories.get(trader.chain_name()) {
+    let price_pionts_map = match price_market_data.get(trader.chain_name()) {
         Some(map) => map,
         None => return,
     };
 
     for (token_name, price_point_vec) in price_pionts_map {
-        let history = histories
+        let data = market_data
             .entry(token_name.clone())
-            .or_insert_with(|| trader.create_price_history());
+            .or_insert_with(|| trader.create_market_data());
         for price_point in price_point_vec {
-            history.add_price(price_point.price, Some(price_point.timestamp));
+            data.add_price(price_point.price, Some(price_point.timestamp));
         }
     }
 }

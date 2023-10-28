@@ -30,8 +30,6 @@ pub struct EnvConfig {
     pub position_creation_inteval_seconds: Option<u64>,
     pub risk_reward: f64,
     pub max_error_count: u32,
-    pub reward_multiplier: f64,
-    pub penalty_multiplier: f64,
     pub relative_spread: f64,
     pub save_prices: bool,
     pub load_prices: bool,
@@ -137,7 +135,7 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
         let num_swaps = get_env_var("NUM_SWAPS", "3")?;
-        let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "240")?;
+        let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "24")?;
 
         let position_creation_inteval_hours_str =
             env::var("POSITION_CREATION_INVERVAL_HOURS").unwrap_or_default();
@@ -150,8 +148,6 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
 
         let risk_reward = get_env_var("RISK_REWARD", "1.5")?;
         let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;
-        let reward_multiplier = get_env_var("REWARD_MULTIPLIER", "1.1")?;
-        let penalty_multiplier = get_env_var("PENALTY_MULTIPLIER", "0.9")?;
         let relative_spread = get_env_var("RELATIVE_SPREAD", "0.005")?;
         let save_prices = get_bool_env_var("SAVE_PRICES", false);
         let load_prices = get_bool_env_var("LOAD_PRICES", false);
@@ -180,8 +176,6 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             position_creation_inteval_seconds,
             risk_reward,
             max_error_count,
-            reward_multiplier,
-            penalty_multiplier,
             relative_spread,
             save_prices,
             load_prices,

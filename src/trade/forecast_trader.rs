@@ -3,6 +3,7 @@
 use chrono::Datelike;
 use chrono::Local;
 use chrono::Weekday;
+use debot_market_analyzer::MarketData;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
@@ -31,9 +32,9 @@ use super::fund_config::TradingStyle;
 use super::DBHandler;
 use super::FundManager;
 use super::Operation;
+use super::TradeOpportunity;
 use super::TradePosition;
 use super::TransactionLog;
-use super::{MarketData, TradeOpportunity};
 
 #[derive(Clone)]
 pub struct TradingPeriod {
@@ -75,8 +76,6 @@ pub struct ForcastTraderConfig {
     long_trade_period: usize,
     max_price_size: u32,
     interval: u64,
-    reward_multiplier: f64,
-    penalty_multiplier: f64,
     spread: f64,
     position_creation_inteval_seconds: Option<u64>,
 }
@@ -84,7 +83,6 @@ pub struct ForcastTraderConfig {
 pub struct ForcastTraderState {
     amount: f64,
     fund_manager_map: HashMap<String, FundManager>,
-    scores: HashMap<String, f64>,
     current_prices: Arc<std::sync::Mutex<HashMap<String, DexPrices>>>,
     pub last_loss_cut_time: i64,
 }
@@ -113,14 +111,11 @@ impl ForcastTrader {
         max_price_size: u32,
         interval: u64,
         risk_reward: f64,
-        reward_multiplier: f64,
-        penalty_multiplier: f64,
         db_client: Arc<Mutex<ClientHolder>>,
         transaction_log: Arc<TransactionLog>,
         spread: f64,
         open_positions_map: HashMap<String, HashMap<String, TradePosition>>,
         prev_balance: Option<f64>,
-        latest_scores: HashMap<String, HashMap<String, f64>>,
         save_prices: bool,
         position_creation_inteval_seconds: Option<u64>,
     ) -> Self {
@@ -141,24 +136,15 @@ impl ForcastTrader {
             long_trade_period: trading_period.long_term_hour * 3600 / interval as usize,
             max_price_size,
             interval,
-            reward_multiplier,
-            penalty_multiplier,
             spread,
             position_creation_inteval_seconds,
         };
 
         let name = format!("{}-Algo-{}", chain_name, target_trading_style.to_string());
 
-        let binding = HashMap::new();
-        let scores = match latest_scores.get(&name) {
-            Some(scores) => scores,
-            None => &binding,
-        };
-
         let mut state = ForcastTraderState {
             amount: initial_amount,
             fund_manager_map: HashMap::new(),
-            scores: scores.clone(),
             current_prices,
             last_loss_cut_time: 0,
         };
@@ -184,7 +170,6 @@ impl ForcastTrader {
                     activity_time,
                     buy_signal,
                     trading_amount,
-                    score,
                 )| {
                     let mut token_found = false;
 
@@ -202,13 +187,6 @@ impl ForcastTrader {
                     let fund_name =
                         format!("{}-{}-{}-{}", chain_name, trading_style, token_name, name);
 
-                    let prev_score = scores.get(&fund_name);
-                    let intial_score = match prev_score {
-                        Some(prev_score) => prev_score,
-                        None => &score,
-                    };
-                    state.scores.insert(fund_name.to_owned(), *intial_score);
-
                     let period = period_hour * 60 * 60 / (interval as usize);
 
                     Some(FundManager::new(
@@ -220,7 +198,6 @@ impl ForcastTrader {
                         activity_time,
                         trading_amount,
                         amount_per_fund,
-                        *intial_score,
                         buy_signal,
                         period as u64 * interval,
                         risk_reward,
@@ -268,7 +245,7 @@ impl ForcastTrader {
     async fn get_current_prices(
         &self,
         amount: f64,
-        histories: &mut HashMap<String, MarketData>,
+        market_data: &mut HashMap<String, MarketData>,
     ) -> Result<HashMap<String, DexPrices>, Box<dyn Error + Send + Sync>> {
         let mut current_prices: HashMap<String, DexPrices> = HashMap::new();
 
@@ -317,20 +294,19 @@ impl ForcastTrader {
             current_prices = self.state.current_prices.lock().unwrap().clone();
         }
 
-        // Update the price history and predict next prices
+        // Update the market data and predict next prices
         for (token_name, prices) in &current_prices {
-            // Update the price history and predict next prices
-            let history = histories
+            let data = market_data
                 .entry(token_name.clone())
-                .or_insert_with(|| self.create_price_history());
-            let price_point = history.add_price(prices.sell.price, None);
+                .or_insert_with(|| self.create_market_data());
+            let price_point = data.add_price(prices.sell.price, None);
 
             if self.config.master && self.base_trader.save_prices() {
                 self.base_trader
                     .db_handler()
                     .lock()
                     .await
-                    .log_price(history.name(), token_name, price_point)
+                    .log_price(data.name(), token_name, price_point)
                     .await;
             }
         }
@@ -478,7 +454,7 @@ impl ForcastTrader {
         &self,
         amount: f64,
         current_prices: &HashMap<String, DexPrices>,
-        histories: &mut HashMap<String, MarketData>,
+        market_data: &mut HashMap<String, MarketData>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
 
@@ -503,7 +479,7 @@ impl ForcastTrader {
                     prices.sell.price,
                     prices.relative_spread,
                     amount,
-                    histories,
+                    market_data,
                 );
 
                 if let Some(proposal) = proposal {
@@ -530,7 +506,7 @@ impl ForcastTrader {
     fn find_sell_opportunities(
         &self,
         current_prices: &HashMap<String, DexPrices>,
-        histories: &mut HashMap<String, MarketData>,
+        market_data: &mut HashMap<String, MarketData>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
 
@@ -553,7 +529,7 @@ impl ForcastTrader {
                     token_name,
                     prices.sell.price,
                     limited_sell,
-                    histories,
+                    market_data,
                 );
 
                 if let Some(proposal) = proposal {
@@ -584,7 +560,7 @@ impl ForcastTrader {
     pub async fn find_opportunities(
         &self,
         amount: f64,
-        histories: &mut HashMap<String, MarketData>,
+        market_data: &mut HashMap<String, MarketData>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut results: Vec<TradeOpportunity> = vec![];
 
@@ -595,7 +571,7 @@ impl ForcastTrader {
 
         // Get current prices
         let current_prices: HashMap<String, DexPrices> =
-            self.get_current_prices(amount, histories).await?;
+            self.get_current_prices(amount, market_data).await?;
 
         for (token_name, prices) in &current_prices {
             log::debug!(
@@ -612,10 +588,10 @@ impl ForcastTrader {
         self.check_positions(&current_prices);
 
         let mut result_for_open =
-            self.find_buy_opportunities(amount, &current_prices, histories)?;
+            self.find_buy_opportunities(amount, &current_prices, market_data)?;
         results.append(&mut result_for_open);
 
-        let mut result_for_close = self.find_sell_opportunities(&current_prices, histories)?;
+        let mut result_for_close = self.find_sell_opportunities(&current_prices, market_data)?;
         results.append(&mut result_for_close);
 
         Ok(results)
@@ -664,7 +640,7 @@ impl ForcastTrader {
             .await;
     }
 
-    pub async fn rebalance(&mut self, owner: Address, force_rebalance: bool) {
+    pub async fn rebalance(&mut self, owner: Address) {
         let base_token_amount =
             match BaseTrader::get_amount_of_token(owner, &self.base_token()).await {
                 Ok(amount) => amount,
@@ -691,38 +667,18 @@ impl ForcastTrader {
             self.state.amount
         );
 
-        let mut total_score = 0.0;
-        let mut changed = false;
-
-        for fund_manager in self.state.fund_manager_map.values() {
-            let score = fund_manager.score();
-            let name = fund_manager.name();
-            total_score += score;
-
-            let prev_score = self.state.scores.insert(name.to_owned(), score);
-            if prev_score.is_some() {
-                if score != prev_score.unwrap() {
-                    changed = true;
-                }
-            }
-        }
-
-        if !changed && !force_rebalance {
-            return;
-        }
-
-        let amount_per_score = self.state.amount / total_score;
+        let amount_per_fund = self.state.amount / self.state.fund_manager_map.len() as f64;
 
         for fund_manager in self.state.fund_manager_map.values_mut() {
             let amount = match fund_manager.is_liquidated() {
                 true => 0.0,
-                false => fund_manager.score() * amount_per_score,
+                false => amount_per_fund,
             };
             fund_manager.set_amount(amount);
         }
     }
 
-    pub fn create_price_history(&self) -> MarketData {
+    pub fn create_market_data(&self) -> MarketData {
         MarketData::new(
             self.config.chain_name.to_owned(),
             self.config.short_trade_period,
@@ -895,28 +851,10 @@ impl AbstractTrader for ForcastTrader {
                     }
                     _ => {}
                 }
-
-                if opportunity.predicted_profit.is_some() {
-                    let multiplier;
-                    match opportunity.predicted_profit {
-                        Some(profit) => {
-                            let ratio = profit / opportunity.amounts[0];
-                            multiplier = match ratio {
-                                _ if ratio > 0.01 => self.config.reward_multiplier,
-                                _ if ratio < -0.01 => self.config.penalty_multiplier,
-                                _ => 1.0,
-                            };
-                        }
-                        None => {
-                            multiplier = 1.0;
-                        }
-                    }
-                    fund_manager.apply_reward_or_penalty(multiplier);
-                }
             }
         }
 
-        // self.rebalance(address, false).await;
+        // self.rebalance(address).await;
 
         Ok(())
     }

@@ -3,13 +3,15 @@
 use crate::{
     db::CounterType,
     trade::{BalanceLog, TransactionLog},
-    utils::DateTimeUtils,
 };
+
+use debot_market_analyzer::PricePoint;
+use debot_utils::DateTimeUtils;
 use shared_mongodb::ClientHolder;
 use std::{collections::HashMap, sync::Arc, time::SystemTime};
 use tokio::sync::Mutex;
 
-use super::{market_data::PricePoint, transaction_log::PriceLog, TradePosition};
+use super::{transaction_log::PriceLog, TradePosition};
 
 pub struct DBHandler {
     client_holder: Arc<Mutex<ClientHolder>>,
@@ -113,16 +115,6 @@ impl DBHandler {
 
     pub fn increment_counter(&self, counter_type: CounterType) -> Option<u32> {
         Some(self.transaction_log.increment_counter(counter_type))
-    }
-
-    pub async fn get_last_scores(
-        transaction_log: Arc<TransactionLog>,
-        client_holder: Arc<Mutex<ClientHolder>>,
-    ) -> HashMap<String, HashMap<String, f64>> {
-        if let Some(db) = transaction_log.get_db(&client_holder).await {
-            return TransactionLog::get_app_state(&db).await.latest_scores;
-        }
-        HashMap::new()
     }
 
     pub async fn get_open_positions_map(

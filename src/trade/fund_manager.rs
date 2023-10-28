@@ -5,14 +5,13 @@ use crate::trade::trade_position::State;
 
 use super::abstract_trader::ReasonForSell;
 use super::trade_position::TakeProfitStrategy;
-use super::{DBHandler, DexPrices, MarketData, TradePosition, TradingStrategy};
+use super::{DBHandler, DexPrices, TradePosition};
+use debot_market_analyzer::{MarketData, TradingStrategy};
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
-
-const MOVING_AVERAGE_WINDOW_SIZE: usize = 5;
 
 #[derive(PartialEq)]
 enum FundState {
@@ -25,8 +24,6 @@ pub struct FundManagerState {
     amount: f64,
     open_positions: HashMap<String, TradePosition>,
     fund_state: Arc<std::sync::Mutex<FundState>>,
-    score: f64,
-    past_scores: Vec<f64>,
     db_handler: Arc<Mutex<DBHandler>>,
 }
 
@@ -68,7 +65,6 @@ impl FundManager {
         activity_time: (u32, u32),
         trading_amount: f64,
         initial_amount: f64,
-        initial_score: f64,
         buy_signal_threshold: f64,
         max_hold_interval_in_secs: u64,
         risk_reward: f64,
@@ -95,8 +91,6 @@ impl FundManager {
             amount: initial_amount,
             open_positions,
             fund_state: Arc::new(std::sync::Mutex::new(FundState::Active)),
-            score: initial_score,
-            past_scores: vec![],
             db_handler,
         };
 
@@ -105,10 +99,6 @@ impl FundManager {
 
     pub fn name(&self) -> &str {
         &self.config.name
-    }
-
-    pub fn score(&self) -> f64 {
-        self.state.score
     }
 
     pub fn amount(&self) -> f64 {
@@ -151,7 +141,7 @@ impl FundManager {
         sell_price: f64,
         spread: f64,
         amount: f64,
-        histories: &mut HashMap<String, MarketData>,
+        market_data: &mut HashMap<String, MarketData>,
     ) -> Option<TradeProposal> {
         if token_name != self.config.token_name {
             return None;
@@ -163,9 +153,9 @@ impl FundManager {
             self.config.trading_amount
         };
 
-        if let Some(history) = histories.get_mut(token_name) {
+        if let Some(data) = market_data.get_mut(token_name) {
             // update ATR
-            history.update_atr(self.config.trade_period);
+            data.update_atr(self.config.trade_period);
 
             if !self.can_create_new_position(token_name) {
                 log::debug!(
@@ -175,8 +165,7 @@ impl FundManager {
                 return None;
             }
 
-            let predicted_price =
-                history.majority_vote_predictions(self.config.trade_period, self.config.strategy);
+            let predicted_price = data.predict(self.config.trade_period, self.config.strategy);
 
             let price_spread = (buy_price - sell_price) / buy_price;
             let profit_ratio = (predicted_price - sell_price) / sell_price;
@@ -213,7 +202,7 @@ impl FundManager {
                     return None;
                 }
 
-                let atr = history.atr(self.config.trade_period);
+                let atr = data.atr(self.config.trade_period);
                 if atr.is_none() {
                     return None;
                 }
@@ -233,7 +222,7 @@ impl FundManager {
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell: None,
                     atr,
-                    momentum: Some(history.momentum()),
+                    momentum: Some(data.momentum()),
                 });
             }
         }
@@ -268,7 +257,7 @@ impl FundManager {
         token_name: &str,
         sell_price: f64,
         limitied_sell: bool,
-        _histories: &mut HashMap<String, MarketData>,
+        _market_data: &mut HashMap<String, MarketData>,
     ) -> Option<TradeProposal> {
         if let Some(position) = self.state.open_positions.get(token_name) {
             let mut amount = 0.0;
@@ -452,26 +441,5 @@ impl FundManager {
                 );
             }
         }
-    }
-
-    fn calculate_moving_average_score(&self, window: usize) -> f64 {
-        let n = self.state.past_scores.len();
-        if n < window {
-            return self.state.score; // not enough data to calculate the moving average
-        }
-        let sum: f64 = self.state.past_scores[n - window..].iter().sum();
-        sum / window as f64
-    }
-
-    pub fn apply_reward_or_penalty(&mut self, multiplier: f64) {
-        self.state.score *= multiplier;
-        self.state.past_scores.push(self.state.score);
-        let moving_average_score = self.calculate_moving_average_score(MOVING_AVERAGE_WINDOW_SIZE);
-        log::trace!(
-            "{}'s new score = {:6.2}, moving average score = {:6.2}",
-            self.config.name,
-            self.state.score,
-            moving_average_score
-        );
     }
 }

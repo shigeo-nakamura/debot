@@ -1,4 +1,4 @@
-use super::TradingStrategy;
+use debot_market_analyzer::TradingStrategy;
 
 #[derive(PartialEq, Clone)]
 pub enum TradingStyle {
@@ -27,7 +27,6 @@ pub fn get(
     (u32, u32),
     f64,
     f64,
-    f64,
 )> {
     let configs = vec![
         (
@@ -40,7 +39,6 @@ pub fn get(
             (0, 3), // activity time
             1.0,    // 1.0% (buy_signal_threshold)
             100.0,  // trading_amount(base token)
-            10.0,   // initial_score
         ),
         (
             "trend-follow-24h-2",
@@ -52,7 +50,6 @@ pub fn get(
             (3, 6), // activity time
             1.0,    // 1.0% (buy_signal_threshold)
             100.0,  // trading_amount(base token)
-            10.0,   // initial_score
         ),
         (
             "trend-follow-24h-3",
@@ -64,7 +61,6 @@ pub fn get(
             (6, 9), // activity time
             1.0,    // 1.0% (buy_signal_threshold)
             100.0,  // trading_amount(base token)
-            10.0,   // initial_score
         ),
         (
             "trend-follow-24h-4",
@@ -76,7 +72,6 @@ pub fn get(
             (9, 12), // activity time
             1.0,     // 1.0% (buy_signal_threshold)
             100.0,   // trading_amount(base token)
-            10.0,    // initial_score
         ),
         (
             "trend-follow-24h-5",
@@ -88,7 +83,6 @@ pub fn get(
             (12, 15), // activity time
             1.0,      // 1.0% (buy_signal_threshold)
             100.0,    // trading_amount(base token)
-            10.0,     // initial_score
         ),
         (
             "trend-follow-24h-6",
@@ -100,7 +94,6 @@ pub fn get(
             (15, 18), // activity time
             1.0,      // 1.0% (buy_signal_threshold)
             100.0,    // trading_amount(base token)
-            10.0,     // initial_score
         ),
         (
             "trend-follow-24h-7",
@@ -112,7 +105,6 @@ pub fn get(
             (18, 21), // activity time
             1.0,      // 1.0% (buy_signal_threshold)
             100.0,    // trading_amount(base token)
-            10.0,     // initial_score
         ),
         (
             "trend-follow-24h-8",
@@ -124,7 +116,6 @@ pub fn get(
             (21, 24), // activity time
             1.0,      // 1.0% (buy_signal_threshold)
             100.0,    // trading_amount(base token)
-            10.0,     // initial_score
         ),
         (
             "trend-follow-30h-1",
@@ -136,7 +127,6 @@ pub fn get(
             (0, 3), // activity time
             1.25,   // 1.25% (buy_signal_threshold)
             150.0,  // trading_amount(base token)
-            15.0,   // initial_score
         ),
         (
             "trend-follow-30h-2",
@@ -148,7 +138,6 @@ pub fn get(
             (12, 15), // activity time
             1.25,     // 1.25% (buy_signal_threshold)
             150.0,    // trading_amount(base token)
-            15.0,     // initial_score
         ),
         (
             "trend-follow-36h-1",
@@ -160,7 +149,6 @@ pub fn get(
             (3, 6), // activity time
             1.5,    // 1.5% (buy_signal_threshold)
             150.0,  // trading_amount(base token)
-            15.0,   // initial_score
         ),
         (
             "trend-follow-36h-2",
@@ -172,7 +160,6 @@ pub fn get(
             (15, 18), // activity time
             1.5,      // 1.5% (buy_signal_threshold)
             150.0,    // trading_amount(base token)
-            15.0,     // initial_score
         ),
         (
             "trend-follow-42h-1",
@@ -184,7 +171,6 @@ pub fn get(
             (6, 9), // activity time
             1.5,    // 1.5% (buy_signal_threshold)
             150.0,  // trading_amount(base token)
-            15.0,   // initial_score
         ),
         (
             "trend-follow-42h-2",
@@ -196,7 +182,6 @@ pub fn get(
             (18, 21), // activity time
             1.5,      // 1.5% (buy_signal_threshold)
             150.0,    // trading_amount(base token)
-            15.0,     // initial_score
         ),
         (
             "trend-follow-48h-1",
@@ -208,7 +193,6 @@ pub fn get(
             (9, 12), // activity time
             2.0,     // 2.0% (buy_signal_threshold)
             150.0,   // trading_amount(base token)
-            15.0,    // initial_score
         ),
         (
             "trend-follow-48h-2",
@@ -220,7 +204,6 @@ pub fn get(
             (21, 24), // activity time
             2.0,      // 2.0% (buy_signal_threshold)
             150.0,    // trading_amount(base token)
-            15.0,     // initial_score
         ),
         (
             "trend-follow-54h-1",
@@ -232,7 +215,6 @@ pub fn get(
             (0, 3), // activity time
             1.0,    // 1.0% (buy_signal_threshold)
             100.0,  // trading_amount(base token)
-            10.0,   // initial_score
         ),
         (
             "trend-follow-54h-2",
@@ -244,7 +226,6 @@ pub fn get(
             (12, 15), // activity time
             1.0,      // 1.0% (buy_signal_threshold)
             100.0,    // trading_amount(base token)
-            10.0,     // initial_score
         ),
         (
             "trend-follow-60h-1",
@@ -256,7 +237,6 @@ pub fn get(
             (3, 6), // activity time
             1.0,    // 1.0% (buy_signal_threshold)
             100.0,  // trading_amount(base token)
-            10.0,   // initial_score
         ),
         (
             "trend-follow-60h-2",
@@ -268,7 +248,6 @@ pub fn get(
             (15, 18), // activity time
             1.0,      // 1.0% (buy_signal_threshold)
             100.0,    // trading_amount(base token)
-            10.0,     // initial_score
         ),
         (
             "trend-follow-66h-1",
@@ -280,7 +259,6 @@ pub fn get(
             (6, 9), // activity time
             1.0,    // 1.0% (buy_signal_threshold)
             100.0,  // trading_amount(base token)
-            10.0,   // initial_score
         ),
         (
             "trend-follow-66h-2",
@@ -292,7 +270,6 @@ pub fn get(
             (18, 21), // activity time
             1.0,      // 1.0% (buy_signal_threshold)
             100.0,    // trading_amount(base token)
-            10.0,     // initial_score
         ),
         (
             "trend-follow-72h-1",
@@ -304,7 +281,6 @@ pub fn get(
             (9, 12), // activity time
             1.0,     // 1.0% (buy_signal_threshold)
             100.0,   // trading_amount(base token)
-            10.0,    // initial_score
         ),
         (
             "trend-follow-72h-2",
@@ -316,7 +292,6 @@ pub fn get(
             (21, 24), // activity time
             1.0,      // 1.0% (buy_signal_threshold)
             100.0,    // trading_amount(base token)
-            10.0,     // initial_score
         ),
     ];
 
@@ -333,7 +308,6 @@ pub fn get(
                 activity_time,
                 buy_signal,
                 trading_amount,
-                score,
             )| {
                 if config_trading_style == trading_style && config_chain_name == chain_name {
                     Some((
@@ -345,7 +319,6 @@ pub fn get(
                         activity_time,
                         buy_signal,
                         trading_amount,
-                        score,
                     ))
                 } else {
                     None
