@@ -1,6 +1,6 @@
 // Polygon_token.rs
 
-use super::token::{BaseToken, BlockChain, Token};
+use super::token::{AnchorToken, BlockChain, Token};
 use ethers::{
     signers::LocalWallet,
     types::{Address, U256},
@@ -13,7 +13,7 @@ use std::{error::Error, sync::Arc};
 
 #[derive(Clone)]
 pub struct PolygonToken {
-    base_token: BaseToken,
+    anchor_token: AnchorToken,
 }
 
 #[async_trait::async_trait]
@@ -26,7 +26,7 @@ impl Token for PolygonToken {
         decimals: Option<u8>,
     ) -> Self {
         Self {
-            base_token: BaseToken::new(block_chain, provider, address, symbol_name, decimals),
+            anchor_token: AnchorToken::new(block_chain, provider, address, symbol_name, decimals),
         }
     }
 
@@ -36,29 +36,29 @@ impl Token for PolygonToken {
 
     fn block_chain(&self) -> BlockChain {
         BlockChain::PolygonChain {
-            chain_id: self.base_token.block_chain_id(),
+            chain_id: self.anchor_token.block_chain_id(),
         }
     }
 
-    // Delegate the implementation of common methods to the BaseToken
+    // Delegate the implementation of common methods to the AnchorToken
     fn block_chain_id(&self) -> u64 {
-        self.base_token.block_chain_id()
+        self.anchor_token.block_chain_id()
     }
 
     fn address(&self) -> Address {
-        self.base_token.address()
+        self.anchor_token.address()
     }
 
     fn symbol_name(&self) -> &str {
-        self.base_token.symbol_name()
+        self.anchor_token.symbol_name()
     }
 
     fn decimals(&self) -> Option<u8> {
-        self.base_token.decimals()
+        self.anchor_token.decimals()
     }
 
     async fn initialize(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        self.base_token.initialize().await
+        self.anchor_token.initialize().await
     }
 
     async fn approve(
@@ -66,7 +66,7 @@ impl Token for PolygonToken {
         spender: Address,
         amount: U256,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        self.base_token.approve(spender, amount).await
+        self.anchor_token.approve(spender, amount).await
     }
 
     async fn allowance(
@@ -74,11 +74,11 @@ impl Token for PolygonToken {
         owner: Address,
         spender: Address,
     ) -> Result<U256, Box<dyn Error + Send + Sync>> {
-        self.base_token.allowance(owner, spender).await
+        self.anchor_token.allowance(owner, spender).await
     }
 
     async fn balance_of(&self, owner: Address) -> Result<U256, Box<dyn Error + Send + Sync>> {
-        self.base_token.balance_of(owner).await
+        self.anchor_token.balance_of(owner).await
     }
 
     async fn transfer(
@@ -86,6 +86,6 @@ impl Token for PolygonToken {
         recipient: Address,
         amount: U256,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        self.base_token.transfer(recipient, amount).await
+        self.anchor_token.transfer(recipient, amount).await
     }
 }

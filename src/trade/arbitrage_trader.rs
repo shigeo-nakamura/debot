@@ -31,7 +31,7 @@ impl ArbitrageTrader {
         initial_amount: f64,
         allowance_factor: f64,
         tokens: Arc<Vec<Box<dyn Token>>>,
-        base_token: Arc<Box<dyn Token>>,
+        anchor_token: Arc<Box<dyn Token>>,
         dexes: Arc<Vec<Box<dyn Dex>>>,
         dry_run: bool,
         num_swaps: usize,
@@ -52,7 +52,7 @@ impl ArbitrageTrader {
                 initial_amount,
                 allowance_factor,
                 tokens,
-                base_token,
+                anchor_token,
                 dexes,
                 dry_run,
                 gas,
@@ -69,7 +69,7 @@ impl ArbitrageTrader {
         tokens: &Arc<Vec<Box<dyn Token>>>,
         dexes: &Arc<Vec<Box<dyn Dex>>>,
         paths: &mut Vec<Vec<(Box<dyn Token>, Box<dyn Dex>)>>,
-        base_token: &Arc<Box<dyn Token>>,
+        anchor_token: &Arc<Box<dyn Token>>,
         start_token: &Box<dyn Token>,
         visited: &mut HashSet<(String, String)>,
         path: &mut Vec<(Box<dyn Token>, Box<dyn Dex>)>,
@@ -81,7 +81,7 @@ impl ArbitrageTrader {
             if let Some(last_path) = path.last() {
                 if path.len() >= 2
                     && path.len() <= num_swaps
-                    && last_path.0.symbol_name() == (*base_token).symbol_name()
+                    && last_path.0.symbol_name() == (*anchor_token).symbol_name()
                 {
                     paths.push(path.clone());
                     log::trace!("Found a valid path. Total paths now: {}", paths.len());
@@ -116,7 +116,7 @@ impl ArbitrageTrader {
                 let previous_token = path
                     .last()
                     .map(|(token, _)| token.symbol_name())
-                    .unwrap_or_else(|| base_token.symbol_name());
+                    .unwrap_or_else(|| anchor_token.symbol_name());
 
                 if previous_token == token.symbol_name() {
                     continue;
@@ -131,7 +131,7 @@ impl ArbitrageTrader {
                     tokens,
                     dexes,
                     paths,
-                    &base_token,
+                    &anchor_token,
                     &start_token,
                     visited,
                     path,
@@ -155,14 +155,14 @@ impl ArbitrageTrader {
 
         // Find arbitrage paths for each token
         for token in self.tokens().iter() {
-            if token.symbol_name() != self.base_token().symbol_name() {
+            if token.symbol_name() != self.anchor_token().symbol_name() {
                 let mut visited_pairs: HashSet<(String, String)> = HashSet::new();
                 let mut path: Vec<(Box<dyn Token>, Box<dyn Dex>)> = Vec::new();
                 ArbitrageTrader::find_arbitrage_paths_recursive(
                     &self.tokens(),
                     &self.dexes(),
                     &mut paths,
-                    &self.base_token(),
+                    &self.anchor_token(),
                     token,
                     &mut visited_pairs,
                     &mut path,
@@ -179,7 +179,7 @@ impl ArbitrageTrader {
         path: &Vec<(Box<dyn Token>, Box<dyn Dex>)>,
         amount: f64,
         token_pairs_prices: &HashMap<(String, String, String), f64>,
-        base_token: &Box<dyn Token>,
+        anchor_token: &Box<dyn Token>,
         amounts: &mut Vec<f64>,
     ) -> Option<f64> {
         let mut remaining_amount = amount;
@@ -187,7 +187,7 @@ impl ArbitrageTrader {
 
         for i in 0..path_len {
             let token_a_name = if i == 0 {
-                base_token.symbol_name()
+                anchor_token.symbol_name()
             } else {
                 path[i - 1].0.symbol_name()
             };
@@ -247,7 +247,7 @@ impl ArbitrageTrader {
                 path,
                 amount,
                 &token_pair_prices,
-                &self.base_trader.base_token(),
+                &self.base_trader.anchor_token(),
                 &mut amounts,
             );
             if profit.is_none() {
@@ -313,7 +313,7 @@ impl AbstractTrader for ArbitrageTrader {
     ) -> Result<HashMap<(String, String, String), f64>, Box<dyn Error + Send + Sync>> {
         // Get the prices of all token pairs
         let mut get_price_futures = Vec::new();
-        let base_token = &self.base_token();
+        let anchor_token = &self.anchor_token();
         let dexes = &self.dexes();
         let tokens = &self.tokens();
 
@@ -321,7 +321,7 @@ impl AbstractTrader for ArbitrageTrader {
         for dex in dexes.iter() {
             let mut dex_get_price_futures = self
                 .base_trader
-                .get_token_pair_prices(dex, base_token, tokens, amount)
+                .get_token_pair_prices(dex, anchor_token, tokens, amount)
                 .await;
             get_price_futures.append(&mut dex_get_price_futures);
         }
@@ -348,7 +348,7 @@ impl AbstractTrader for ArbitrageTrader {
             let dex_name = dex_arc.name().to_owned();
             for token_a_arc in tokens.iter() {
                 for token_b_arc in tokens.iter() {
-                    if token_b_arc.symbol_name() != self.base_token().symbol_name() {
+                    if token_b_arc.symbol_name() != self.anchor_token().symbol_name() {
                         continue;
                     }
                     if token_a_arc.symbol_name() == token_b_arc.symbol_name() {
@@ -410,8 +410,8 @@ impl AbstractTrader for ArbitrageTrader {
         self.base_trader.tokens()
     }
 
-    fn base_token(&self) -> Arc<Box<dyn Token>> {
-        self.base_trader.base_token()
+    fn anchor_token(&self) -> Arc<Box<dyn Token>> {
+        self.base_trader.anchor_token()
     }
 
     fn dexes(&self) -> Arc<Vec<Box<dyn Dex>>> {

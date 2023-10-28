@@ -17,7 +17,7 @@ use crate::{
     },
     token::{
         token::{BlockChain, Token},
-        BASEToken, BscToken, PolygonToken,
+        BaseToken, BscToken, PolygonToken,
     },
 };
 use ethers::providers::{Http, Provider};
@@ -37,7 +37,7 @@ pub struct ChainParams {
     pub dex_list: &'static [(&'static str, &'static str)],
     pub gas: f64,
     pub current_rpc_url: Arc<Mutex<usize>>,
-    pub base_token: &'static str,
+    pub anchor_token: &'static str,
     pub min_gas_token_amount: f64,
 }
 
@@ -82,7 +82,7 @@ lazy_static! {
         ],
         gas: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
-        base_token: "USDT",
+        anchor_token: "USDT",
         min_gas_token_amount: 10.0,
     };
 
@@ -101,7 +101,7 @@ lazy_static! {
         ],
         gas: 0.3,
         current_rpc_url: Arc::new(Mutex::new(0)),
-        base_token: "BUSD",
+        anchor_token: "BUSD",
         min_gas_token_amount: 10.0,
     };
 
@@ -138,7 +138,7 @@ lazy_static! {
         ],
         gas: 0.03,
         current_rpc_url: Arc::new(Mutex::new(0)),
-        base_token: "USDC",
+        anchor_token: "USDC",
         min_gas_token_amount: 1.0,
     };
 
@@ -156,7 +156,7 @@ lazy_static! {
         ],
         gas: 0.03,
         current_rpc_url: Arc::new(Mutex::new(0)),
-        base_token: "USDC",
+        anchor_token: "USDC",
         min_gas_token_amount: 1.0,
     };
 
@@ -174,7 +174,7 @@ lazy_static! {
         ],
         gas: 0.03,
         current_rpc_url: Arc::new(Mutex::new(0)),
-        base_token: "USDBC",
+        anchor_token: "USDBC",
         min_gas_token_amount: 1.0,
     };
 }
@@ -200,7 +200,7 @@ fn create_token(
             symbol,
             None,
         ))),
-        BASE_MAINNET_CHAIN_ID => Ok(Box::new(BASEToken::new(
+        BASE_MAINNET_CHAIN_ID => Ok(Box::new(BaseToken::new(
             BlockChain::BaseChain { chain_id },
             provider.clone(),
             token_address,
@@ -241,30 +241,30 @@ pub async fn create_tokens(
     Ok(Arc::new(initialized_tokens))
 }
 
-pub async fn create_base_token(
+pub async fn create_anchor_token(
     provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
     chain_params: &ChainParams,
 ) -> Result<Arc<Box<dyn Token>>, Box<dyn Error + Send + Sync + 'static>> {
-    let base_token_symbol = chain_params.base_token;
-    let base_token_address = chain_params
+    let anchor_token_symbol = chain_params.anchor_token;
+    let anchor_token_address = chain_params
         .tokens
         .iter()
-        .find(|(symbol, _)| *symbol == base_token_symbol)
+        .find(|(symbol, _)| *symbol == anchor_token_symbol)
         .ok_or_else(|| {
             Box::new(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                format!("Base token {} not found", base_token_symbol),
+                format!("Base token {} not found", anchor_token_symbol),
             )) as Box<dyn Error>
         })
         .unwrap()
         .1;
 
-    let base_token_address = Address::from_str(base_token_address)?;
+    let anchor_token_address = Address::from_str(anchor_token_address)?;
     let mut token = create_token(
         chain_params.chain_id,
         provider.clone(),
-        base_token_address,
-        base_token_symbol.to_owned(),
+        anchor_token_address,
+        anchor_token_symbol.to_owned(),
     )
     .unwrap();
     token.initialize().await?;

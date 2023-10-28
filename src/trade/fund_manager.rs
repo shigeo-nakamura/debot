@@ -110,10 +110,10 @@ impl FundManager {
         self.state.amount = amount;
     }
 
-    fn amount_of_positinos_in_base_token(&self) -> f64 {
+    fn amount_of_positinos_in_anchor_token(&self) -> f64 {
         let mut amount = 0.0;
         for position in self.state.open_positions.values() {
-            amount += position.amount_in_base_token;
+            amount += position.amount_in_anchor_token;
         }
         amount
     }
@@ -197,7 +197,7 @@ impl FundManager {
                         self.name(),
                         self.state.amount,
                         trading_amount,
-                        self.amount_of_positinos_in_base_token(),
+                        self.amount_of_positinos_in_anchor_token(),
                     );
                     return None;
                 }
@@ -237,7 +237,7 @@ impl FundManager {
                 // caliculate unrialized PnL
                 position.print_info(prices.sell.price);
                 unrealized_pnl +=
-                    prices.sell.price * position.amount - position.amount_in_base_token;
+                    prices.sell.price * position.amount - position.amount_in_anchor_token;
             }
         }
 

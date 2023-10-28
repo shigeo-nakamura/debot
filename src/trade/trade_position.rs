@@ -32,7 +32,7 @@ pub struct TradePosition {
     pub sold_price: Option<f64>,
     pub sold_amount: Option<f64>,
     pub amount: f64,
-    pub amount_in_base_token: f64,
+    pub amount_in_anchor_token: f64,
     pub realized_pnl: Option<f64>,
     pub momentum: Option<f64>,
     pub atr: Option<f64>,
@@ -66,7 +66,7 @@ impl TradePosition {
         take_profit_price: f64,
         cut_loss_price: f64,
         amount: f64,
-        amount_in_base_token: f64,
+        amount_in_anchor_token: f64,
         atr: Option<f64>,
         momentum: Option<f64>,
         predicted_price: Option<f64>,
@@ -97,7 +97,7 @@ impl TradePosition {
             sold_price: None,
             sold_amount: None,
             amount,
-            amount_in_base_token,
+            amount_in_anchor_token,
             realized_pnl: None,
             momentum,
             atr,
@@ -221,12 +221,12 @@ impl TradePosition {
         take_profit_price: f64,
         cut_loss_price: f64,
         amount: f64,
-        amount_in_base_token: f64,
+        amount_in_anchor_token: f64,
     ) {
         self.open_time = chrono::Utc::now().timestamp();
         self.open_time_str = self.open_time.to_datetime_string();
 
-        self.amount_in_base_token += amount_in_base_token;
+        self.amount_in_anchor_token += amount_in_anchor_token;
 
         self.take_profit_price = (self.take_profit_price * self.amount
             + take_profit_price * amount)

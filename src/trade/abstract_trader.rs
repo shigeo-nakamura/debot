@@ -104,7 +104,7 @@ pub struct BaseTrader {
     initial_amount: f64,
     allowance_factor: f64,
     tokens: Arc<Vec<Box<dyn Token>>>,
-    base_token: Arc<Box<dyn Token>>,
+    anchor_token: Arc<Box<dyn Token>>,
     dexes: Arc<Vec<Box<dyn Dex>>>,
     dry_run: bool,
     gas: f64,
@@ -120,7 +120,7 @@ impl BaseTrader {
         initial_amount: f64,
         allowance_factor: f64,
         tokens: Arc<Vec<Box<dyn Token>>>,
-        base_token: Arc<Box<dyn Token>>,
+        anchor_token: Arc<Box<dyn Token>>,
         dexes: Arc<Vec<Box<dyn Dex>>>,
         dry_run: bool,
         gas: f64,
@@ -134,7 +134,7 @@ impl BaseTrader {
             initial_amount,
             allowance_factor,
             tokens,
-            base_token,
+            anchor_token,
             dexes,
             dry_run,
             gas,
@@ -241,7 +241,7 @@ impl BaseTrader {
     pub async fn get_token_pair_prices(
         &self,
         dex: &Box<dyn Dex>,
-        base_token: &Box<dyn Token>,
+        anchor_token: &Box<dyn Token>,
         tokens: &Vec<Box<dyn Token>>,
         amount: f64,
     ) -> Vec<JoinHandle<Result<Option<(String, String, String, f64)>, Box<dyn Error + Send + Sync>>>>
@@ -249,7 +249,7 @@ impl BaseTrader {
         let mut get_price_futures = Vec::new();
 
         for token in tokens.iter() {
-            if token.symbol_name() == base_token.symbol_name() {
+            if token.symbol_name() == anchor_token.symbol_name() {
                 continue;
             }
 
@@ -257,11 +257,11 @@ impl BaseTrader {
             let fut_base = tokio::spawn({
                 let dex_arc = Arc::new(dex.clone());
                 let token_arc = Arc::new(token.clone());
-                let base_token_arc = Arc::new(base_token.clone());
+                let anchor_token_arc = Arc::new(anchor_token.clone());
                 async move {
                     let price_result = Self::fetch_token_prices(
                         &dex_arc,
-                        &base_token_arc,
+                        &anchor_token_arc,
                         &token_arc,
                         amount,
                         false,
@@ -276,12 +276,12 @@ impl BaseTrader {
             let fut_base = tokio::spawn({
                 let dex_arc = Arc::new(dex.clone());
                 let token_arc = Arc::new(token.clone());
-                let base_token_arc = Arc::new(base_token.clone());
+                let anchor_token_arc = Arc::new(anchor_token.clone());
                 async move {
                     let price_result = Self::fetch_token_prices(
                         &dex_arc,
                         &token_arc,
-                        &base_token_arc,
+                        &anchor_token_arc,
                         amount,
                         true,
                     )
@@ -300,18 +300,18 @@ impl BaseTrader {
         chain_name: &str,
         wallet_address: &Address,
     ) -> Option<f64> {
-        let mut total_amount_in_base_token = 0.0;
+        let mut total_amount_in_anchor_token = 0.0;
 
         for token in self.tokens().iter() {
             if let Ok(amount) = Self::get_amount_of_token(*wallet_address, token).await {
                 let dex_arc = Arc::new(self.dexes[0].clone());
                 let token_arc = Arc::new(token.clone());
-                let base_token_arc = Arc::new(self.base_token.clone());
+                let anchor_token_arc = Arc::new(self.anchor_token.clone());
 
                 log::debug!("{}: {:6.6}", token.symbol_name(), amount);
 
-                if token.symbol_name() == self.base_token.symbol_name() {
-                    total_amount_in_base_token += amount;
+                if token.symbol_name() == self.anchor_token.symbol_name() {
+                    total_amount_in_anchor_token += amount;
                     continue;
                 }
 
@@ -320,23 +320,23 @@ impl BaseTrader {
                 }
 
                 if let Some((_token_a_name, _token_b_name, _dex_name, price)) =
-                    Self::fetch_token_prices(&dex_arc, &base_token_arc, &token_arc, amount, false)
+                    Self::fetch_token_prices(&dex_arc, &anchor_token_arc, &token_arc, amount, false)
                         .await
                 {
-                    total_amount_in_base_token += amount * price;
+                    total_amount_in_anchor_token += amount * price;
                 }
             }
         }
 
-        log::info!("log_current_balance: {:6.6}", total_amount_in_base_token);
+        log::info!("log_current_balance: {:6.6}", total_amount_in_anchor_token);
 
         self.db_handler
             .lock()
             .await
-            .log_current_balance(chain_name, total_amount_in_base_token, self.prev_balance)
+            .log_current_balance(chain_name, total_amount_in_anchor_token, self.prev_balance)
             .await;
 
-        Some(total_amount_in_base_token)
+        Some(total_amount_in_anchor_token)
     }
 
     pub fn state(&self) -> TraderState {
@@ -355,8 +355,8 @@ impl BaseTrader {
         Arc::clone(&self.tokens)
     }
 
-    pub fn base_token(&self) -> Arc<Box<dyn Token>> {
-        Arc::clone(&self.base_token)
+    pub fn anchor_token(&self) -> Arc<Box<dyn Token>> {
+        Arc::clone(&self.anchor_token)
     }
 
     pub fn dexes(&self) -> Arc<Vec<Box<dyn Dex>>> {
@@ -401,7 +401,7 @@ pub trait AbstractTrader {
     async fn set_state(&mut self, state: TraderState);
     fn initial_amount(&self) -> f64;
     fn tokens(&self) -> Arc<Vec<Box<dyn Token>>>;
-    fn base_token(&self) -> Arc<Box<dyn Token>>;
+    fn anchor_token(&self) -> Arc<Box<dyn Token>>;
     fn dexes(&self) -> Arc<Vec<Box<dyn Dex>>>;
     fn name(&self) -> &str;
     fn db_handler(&self) -> &Arc<Mutex<DBHandler>>;

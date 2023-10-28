@@ -103,7 +103,7 @@ impl ForcastTrader {
         initial_amount: f64,
         allowance_factor: f64,
         tokens: Arc<Vec<Box<dyn Token>>>,
-        base_token: Arc<Box<dyn Token>>,
+        anchor_token: Arc<Box<dyn Token>>,
         dexes: Arc<Vec<Box<dyn Dex>>>,
         dry_run: bool,
         gas: f64,
@@ -225,7 +225,7 @@ impl ForcastTrader {
                 initial_amount,
                 allowance_factor,
                 tokens,
-                base_token,
+                anchor_token,
                 dexes,
                 dry_run,
                 gas,
@@ -255,7 +255,7 @@ impl ForcastTrader {
 
             for token in self.tokens().iter() {
                 let token_name = token.symbol_name();
-                if token_name == self.base_token().symbol_name() {
+                if token_name == self.anchor_token().symbol_name() {
                     continue;
                 }
 
@@ -357,7 +357,7 @@ impl ForcastTrader {
             current_prices,
             |token_name, current_prices, dex_name| {
                 let key = (
-                    self.base_token().symbol_name().to_owned(),
+                    self.anchor_token().symbol_name().to_owned(),
                     token_name.to_owned(),
                     dex_name.to_owned(),
                 );
@@ -378,7 +378,7 @@ impl ForcastTrader {
             |token_name, current_prices, dex_name| {
                 let key = (
                     token_name.to_owned(),
-                    self.base_token().symbol_name().to_owned(),
+                    self.anchor_token().symbol_name().to_owned(),
                     dex_name.to_owned(),
                 );
                 self.get_price(current_prices, &key, false)
@@ -464,7 +464,7 @@ impl ForcastTrader {
 
         for (token_name, prices) in current_prices {
             let token_a_index = self.get_token_index(token_name)?;
-            let token_b_index = self.get_token_index(self.base_token().symbol_name())?;
+            let token_b_index = self.get_token_index(self.anchor_token().symbol_name())?;
             let dex_index = self.get_dex_index(&prices.buy.dex_string)?;
 
             // Check if the prices are reliable
@@ -515,7 +515,7 @@ impl ForcastTrader {
                 find_index(&self.tokens(), |token| token.symbol_name() == token_name)
                     .ok_or("Token not found")?;
             let token_b_index = find_index(&self.tokens(), |token| {
-                token.symbol_name() == self.base_token().symbol_name()
+                token.symbol_name() == self.anchor_token().symbol_name()
             })
             .ok_or("Token not found")?;
             let dex_index = find_index(&self.dexes(), |dex| dex.name() == prices.sell.dex_string)
@@ -641,8 +641,8 @@ impl ForcastTrader {
     }
 
     pub async fn rebalance(&mut self, owner: Address) {
-        let base_token_amount =
-            match BaseTrader::get_amount_of_token(owner, &self.base_token()).await {
+        let anchor_token_amount =
+            match BaseTrader::get_amount_of_token(owner, &self.anchor_token()).await {
                 Ok(amount) => amount,
                 Err(e) => {
                     log::error!("rebalance failed: {:?}", e);
@@ -650,7 +650,7 @@ impl ForcastTrader {
                 }
             };
 
-        if base_token_amount == 0.0 {
+        if anchor_token_amount == 0.0 {
             log::warn!("rebalance: No balance left in {}", self.config.chain_name);
             return;
         }
@@ -658,7 +658,7 @@ impl ForcastTrader {
         if self.base_trader.dry_run() {
             self.state.amount = self.total_fund_amount();
         } else {
-            self.state.amount = base_token_amount;
+            self.state.amount = anchor_token_amount;
         }
 
         log::info!(
@@ -863,7 +863,7 @@ impl AbstractTrader for ForcastTrader {
         &self,
         amount: f64,
     ) -> Result<HashMap<(String, String, String), f64>, Box<dyn Error + Send + Sync>> {
-        let base_token = &self.base_token();
+        let anchor_token = &self.anchor_token();
         let dexes = &self.dexes();
         let tokens = &self.tokens();
 
@@ -872,7 +872,7 @@ impl AbstractTrader for ForcastTrader {
         for dex in dexes.iter() {
             let mut dex_get_price_futures = self
                 .base_trader
-                .get_token_pair_prices(&dex, base_token, tokens, amount)
+                .get_token_pair_prices(&dex, anchor_token, tokens, amount)
                 .await;
             get_price_futures.append(&mut dex_get_price_futures);
         }
@@ -932,8 +932,8 @@ impl AbstractTrader for ForcastTrader {
         self.base_trader.tokens()
     }
 
-    fn base_token(&self) -> Arc<Box<dyn Token>> {
-        self.base_trader.base_token()
+    fn anchor_token(&self) -> Arc<Box<dyn Token>> {
+        self.base_trader.anchor_token()
     }
 
     fn dexes(&self) -> Arc<Vec<Box<dyn Dex>>> {

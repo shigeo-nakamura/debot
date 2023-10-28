@@ -16,7 +16,7 @@ use trade::abstract_trader::BaseTrader;
 use trade::forecast_trader::TradingPeriod;
 use trade::{forecast_config, DexPrices, ForcastTrader, TradePosition, TransactionLog};
 
-use crate::blockchain_factory::{create_base_token, create_tokens};
+use crate::blockchain_factory::{create_anchor_token, create_tokens};
 use crate::trade::{AbstractTrader, DBHandler, TraderState};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -207,7 +207,7 @@ async fn prepare_algorithm_trader_instance(
         .expect("Error creating tokens");
 
     // Create a base token
-    let base_token = create_base_token(wallet_and_provider.clone(), &config.chain_params)
+    let anchor_token = create_anchor_token(wallet_and_provider.clone(), &config.chain_params)
         .await
         .expect("Error creating a base token");
 
@@ -221,7 +221,7 @@ async fn prepare_algorithm_trader_instance(
     };
 
     // Get base token amount
-    let mut initial_amount = BaseTrader::get_amount_of_token(wallet.address(), &base_token)
+    let mut initial_amount = BaseTrader::get_amount_of_token(wallet.address(), &anchor_token)
         .await
         .unwrap_or(config.min_managed_amount);
     log::info!("initia_amount = {:6.3}", initial_amount);
@@ -241,7 +241,7 @@ async fn prepare_algorithm_trader_instance(
         initial_amount * fund_weight,
         config.allowance_factor,
         tokens.clone(),
-        base_token.clone(),
+        anchor_token.clone(),
         dexes.clone(),
         config.dry_run,
         config.chain_params.gas,
@@ -426,7 +426,7 @@ async fn manage_token_amount<T: AbstractTrader>(
     }
 
     let current_amount =
-        match BaseTrader::get_amount_of_token(*wallet_address, &trader.base_token()).await {
+        match BaseTrader::get_amount_of_token(*wallet_address, &trader.anchor_token()).await {
             Ok(amount) => amount,
             Err(e) => {
                 log::error!("get_current_token_amount: {:?}", e);
@@ -438,7 +438,7 @@ async fn manage_token_amount<T: AbstractTrader>(
         let treasury = config.treasury.unwrap();
         let amount = current_amount - (config.max_managed_amount + config.min_managed_amount) / 2.0;
         match trader
-            .transfer_token(treasury, &trader.base_token(), amount)
+            .transfer_token(treasury, &trader.anchor_token(), amount)
             .await
         {
             Ok(()) => {

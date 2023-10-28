@@ -19,7 +19,7 @@ pub enum BlockChain {
 }
 
 #[derive(Clone)]
-pub struct BaseToken {
+pub struct AnchorToken {
     block_chain: BlockChain,
     provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
     address: Address,
@@ -30,7 +30,7 @@ pub struct BaseToken {
         Option<Contract<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>>,
 }
 
-impl BaseToken {
+impl AnchorToken {
     pub fn new(
         block_chain: BlockChain,
         provider: Arc<NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>>,
