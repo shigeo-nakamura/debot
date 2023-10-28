@@ -5,7 +5,7 @@ use crate::trade::trade_position::State;
 
 use super::abstract_trader::ReasonForSell;
 use super::trade_position::TakeProfitStrategy;
-use super::{DBHandler, DexPrices, PriceHistory, TradePosition, TradingStrategy};
+use super::{DBHandler, DexPrices, MarketData, TradePosition, TradingStrategy};
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;
@@ -151,7 +151,7 @@ impl FundManager {
         sell_price: f64,
         spread: f64,
         amount: f64,
-        histories: &mut HashMap<String, PriceHistory>,
+        histories: &mut HashMap<String, MarketData>,
     ) -> Option<TradeProposal> {
         if token_name != self.config.token_name {
             return None;
@@ -268,7 +268,7 @@ impl FundManager {
         token_name: &str,
         sell_price: f64,
         limitied_sell: bool,
-        _histories: &mut HashMap<String, PriceHistory>,
+        _histories: &mut HashMap<String, MarketData>,
     ) -> Option<TradeProposal> {
         if let Some(position) = self.state.open_positions.get(token_name) {
             let mut amount = 0.0;

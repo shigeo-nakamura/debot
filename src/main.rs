@@ -13,10 +13,8 @@ use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
 use trade::abstract_trader::BaseTrader;
 use trade::forecast_trader::TradingPeriod;
-use trade::price_history::PricePoint;
-use trade::{
-    forecast_config, DexPrices, ForcastTrader, PriceHistory, TradePosition, TransactionLog,
-};
+use trade::market_data::PricePoint;
+use trade::{forecast_config, DexPrices, ForcastTrader, MarketData, TradePosition, TransactionLog};
 
 use crate::blockchain_factory::{create_base_token, create_tokens};
 use crate::trade::{AbstractTrader, DBHandler, TraderState};
@@ -130,7 +128,7 @@ async fn prepare_trader_instances(
     WalletAndProvider,
     Address,
     &EnvConfig,
-    HashMap<String, PriceHistory>,
+    HashMap<String, MarketData>,
     ErrorManager,
 )> {
     // Read open positions from the DB
@@ -186,7 +184,7 @@ async fn prepare_algorithm_trader_instance(
     WalletAndProvider,
     Address,
     &EnvConfig,
-    HashMap<String, PriceHistory>,
+    HashMap<String, MarketData>,
     ErrorManager,
 ) {
     // Create a wallet and provider
@@ -270,7 +268,7 @@ async fn prepare_algorithm_trader_instance(
     );
 
     // Create and restore the price histories
-    let mut histories: HashMap<String, PriceHistory> = HashMap::new();
+    let mut histories: HashMap<String, MarketData> = HashMap::new();
     if config.load_prices {
         restore_histories(&mut histories, &trader, &price_histories);
     }
@@ -299,7 +297,7 @@ async fn main_loop(
         WalletAndProvider,
         Address,
         &EnvConfig,
-        HashMap<String, PriceHistory>,
+        HashMap<String, MarketData>,
         ErrorManager,
     )>,
     configs: &[EnvConfig],
@@ -486,7 +484,7 @@ async fn handle_sleep_and_signal(interval: f64) -> Result<(), &'static str> {
 }
 
 fn restore_histories(
-    histories: &mut HashMap<String, PriceHistory>,
+    histories: &mut HashMap<String, MarketData>,
     trader: &ForcastTrader,
     price_histories: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
 ) {

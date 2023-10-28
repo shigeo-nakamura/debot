@@ -40,7 +40,7 @@ impl PricePoint {
 }
 
 #[derive(Debug, Clone)]
-pub struct PriceHistory {
+pub struct MarketData {
     name: String,
     prices: Vec<PricePoint>,
     last_price: f64,
@@ -68,7 +68,7 @@ pub enum TradingStrategy {
     TrendFollowing,
 }
 
-impl PriceHistory {
+impl MarketData {
     pub fn new(
         name: String,
         short_period: usize,
@@ -76,8 +76,8 @@ impl PriceHistory {
         long_period: usize,
         max_size: usize,
         interval: u64,
-    ) -> PriceHistory {
-        PriceHistory {
+    ) -> MarketData {
+        MarketData {
             name,
             prices: Vec::with_capacity(max_size),
             last_price: 0.0,

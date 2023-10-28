@@ -10,7 +10,7 @@ use std::{collections::HashMap, sync::Arc, time::SystemTime};
 use tokio::sync::Mutex;
 
 use super::{
-    price_history::PricePoint,
+    market_data::PricePoint,
     transaction_log::{PerformanceLog, PriceLog},
     TradePosition, TraderState,
 };

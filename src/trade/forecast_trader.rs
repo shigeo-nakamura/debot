@@ -33,7 +33,7 @@ use super::FundManager;
 use super::Operation;
 use super::TradePosition;
 use super::TransactionLog;
-use super::{PriceHistory, TradeOpportunity};
+use super::{MarketData, TradeOpportunity};
 
 #[derive(Clone)]
 pub struct TradingPeriod {
@@ -268,7 +268,7 @@ impl ForcastTrader {
     async fn get_current_prices(
         &self,
         amount: f64,
-        histories: &mut HashMap<String, PriceHistory>,
+        histories: &mut HashMap<String, MarketData>,
     ) -> Result<HashMap<String, DexPrices>, Box<dyn Error + Send + Sync>> {
         let mut current_prices: HashMap<String, DexPrices> = HashMap::new();
 
@@ -478,7 +478,7 @@ impl ForcastTrader {
         &self,
         amount: f64,
         current_prices: &HashMap<String, DexPrices>,
-        histories: &mut HashMap<String, PriceHistory>,
+        histories: &mut HashMap<String, MarketData>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
 
@@ -530,7 +530,7 @@ impl ForcastTrader {
     fn find_sell_opportunities(
         &self,
         current_prices: &HashMap<String, DexPrices>,
-        histories: &mut HashMap<String, PriceHistory>,
+        histories: &mut HashMap<String, MarketData>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut opportunities: Vec<TradeOpportunity> = vec![];
 
@@ -584,7 +584,7 @@ impl ForcastTrader {
     pub async fn find_opportunities(
         &self,
         amount: f64,
-        histories: &mut HashMap<String, PriceHistory>,
+        histories: &mut HashMap<String, MarketData>,
     ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
         let mut results: Vec<TradeOpportunity> = vec![];
 
@@ -731,8 +731,8 @@ impl ForcastTrader {
         }
     }
 
-    pub fn create_price_history(&self) -> PriceHistory {
-        PriceHistory::new(
+    pub fn create_price_history(&self) -> MarketData {
+        MarketData::new(
             self.config.chain_name.to_owned(),
             self.config.short_trade_period,
             self.config.medium_trade_period,

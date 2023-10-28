@@ -1,6 +1,6 @@
 // transaction_log.rs
 
-use super::{price_history::PricePoint, TradePosition, TraderState};
+use super::{market_data::PricePoint, TradePosition, TraderState};
 use crate::db::{
     insert_item,
     item::{search_items, update_item},
