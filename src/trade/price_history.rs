@@ -13,17 +13,17 @@ pub struct PricePoint {
     pub timestamp_str: String,
     relative_timestamp: Option<i64>,
     pub price: f64,
-    pub sentiment: f64,
-    pub sentiment_moving_avg_short: f64,
-    pub sentiment_moving_avg_long: f64,
+    pub momentum: f64,
+    pub momentum_moving_avg_short: f64,
+    pub momentum_moving_avg_long: f64,
 }
 
 impl PricePoint {
     pub fn new(
         price: f64,
-        sentiment: f64,
-        sentiment_moving_avg_short: f64,
-        sentiment_moving_avg_long: f64,
+        momentum: f64,
+        momentum_moving_avg_short: f64,
+        momentum_moving_avg_long: f64,
         timestamp: Option<i64>,
     ) -> Self {
         let time = timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp());
@@ -32,9 +32,9 @@ impl PricePoint {
             timestamp_str: time.to_datetime_string(),
             relative_timestamp: None,
             price,
-            sentiment,
-            sentiment_moving_avg_short,
-            sentiment_moving_avg_long,
+            momentum,
+            momentum_moving_avg_short,
+            momentum_moving_avg_long,
         }
     }
 }
@@ -56,9 +56,9 @@ pub struct PriceHistory {
     max_size: usize,
     interval: u64,
     first_timestamp: Option<i64>,
-    sentiment: f64,
-    sentiment_moving_avg_short: f64,
-    sentiment_moving_avg_long: f64,
+    momentum: f64,
+    momentum_moving_avg_short: f64,
+    momentum_moving_avg_long: f64,
     atr: HashMap<usize, f64>,
 }
 
@@ -93,9 +93,9 @@ impl PriceHistory {
             max_size,
             interval,
             first_timestamp: None,
-            sentiment: 0.0,
-            sentiment_moving_avg_short: 0.0,
-            sentiment_moving_avg_long: 0.0,
+            momentum: 0.0,
+            momentum_moving_avg_short: 0.0,
+            momentum_moving_avg_long: 0.0,
             atr: HashMap::new(),
         }
     }
@@ -108,8 +108,8 @@ impl PriceHistory {
         self.atr.get(&period).copied()
     }
 
-    pub fn sentiment(&self) -> f64 {
-        self.sentiment
+    pub fn momentum(&self) -> f64 {
+        self.momentum
     }
 
     pub fn add_price(&mut self, price: f64, timestamp: Option<i64>) -> PricePoint {
@@ -119,9 +119,9 @@ impl PriceHistory {
 
         let mut price_point = PricePoint::new(
             price,
-            self.sentiment,
-            self.sentiment_moving_avg_short,
-            self.sentiment_moving_avg_long,
+            self.momentum,
+            self.momentum_moving_avg_short,
+            self.momentum_moving_avg_long,
             timestamp,
         );
 
@@ -144,16 +144,16 @@ impl PriceHistory {
         };
 
         let alpha_short = 0.02;
-        self.sentiment_moving_avg_short =
-            (1.0 - alpha_short) * self.sentiment_moving_avg_short + alpha_short * self.sentiment;
+        self.momentum_moving_avg_short =
+            (1.0 - alpha_short) * self.momentum_moving_avg_short + alpha_short * self.momentum;
 
         let alpha_long = 0.002;
-        self.sentiment_moving_avg_long =
-            (1.0 - alpha_long) * self.sentiment_moving_avg_long + alpha_long * self.sentiment;
+        self.momentum_moving_avg_long =
+            (1.0 - alpha_long) * self.momentum_moving_avg_long + alpha_long * self.momentum;
 
         self.update_ema(price, price_point.timestamp, prev_timestamp);
         self.update_rsi();
-        self.update_market_sentiment(price);
+        self.update_market_momentum(price);
         self.last_price = price;
 
         price_point
@@ -220,7 +220,7 @@ impl PriceHistory {
         }
     }
 
-    pub fn combine_market_sentiment(
+    pub fn combine_market_momentum(
         ema_short: &mut TrendValue,
         ema_medium: &mut TrendValue,
         ema_long: &mut TrendValue,
@@ -258,8 +258,8 @@ impl PriceHistory {
         0.5 * (bull_ratio - bear_ratio)
     }
 
-    fn update_market_sentiment(&mut self, price: f64) {
-        let new_sentiment = Self::combine_market_sentiment(
+    fn update_market_momentum(&mut self, price: f64) {
+        let new_momentum = Self::combine_market_momentum(
             &mut self.ema_short,
             &mut self.ema_medium,
             &mut self.ema_long,
@@ -269,14 +269,14 @@ impl PriceHistory {
         );
 
         let alpha = 0.1;
-        let smoothed_sentiment = (1.0 - alpha) * self.sentiment + alpha * new_sentiment;
-        self.sentiment = smoothed_sentiment;
+        let smoothed_momentum = (1.0 - alpha) * self.momentum + alpha * new_momentum;
+        self.momentum = smoothed_momentum;
 
         log::debug!(
             "{}:{:6.2}({:0.2}) {:6.2}[{:?},{:2.1}({:?})] {:6.2}[{:?},{:2.1}({:?})] {:6.2}[{:?},{:2.1}({:?})]",
             self.name,
             price,
-            self.sentiment,
+            self.momentum,
             self.ema_short.current.clone(),
             self.ema_short.is_up(),
             self.rsi_short.current.clone(),
@@ -292,7 +292,7 @@ impl PriceHistory {
         );
     }
 
-    pub fn calculate_sentiment_stats(&self, mut period: usize) -> Option<(f64, f64)> {
+    pub fn calculate_momentum_stats(&self, mut period: usize) -> Option<(f64, f64)> {
         let n = self.prices.len();
         const SECONDS_IN_A_DAY: u32 = 60 * 60 * 24;
         let max_period: usize = (SECONDS_IN_A_DAY / self.interval as u32)
@@ -309,14 +309,11 @@ impl PriceHistory {
         let last_prices = &self.prices[n - period..];
 
         // Calculate average
-        let sum: f64 = last_prices.iter().map(|x| x.sentiment).sum();
+        let sum: f64 = last_prices.iter().map(|x| x.momentum).sum();
         let avg = sum / (period as f64);
 
         // Calculate standard deviation
-        let sum_of_squares: f64 = last_prices
-            .iter()
-            .map(|x| (x.sentiment - avg).powi(2))
-            .sum();
+        let sum_of_squares: f64 = last_prices.iter().map(|x| (x.momentum - avg).powi(2)).sum();
         let std_dev = (sum_of_squares / (period as f64)).sqrt();
 
         log::trace!("avg = {}, std_dev = {}", avg, std_dev);
@@ -329,15 +326,15 @@ impl PriceHistory {
         let ema = self.calculate_ema(period);
         let diff = ema - price;
 
-        let status = self.calculate_sentiment_stats(period);
-        let change = self.sentiment - self.sentiment_moving_avg_long;
+        let status = self.calculate_momentum_stats(period);
+        let change = self.momentum - self.momentum_moving_avg_long;
 
         let prescaler = if status == None || change > -0.2 {
             return price;
         } else {
             let avg = status.unwrap().0;
             let std = status.unwrap().1;
-            if self.sentiment < avg - std * 1.2 {
+            if self.momentum < avg - std * 1.2 {
                 2.0
             } else {
                 1.0

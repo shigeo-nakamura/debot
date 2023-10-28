@@ -54,7 +54,7 @@ pub struct TradeOpportunity {
     pub currect_price: Option<f64>,
     pub predicted_price: Option<f64>,
     pub atr: Option<f64>,
-    pub sentiment: Option<f64>,
+    pub momentum: Option<f64>,
 }
 
 impl TradeOpportunity {

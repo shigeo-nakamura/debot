@@ -55,7 +55,7 @@ pub struct TradeProposal {
     pub fund_name: String,
     pub reason_for_sell: Option<ReasonForSell>,
     pub atr: Option<f64>,
-    pub sentiment: Option<f64>,
+    pub momentum: Option<f64>,
 }
 
 impl FundManager {
@@ -233,7 +233,7 @@ impl FundManager {
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell: None,
                     atr,
-                    sentiment: Some(history.sentiment()),
+                    momentum: Some(history.momentum()),
                 });
             }
         }
@@ -307,7 +307,7 @@ impl FundManager {
                     fund_name: self.config.name.to_owned(),
                     reason_for_sell,
                     atr: None,
-                    sentiment: None,
+                    momentum: None,
                 });
             }
         }
@@ -341,7 +341,7 @@ impl FundManager {
         amount_in: f64,
         amount_out: f64,
         atr: Option<f64>,
-        sentiment: Option<f64>,
+        momentum: Option<f64>,
         predicted_price: Option<f64>,
     ) {
         log::debug!(
@@ -391,7 +391,7 @@ impl FundManager {
                     amount_out,
                     amount_in,
                     atr,
-                    sentiment,
+                    momentum,
                     predicted_price,
                 );
                 position.id = self
