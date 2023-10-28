@@ -707,15 +707,6 @@ impl ForcastTrader {
             }
         }
 
-        if changed {
-            self.base_trader
-                .db_handler()
-                .lock()
-                .await
-                .log_performance(self.name(), self.state.scores.clone())
-                .await;
-        }
-
         if !changed && !force_rebalance {
             return;
         }

@@ -9,11 +9,7 @@ use shared_mongodb::ClientHolder;
 use std::{collections::HashMap, sync::Arc, time::SystemTime};
 use tokio::sync::Mutex;
 
-use super::{
-    market_data::PricePoint,
-    transaction_log::{PerformanceLog, PriceLog},
-    TradePosition, TraderState,
-};
+use super::{market_data::PricePoint, transaction_log::PriceLog, TradePosition};
 
 pub struct DBHandler {
     client_holder: Arc<Mutex<ClientHolder>>,
@@ -117,41 +113,6 @@ impl DBHandler {
 
     pub fn increment_counter(&self, counter_type: CounterType) -> Option<u32> {
         Some(self.transaction_log.increment_counter(counter_type))
-    }
-
-    pub async fn log_performance(&self, trader_name: &str, scores: HashMap<String, f64>) {
-        if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
-            let mut item = PerformanceLog::default();
-            item.id = self.increment_counter(CounterType::Performance);
-            item.trader_name = trader_name.to_owned();
-            item.scores = scores.clone();
-            if let Err(e) = TransactionLog::update_performance(&db, item).await {
-                log::error!("log_performance: {:?}", e);
-            }
-
-            // store the latest scores
-            if let Err(e) = TransactionLog::update_app_state(
-                &db,
-                None,
-                &String::new(),
-                None,
-                false,
-                None,
-                Some((trader_name.to_string(), scores)),
-            )
-            .await
-            {
-                log::warn!("log_performance: {:?}", e);
-            }
-        }
-    }
-
-    pub async fn log_trader_state(&self, name: &str, state: TraderState) {
-        if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
-            if let Err(e) = TransactionLog::update_trader_state(&db, name.to_owned(), state).await {
-                log::error!("log_trader_state: {:?}", e);
-            }
-        }
     }
 
     pub async fn get_last_scores(

@@ -345,12 +345,6 @@ impl BaseTrader {
 
     pub async fn set_state(&mut self, state: TraderState) {
         self.state = state;
-
-        self.db_handler
-            .lock()
-            .await
-            .log_trader_state(&self.name, self.state.clone())
-            .await;
     }
 
     pub fn initial_amount(&self) -> f64 {

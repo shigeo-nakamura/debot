@@ -196,14 +196,6 @@ impl TransactionLog {
         Ok(())
     }
 
-    pub async fn update_performance(
-        db: &Database,
-        item: PerformanceLog,
-    ) -> Result<(), Box<dyn error::Error>> {
-        update_item(db, &item).await?;
-        Ok(())
-    }
-
     pub async fn update_price(db: &Database, item: PriceLog) -> Result<(), Box<dyn error::Error>> {
         update_item(db, &item).await?;
         Ok(())
@@ -307,22 +299,5 @@ impl TransactionLog {
         chain_name: &str,
     ) -> Result<(), Box<dyn error::Error>> {
         TransactionLog::update_app_state(&db, None, chain_name, None, true, None, None).await
-    }
-
-    pub async fn update_trader_state(
-        db: &Database,
-        name: String,
-        state: TraderState,
-    ) -> Result<(), Box<dyn error::Error>> {
-        TransactionLog::update_app_state(
-            &db,
-            None,
-            &String::new(),
-            None,
-            true,
-            Some((name, state)),
-            None,
-        )
-        .await
     }
 }
