@@ -8,7 +8,7 @@ use crate::db::{
 };
 use crate::db::{search_item, Counter, CounterType};
 use debot_market_analyzer::PricePoint;
-use debot_utils::{DateTimeUtils, ToDateTimeString};
+use debot_utils::{DateTimeUtils, HasId, ToDateTimeString};
 use mongodb::Database;
 use serde::{Deserialize, Serialize};
 use shared_mongodb::{database, ClientHolder};
@@ -16,10 +16,6 @@ use std::collections::HashMap;
 use std::error;
 use std::sync::Arc;
 use std::time::SystemTime;
-
-pub trait HasId {
-    fn id(&self) -> Option<u32>;
-}
 
 async fn get_last_id<T: Default + Entity + HasId>(db: &Database) -> u32 {
     let item = T::default();

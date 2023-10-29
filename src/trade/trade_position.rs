@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::{abstract_trader::ReasonForSell, HasId};
-use debot_utils::{DateTimeUtils, ToDateTimeString};
+use super::abstract_trader::ReasonForSell;
+use debot_utils::{DateTimeUtils, HasId, ToDateTimeString};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub enum TakeProfitStrategy {

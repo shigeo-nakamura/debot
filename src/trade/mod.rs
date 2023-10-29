@@ -23,5 +23,4 @@ pub use fund_manager::FundManager;
 pub use trade_position::TakeProfitStrategy;
 pub use trade_position::TradePosition;
 pub use transaction_log::BalanceLog;
-pub use transaction_log::HasId;
 pub use transaction_log::TransactionLog;
