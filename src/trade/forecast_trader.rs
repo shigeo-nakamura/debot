@@ -4,6 +4,8 @@ use chrono::Datelike;
 use chrono::Local;
 use chrono::Weekday;
 use debot_market_analyzer::MarketData;
+use debot_position_manager::ReasonForClose;
+use debot_position_manager::TradePosition;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
@@ -25,7 +27,6 @@ use shared_mongodb::ClientHolder;
 use tokio::time::{timeout, Duration};
 
 use super::abstract_trader::BaseTrader;
-use super::abstract_trader::ReasonForSell;
 use super::abstract_trader::TraderState;
 use super::fund_config;
 use super::fund_config::TradingStyle;
@@ -33,7 +34,6 @@ use super::DBHandler;
 use super::FundManager;
 use super::Operation;
 use super::TradeOpportunity;
-use super::TradePosition;
 use super::TransactionLog;
 
 #[derive(Clone)]
@@ -846,7 +846,7 @@ impl AbstractTrader for ForcastTrader {
                     .await;
 
                 match opportunity.reason_for_sell {
-                    Some(ReasonForSell::CutLoss) => {
+                    Some(ReasonForClose::CutLoss) => {
                         self.state.last_loss_cut_time = chrono::Utc::now().timestamp()
                     }
                     _ => {}

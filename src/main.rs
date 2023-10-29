@@ -4,6 +4,7 @@ use blockchain_factory::create_dexes;
 use config::EnvConfig;
 use db::create_unique_index;
 use debot_market_analyzer::{MarketData, PricePoint};
+use debot_position_manager::TradePosition;
 use error_manager::ErrorManager;
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Address;
@@ -14,7 +15,7 @@ use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
 use trade::abstract_trader::BaseTrader;
 use trade::forecast_trader::TradingPeriod;
-use trade::{forecast_config, DexPrices, ForcastTrader, TradePosition, TransactionLog};
+use trade::{forecast_config, DexPrices, ForcastTrader, TransactionLog};
 
 use crate::blockchain_factory::{create_anchor_token, create_tokens};
 use crate::trade::{AbstractTrader, DBHandler, TraderState};

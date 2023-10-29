@@ -1,12 +1,10 @@
 // fund_manager.rs
 
 use crate::db::CounterType;
-use crate::trade::trade_position::State;
 
-use super::abstract_trader::ReasonForSell;
-use super::trade_position::TakeProfitStrategy;
-use super::{DBHandler, DexPrices, TradePosition};
+use super::{DBHandler, DexPrices};
 use debot_market_analyzer::{MarketData, TradingStrategy};
+use debot_position_manager::{ReasonForClose, TradePosition, TakeProfitStrategy, State};
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;
@@ -50,7 +48,7 @@ pub struct TradeProposal {
     pub execution_price: f64,
     pub amount: f64,
     pub fund_name: String,
-    pub reason_for_sell: Option<ReasonForSell>,
+    pub reason_for_sell: Option<ReasonForClose>,
     pub atr: Option<f64>,
     pub momentum: Option<f64>,
 }
@@ -273,7 +271,7 @@ impl FundManager {
                     token_name,
                     sell_price
                 );
-                reason_for_sell = Some(ReasonForSell::Liquidated);
+                reason_for_sell = Some(ReasonForClose::Liquidated);
             } else {
                 reason_for_sell = position.is_expired(max_holding_interval);
             }
@@ -325,7 +323,7 @@ impl FundManager {
     pub async fn update_position(
         &mut self,
         is_buy_trade: bool,
-        reason_for_sell: Option<ReasonForSell>,
+        reason_for_sell: Option<ReasonForClose>,
         token_name: &str,
         amount_in: f64,
         amount_out: f64,
@@ -409,11 +407,11 @@ impl FundManager {
                 let sold_price = amount_out / amount_in;
 
                 let new_state = match reason_for_sell.unwrap() {
-                    ReasonForSell::Liquidated => State::Liquidated,
-                    ReasonForSell::Expired => State::Expired,
-                    ReasonForSell::TakeProfit => State::TookProfit,
-                    ReasonForSell::CutLoss => State::CutLoss,
-                    ReasonForSell::Close => State::Closed,
+                    ReasonForClose::Liquidated => State::Liquidated,
+                    ReasonForClose::Expired => State::Expired,
+                    ReasonForClose::TakeProfit => State::TookProfit,
+                    ReasonForClose::CutLoss => State::CutLoss,
+                    ReasonForClose::Other => State::Closed,
                 };
 
                 position.del(sold_price, amount_in, new_state);

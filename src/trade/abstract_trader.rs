@@ -1,6 +1,7 @@
 // abstract_trader.rs
 
 use async_trait::async_trait;
+use debot_position_manager::ReasonForClose;
 use ethers::{
     prelude::LocalWallet,
     types::{Address, U256},
@@ -33,15 +34,6 @@ pub enum Operation {
     Sell,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ReasonForSell {
-    Liquidated,
-    Expired,
-    TakeProfit,
-    CutLoss,
-    Close,
-}
-
 #[derive(Debug, Clone)]
 pub struct TradeOpportunity {
     pub trader_name: String,
@@ -49,7 +41,7 @@ pub struct TradeOpportunity {
     pub token_index: Vec<usize>,
     pub amounts: Vec<f64>,
     pub operation: Operation,
-    pub reason_for_sell: Option<ReasonForSell>,
+    pub reason_for_sell: Option<ReasonForClose>,
     pub predicted_profit: Option<f64>,
     pub currect_price: Option<f64>,
     pub predicted_price: Option<f64>,

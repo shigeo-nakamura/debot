@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use bson::Document;
+use debot_position_manager::TradePosition;
 use futures::stream::TryStreamExt;
 use mongodb::bson::doc;
 use mongodb::options::*;
@@ -14,7 +15,6 @@ use crate::trade::transaction_log::AppState;
 use crate::trade::transaction_log::PerformanceLog;
 use crate::trade::transaction_log::PriceLog;
 use crate::trade::BalanceLog;
-use crate::trade::TradePosition;
 
 #[async_trait]
 pub trait Entity {

@@ -899,6 +899,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "debot-market-analyzer",
+ "debot-position-manager",
  "debot-utils",
  "env_logger",
  "ethers",
@@ -928,6 +929,18 @@ name = "debot-market-analyzer"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9bc4d6f49d6d5644aaf44c53912e279a46361cdaea431fe78fdff49a3adf6e47"
+dependencies = [
+ "chrono",
+ "debot-utils",
+ "log",
+ "serde",
+]
+
+[[package]]
+name = "debot-position-manager"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2c5040f7357c1d60658737e039f1e9ce2ef8a6ef71579e632f7b169d9af647a"
 dependencies = [
  "chrono",
  "debot-utils",

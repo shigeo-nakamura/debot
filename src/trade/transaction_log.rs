@@ -1,6 +1,6 @@
 // transaction_log.rs
 
-use super::{TradePosition, TraderState};
+use super::TraderState;
 use crate::db::{
     insert_item,
     item::{search_items, update_item},
@@ -8,6 +8,7 @@ use crate::db::{
 };
 use crate::db::{search_item, Counter, CounterType};
 use debot_market_analyzer::PricePoint;
+use debot_position_manager::TradePosition;
 use debot_utils::{DateTimeUtils, HasId, ToDateTimeString};
 use mongodb::Database;
 use serde::{Deserialize, Serialize};

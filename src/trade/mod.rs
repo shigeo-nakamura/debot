@@ -7,7 +7,6 @@ pub mod forecast_config;
 pub mod forecast_trader;
 mod fund_config;
 pub mod fund_manager;
-pub mod trade_position;
 pub mod transaction_log;
 
 pub use abstract_trader::find_index;
@@ -20,7 +19,5 @@ pub use db_handler::DBHandler;
 pub use forecast_trader::DexPrices;
 pub use forecast_trader::ForcastTrader;
 pub use fund_manager::FundManager;
-pub use trade_position::TakeProfitStrategy;
-pub use trade_position::TradePosition;
 pub use transaction_log::BalanceLog;
 pub use transaction_log::TransactionLog;
