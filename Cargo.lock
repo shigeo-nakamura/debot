@@ -898,6 +898,7 @@ dependencies = [
  "bson",
  "chrono",
  "chrono-tz",
+ "debot-ether-utils",
  "debot-market-analyzer",
  "debot-position-manager",
  "debot-utils",
@@ -922,6 +923,19 @@ dependencies = [
  "tokio",
  "url",
  "web3",
+]
+
+[[package]]
+name = "debot-ether-utils"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ead6d63c6e4e8ca5835dc6fbff0fb2add1010b3f88baf1cf2c2cddab53d372c"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "ethers",
+ "ethers-middleware",
+ "log",
 ]
 
 [[package]]
@@ -5083,18 +5097,18 @@ checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
 
 [[package]]
 name = "zerocopy"
-version = "0.7.18"
+version = "0.7.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ede7d7c7970ca2215b8c1ccf4d4f354c4733201dfaaba72d44ae5b37472e4901"
+checksum = "7f2bd783c6247b80c3ac2267afe3042452f184478184264e0c1532bbf59adcb7"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.7.18"
+version = "0.7.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b27b1bb92570f989aac0ab7e9cbfbacdd65973f7ee920d9f0e71ebac878fd0b"
+checksum = "56feebc4664bdb37f39c0b1b8fc8fa2f5648e3ec5f9cf4344978b4b7ca561fff"
 dependencies = [
  "proc-macro2",
  "quote",

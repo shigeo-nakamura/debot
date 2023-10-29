@@ -28,10 +28,8 @@ mod addresses;
 mod blockchain_factory;
 mod config;
 mod db;
-mod dex;
 mod error_manager;
 mod kws_decrypt;
-mod token;
 mod trade;
 mod wallet;
 

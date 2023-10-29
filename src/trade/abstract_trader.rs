@@ -1,6 +1,7 @@
 // abstract_trader.rs
 
 use async_trait::async_trait;
+use debot_ether_utils::{dex::dex::TokenPair, Dex, Token};
 use debot_position_manager::ReasonForClose;
 use ethers::{
     prelude::LocalWallet,
@@ -13,11 +14,6 @@ use ethers_middleware::{
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, error::Error, sync::Arc};
 use tokio::{sync::Mutex, task::JoinHandle};
-
-use crate::{
-    dex::{dex::TokenPair, Dex},
-    token::Token,
-};
 
 use super::DBHandler;
 

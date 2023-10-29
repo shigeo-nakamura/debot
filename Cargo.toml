@@ -38,6 +38,7 @@ chrono-tz = "0.8.2"
 debot-utils ="0.1.2"
 debot-market-analyzer ="0.1.4"
 debot-position-manager ="0.1.0"
+debot-ether-utils ="0.1.1"
 
 [dependencies.mongodb]
 version = "2.2.1"

@@ -4,7 +4,7 @@ use crate::db::CounterType;
 
 use super::{DBHandler, DexPrices};
 use debot_market_analyzer::{MarketData, TradingStrategy};
-use debot_position_manager::{ReasonForClose, TradePosition, TakeProfitStrategy, State};
+use debot_position_manager::{ReasonForClose, State, TakeProfitStrategy, TradePosition};
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;

@@ -1,12 +1,11 @@
 // arbitrage_trader.rs
 
+use debot_ether_utils::{Dex, Token};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::dex::Dex;
-use crate::token::Token;
 use crate::trade::find_index;
 
 use async_trait::async_trait;

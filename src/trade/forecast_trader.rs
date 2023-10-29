@@ -3,6 +3,9 @@
 use chrono::Datelike;
 use chrono::Local;
 use chrono::Weekday;
+use debot_ether_utils::dex::dex::TokenPair;
+use debot_ether_utils::Dex;
+use debot_ether_utils::Token;
 use debot_market_analyzer::MarketData;
 use debot_position_manager::ReasonForClose;
 use debot_position_manager::TradePosition;
@@ -11,9 +14,6 @@ use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::dex::dex::TokenPair;
-use crate::dex::Dex;
-use crate::token::Token;
 use crate::trade::find_index;
 use crate::trade::AbstractTrader;
 
