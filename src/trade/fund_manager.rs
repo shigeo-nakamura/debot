@@ -203,7 +203,7 @@ impl FundManager {
 
                 return Some(TradeChance {
                     predicted_price: Some(predicted_price),
-                    current_price: Some(buy_price),
+                    price: Some(buy_price),
                     amounts: vec![trading_amount],
                     trader_name: self.config.name.to_owned(),
                     atr,
@@ -278,7 +278,7 @@ impl FundManager {
             if amount > 0.0 {
                 return Some(TradeChance {
                     predicted_price: None,
-                    current_price: Some(sell_price),
+                    price: Some(sell_price),
                     amounts: vec![amount],
                     trader_name: self.config.name.to_owned(),
                     reason_for_close,
@@ -314,7 +314,7 @@ impl FundManager {
 
     pub async fn update_position(
         &mut self,
-        is_buy_trade: bool,
+        trade_action: TradeAction,
         reason_for_sell: Option<ReasonForClose>,
         token_name: &str,
         amount_in: f64,
@@ -328,7 +328,8 @@ impl FundManager {
             amount_in,
             amount_out
         );
-        if is_buy_trade {
+
+        if trade_action.is_open() {
             if atr.is_none() {
                 log::info!("No ATR");
                 return;
@@ -337,9 +338,19 @@ impl FundManager {
             self.state.amount -= amount_in;
 
             let average_price = amount_in / amount_out;
-            let cut_loss_price = average_price - atr.unwrap() / 2.0;
-            let distance = (average_price - cut_loss_price) * self.config.risk_reward;
-            let take_profit_price = average_price + distance;
+
+            let cut_loss_price;
+            let distance;
+            let take_profit_price;
+            if trade_action.is_buy() {
+                cut_loss_price = average_price - atr.unwrap() / 2.0;
+                distance = (average_price - cut_loss_price) * self.config.risk_reward;
+                take_profit_price = average_price + distance;
+            } else {
+                cut_loss_price = average_price + atr.unwrap() / 2.0;
+                distance = (cut_loss_price - average_price) * self.config.risk_reward;
+                take_profit_price = average_price - distance;
+            }
 
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
                 // if there are already open positions for this token, update them
@@ -363,8 +374,9 @@ impl FundManager {
                 let mut position = TradePosition::new(
                     token_name,
                     self.name(),
-                    TakeProfitStrategy::TrailingStop,
+                    TakeProfitStrategy::FixedThreshold,
                     average_price,
+                    trade_action.is_buy(),
                     take_profit_price,
                     cut_loss_price,
                     amount_out,

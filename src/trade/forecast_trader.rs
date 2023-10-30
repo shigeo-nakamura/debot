@@ -488,7 +488,7 @@ impl ForcastTrader {
                         token_index: vec![token_b_index, token_a_index],
                         amounts: proposal.amounts,
                         action: TradeAction::BuyOpen,
-                        current_price: proposal.current_price,
+                        price: proposal.price,
                         predicted_price: proposal.predicted_price,
                         trader_name: proposal.trader_name.to_owned(),
                         reason_for_close: None,
@@ -537,7 +537,7 @@ impl ForcastTrader {
                         token_index: vec![token_a_index, token_b_index],
                         amounts: proposal.amounts,
                         action: TradeAction::SellClose,
-                        current_price: proposal.current_price,
+                        price: proposal.price,
                         predicted_price: proposal.predicted_price,
                         trader_name: proposal.trader_name.to_owned(),
                         reason_for_close: proposal.reason_for_close,
@@ -804,9 +804,7 @@ impl AbstractTrader for ForcastTrader {
 
             let token_a_name = token_a.symbol_name();
             let token_b_name = token_b.symbol_name();
-            let current_price = opportunity.current_price.unwrap();
-
-            let is_buy_trade = opportunity.action == TradeAction::BuyOpen;
+            let current_price = opportunity.price.unwrap();
 
             let fund_manager = self
                 .state
@@ -814,11 +812,11 @@ impl AbstractTrader for ForcastTrader {
                 .get_mut(&opportunity.trader_name)
                 .unwrap();
 
-            if is_buy_trade {
+            if opportunity.action.is_open() {
                 let amount_out = amount_in / current_price;
                 fund_manager
                     .update_position(
-                        is_buy_trade,
+                        opportunity.action.clone(),
                         None,
                         token_b_name,
                         amount_in,
@@ -832,7 +830,7 @@ impl AbstractTrader for ForcastTrader {
                 let amount_out = amount_in * current_price;
                 fund_manager
                     .update_position(
-                        is_buy_trade,
+                        opportunity.action.clone(),
                         opportunity.reason_for_close.clone(),
                         token_a_name,
                         amount_in,
