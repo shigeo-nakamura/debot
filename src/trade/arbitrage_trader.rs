@@ -1,6 +1,7 @@
 // arbitrage_trader.rs
 
 use debot_ether_utils::{Dex, Token};
+use debot_position_manager::{TradeAction, TradeChance};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::Arc;
@@ -17,7 +18,7 @@ use ethers_middleware::NonceManagerMiddleware;
 use shared_mongodb::ClientHolder;
 
 use super::abstract_trader::{BaseTrader, TraderState};
-use super::{AbstractTrader, DBHandler, Operation, TradeOpportunity, TransactionLog};
+use super::{AbstractTrader, DBHandler, TransactionLog};
 pub struct ArbitrageTrader {
     base_trader: BaseTrader,
     num_swaps: usize,
@@ -222,7 +223,7 @@ impl ArbitrageTrader {
         &self,
         paths: &Vec<Vec<(Box<dyn Token>, Box<dyn Dex>)>>,
         amount: f64,
-    ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
+    ) -> Result<Vec<TradeChance>, Box<dyn Error + Send + Sync>> {
         // Get the prices of all token pairs
         let token_pair_prices = self.get_token_pair_prices(amount).await?;
 
@@ -237,7 +238,7 @@ impl ArbitrageTrader {
         }
 
         // Calculate arbitrage profits for each path
-        let mut results: Vec<TradeOpportunity> = vec![];
+        let mut results: Vec<TradeChance> = vec![];
 
         for path in paths {
             let mut amounts = vec![];
@@ -269,19 +270,15 @@ impl ArbitrageTrader {
                 token_index.push(token_idx);
             }
 
-            let gas = self.base_trader.gas() * (path.len() as f64);
-            let profit = profit.unwrap() - gas;
-
-            let opportunity = TradeOpportunity {
+            let opportunity = TradeChance {
                 dex_index,
                 token_index,
                 amounts,
-                operation: Operation::Buy,
-                predicted_profit: Some(profit),
+                action: TradeAction::BuyOpen,
                 currect_price: None,
                 predicted_price: None,
                 trader_name: self.name().to_owned(),
-                reason_for_sell: None,
+                reason_for_close: None,
                 atr: None,
                 momentum: None,
             };
@@ -296,7 +293,7 @@ impl ArbitrageTrader {
 impl AbstractTrader for ArbitrageTrader {
     async fn execute_transactions(
         &mut self,
-        _opportunities: &Vec<TradeOpportunity>,
+        _opportunities: &Vec<TradeChance>,
         _wallet_and_provider: &Arc<
             NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
         >,

@@ -366,8 +366,7 @@ async fn main_loop(
                 trader.liquidate(config.chain_params.chain_name).await;
             }
 
-            let mut opportunities = match trader.find_opportunities(100.0 * 10.0, market_data).await
-            {
+            let opportunities = match trader.find_opportunities(100.0 * 10.0, market_data).await {
                 Ok(opportunities) => {
                     error_manager.reset_error_count();
                     opportunities
@@ -378,11 +377,6 @@ async fn main_loop(
                     Vec::new()
                 }
             };
-            opportunities.sort_by(|a, b| {
-                a.predicted_profit
-                    .partial_cmp(&b.predicted_profit)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
             match trader
                 .execute_transactions(
                     &opportunities,

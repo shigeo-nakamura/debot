@@ -8,6 +8,8 @@ use debot_ether_utils::Dex;
 use debot_ether_utils::Token;
 use debot_market_analyzer::MarketData;
 use debot_position_manager::ReasonForClose;
+use debot_position_manager::TradeAction;
+use debot_position_manager::TradeChance;
 use debot_position_manager::TradePosition;
 use std::collections::HashMap;
 use std::error::Error;
@@ -32,8 +34,6 @@ use super::fund_config;
 use super::fund_config::TradingStyle;
 use super::DBHandler;
 use super::FundManager;
-use super::Operation;
-use super::TradeOpportunity;
 use super::TransactionLog;
 
 #[derive(Clone)]
@@ -455,8 +455,8 @@ impl ForcastTrader {
         amount: f64,
         current_prices: &HashMap<String, DexPrices>,
         market_data: &mut HashMap<String, MarketData>,
-    ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
-        let mut opportunities: Vec<TradeOpportunity> = vec![];
+    ) -> Result<Vec<TradeChance>, Box<dyn Error + Send + Sync>> {
+        let mut opportunities: Vec<TradeChance> = vec![];
 
         if self.is_forbidden_to_buy() {
             return Ok(opportunities);
@@ -483,16 +483,15 @@ impl ForcastTrader {
                 );
 
                 if let Some(proposal) = proposal {
-                    opportunities.push(TradeOpportunity {
+                    opportunities.push(TradeChance {
                         dex_index: vec![dex_index],
                         token_index: vec![token_b_index, token_a_index],
                         amounts: vec![proposal.amount],
-                        operation: Operation::Buy,
-                        predicted_profit: Some(proposal.profit),
+                        action: TradeAction::BuyOpen,
                         currect_price: Some(proposal.execution_price),
                         predicted_price: proposal.predicted_price,
                         trader_name: proposal.fund_name.to_owned(),
-                        reason_for_sell: None,
+                        reason_for_close: None,
                         atr: proposal.atr,
                         momentum: proposal.momentum,
                     });
@@ -507,8 +506,8 @@ impl ForcastTrader {
         &self,
         current_prices: &HashMap<String, DexPrices>,
         market_data: &mut HashMap<String, MarketData>,
-    ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
-        let mut opportunities: Vec<TradeOpportunity> = vec![];
+    ) -> Result<Vec<TradeChance>, Box<dyn Error + Send + Sync>> {
+        let mut opportunities: Vec<TradeChance> = vec![];
 
         for (token_name, prices) in current_prices {
             let token_a_index =
@@ -533,16 +532,15 @@ impl ForcastTrader {
                 );
 
                 if let Some(proposal) = proposal {
-                    opportunities.push(TradeOpportunity {
+                    opportunities.push(TradeChance {
                         dex_index: vec![dex_index],
                         token_index: vec![token_a_index, token_b_index],
                         amounts: vec![proposal.amount],
-                        operation: Operation::Sell,
-                        predicted_profit: Some(proposal.profit),
+                        action: TradeAction::SellClose,
                         currect_price: Some(proposal.execution_price),
                         predicted_price: proposal.predicted_price,
                         trader_name: proposal.fund_name.to_owned(),
-                        reason_for_sell: proposal.reason_for_sell,
+                        reason_for_close: proposal.reason_for_sell,
                         atr: None,
                         momentum: None,
                     });
@@ -561,8 +559,8 @@ impl ForcastTrader {
         &self,
         amount: f64,
         market_data: &mut HashMap<String, MarketData>,
-    ) -> Result<Vec<TradeOpportunity>, Box<dyn Error + Send + Sync>> {
-        let mut results: Vec<TradeOpportunity> = vec![];
+    ) -> Result<Vec<TradeChance>, Box<dyn Error + Send + Sync>> {
+        let mut results: Vec<TradeChance> = vec![];
 
         if self.base_trader.state() != TraderState::Active {
             log::warn!("{}'s state {:?}", self.name(), self.state());
@@ -694,7 +692,7 @@ impl ForcastTrader {
 impl AbstractTrader for ForcastTrader {
     async fn execute_transactions(
         &mut self,
-        opportunities: &Vec<TradeOpportunity>,
+        opportunities: &Vec<TradeChance>,
         wallet_and_provider: &Arc<
             NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
         >,
@@ -706,8 +704,7 @@ impl AbstractTrader for ForcastTrader {
         }
 
         // Group opportunities by token and dex
-        let mut opportunity_groups: HashMap<(usize, [usize; 2]), Vec<TradeOpportunity>> =
-            HashMap::new();
+        let mut opportunity_groups: HashMap<(usize, [usize; 2]), Vec<TradeChance>> = HashMap::new();
 
         for opportunity in opportunities {
             let mut sorted_token_index = opportunity.token_index.clone();
@@ -739,9 +736,10 @@ impl AbstractTrader for ForcastTrader {
             let (total_buy_amount, total_sell_amount): (f64, f64) =
                 opportunities
                     .iter()
-                    .fold((0.0, 0.0), |acc, o| match o.operation {
-                        Operation::Buy => (acc.0 + o.amounts[0], acc.1),
-                        Operation::Sell => (acc.0, acc.1 + o.amounts[0]),
+                    .fold((0.0, 0.0), |acc, o| match o.action {
+                        TradeAction::BuyOpen => (acc.0 + o.amounts[0], acc.1),
+                        TradeAction::SellClose => (acc.0, acc.1 + o.amounts[0]),
+                        _ => panic!("Not implemented"),
                     });
             // calculate net amount
             let net_amount = total_buy_amount - total_sell_amount;
@@ -808,7 +806,7 @@ impl AbstractTrader for ForcastTrader {
             let token_b_name = token_b.symbol_name();
             let current_price = opportunity.currect_price.unwrap();
 
-            let is_buy_trade = opportunity.operation == Operation::Buy;
+            let is_buy_trade = opportunity.action == TradeAction::BuyOpen;
 
             let fund_manager = self
                 .state
@@ -835,7 +833,7 @@ impl AbstractTrader for ForcastTrader {
                 fund_manager
                     .update_position(
                         is_buy_trade,
-                        opportunity.reason_for_sell.clone(),
+                        opportunity.reason_for_close.clone(),
                         token_a_name,
                         amount_in,
                         amount_out,
@@ -845,7 +843,7 @@ impl AbstractTrader for ForcastTrader {
                     )
                     .await;
 
-                match opportunity.reason_for_sell {
+                match opportunity.reason_for_close {
                     Some(ReasonForClose::CutLoss) => {
                         self.state.last_loss_cut_time = chrono::Utc::now().timestamp()
                     }

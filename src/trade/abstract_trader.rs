@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use debot_ether_utils::{dex::dex::TokenPair, Dex, Token};
-use debot_position_manager::ReasonForClose;
+use debot_position_manager::TradeChance;
 use ethers::{
     prelude::LocalWallet,
     types::{Address, U256},
@@ -22,61 +22,6 @@ where
     F: Fn(&T) -> bool,
 {
     list.iter().position(predicate)
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Operation {
-    Buy,
-    Sell,
-}
-
-#[derive(Debug, Clone)]
-pub struct TradeOpportunity {
-    pub trader_name: String,
-    pub dex_index: Vec<usize>,
-    pub token_index: Vec<usize>,
-    pub amounts: Vec<f64>,
-    pub operation: Operation,
-    pub reason_for_sell: Option<ReasonForClose>,
-    pub predicted_profit: Option<f64>,
-    pub currect_price: Option<f64>,
-    pub predicted_price: Option<f64>,
-    pub atr: Option<f64>,
-    pub momentum: Option<f64>,
-}
-
-impl TradeOpportunity {
-    #[allow(dead_code)]
-    pub fn print_info(&self, dexes: &[Box<dyn Dex>], tokens: &[Box<dyn Token>]) {
-        let num_paths = self.dex_index.len();
-        if let Some(profit) = self.predicted_profit {
-            if profit > 0.0 {
-                log::debug!("{} profit: {}", self.trader_name, profit);
-                for i in 0..num_paths {
-                    let dex = &dexes[self.dex_index[i]];
-                    let token = &tokens[self.token_index[i]];
-                    log::debug!(
-                        "  DEX: {}, Token: {}, Amount: {}",
-                        dex.name(),
-                        token.symbol_name(),
-                        self.amounts[i]
-                    );
-                }
-            } else {
-                log::debug!("{} loss: {}", self.trader_name, profit);
-                for i in 0..num_paths {
-                    let dex = &dexes[self.dex_index[i]];
-                    let token = &tokens[self.token_index[i]];
-                    log::debug!(
-                        "  DEX: {}, Token: {}, Amount: {}",
-                        dex.name(),
-                        token.symbol_name(),
-                        self.amounts[i]
-                    );
-                }
-            }
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -377,7 +322,7 @@ impl BaseTrader {
 pub trait AbstractTrader {
     async fn execute_transactions(
         &mut self,
-        opportunities: &Vec<TradeOpportunity>,
+        opportunities: &Vec<TradeChance>,
         wallet_and_provider: &Arc<
             NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
         >,
