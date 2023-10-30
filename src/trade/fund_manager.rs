@@ -4,7 +4,9 @@ use crate::db::CounterType;
 
 use super::{DBHandler, DexPrices};
 use debot_market_analyzer::{MarketData, TradingStrategy};
-use debot_position_manager::{ReasonForClose, State, TakeProfitStrategy, TradePosition};
+use debot_position_manager::{
+    ReasonForClose, State, TakeProfitStrategy, TradeAction, TradeChance, TradePosition,
+};
 use std::collections::HashMap;
 use std::f64;
 use std::sync::Arc;
@@ -40,17 +42,6 @@ pub struct FundManagerConfig {
 pub struct FundManager {
     config: FundManagerConfig,
     state: FundManagerState,
-}
-
-pub struct TradeProposal {
-    pub profit: f64,
-    pub predicted_price: Option<f64>,
-    pub execution_price: f64,
-    pub amount: f64,
-    pub fund_name: String,
-    pub reason_for_sell: Option<ReasonForClose>,
-    pub atr: Option<f64>,
-    pub momentum: Option<f64>,
 }
 
 impl FundManager {
@@ -140,7 +131,7 @@ impl FundManager {
         spread: f64,
         amount: f64,
         market_data: &mut HashMap<String, MarketData>,
-    ) -> Option<TradeProposal> {
+    ) -> Option<TradeChance> {
         if token_name != self.config.token_name {
             return None;
         }
@@ -210,17 +201,17 @@ impl FundManager {
                     return None;
                 }
 
-                let profit = (predicted_price - buy_price) * amount;
-
-                return Some(TradeProposal {
-                    profit,
+                return Some(TradeChance {
                     predicted_price: Some(predicted_price),
-                    execution_price: buy_price,
-                    amount: trading_amount,
-                    fund_name: self.config.name.to_owned(),
-                    reason_for_sell: None,
+                    current_price: Some(buy_price),
+                    amounts: vec![trading_amount],
+                    trader_name: self.config.name.to_owned(),
                     atr,
                     momentum: Some(data.momentum()),
+                    dex_index: vec![],
+                    token_index: vec![],
+                    action: TradeAction::BuyOpen,
+                    reason_for_close: None,
                 });
             }
         }
@@ -256,10 +247,10 @@ impl FundManager {
         sell_price: f64,
         limitied_sell: bool,
         _market_data: &mut HashMap<String, MarketData>,
-    ) -> Option<TradeProposal> {
+    ) -> Option<TradeChance> {
         if let Some(position) = self.state.open_positions.get(token_name) {
             let mut amount = 0.0;
-            let mut reason_for_sell;
+            let mut reason_for_close;
             let max_holding_interval = self.config.max_hold_interval_in_secs.try_into().unwrap();
 
             let should_liquidate =
@@ -271,30 +262,31 @@ impl FundManager {
                     token_name,
                     sell_price
                 );
-                reason_for_sell = Some(ReasonForClose::Liquidated);
+                reason_for_close = Some(ReasonForClose::Liquidated);
             } else {
-                reason_for_sell = position.is_expired(max_holding_interval);
+                reason_for_close = position.is_expired(max_holding_interval);
             }
 
-            if limitied_sell == false && reason_for_sell.is_none() {
-                reason_for_sell = position.should_close(sell_price, max_holding_interval);
+            if limitied_sell == false && reason_for_close.is_none() {
+                reason_for_close = position.should_close(sell_price, max_holding_interval);
             }
 
-            if reason_for_sell.is_some() {
+            if reason_for_close.is_some() {
                 amount = position.amount;
             }
 
             if amount > 0.0 {
-                let profit = (sell_price - position.average_buy_price) * amount;
-                return Some(TradeProposal {
-                    profit,
+                return Some(TradeChance {
                     predicted_price: None,
-                    execution_price: sell_price,
-                    amount,
-                    fund_name: self.config.name.to_owned(),
-                    reason_for_sell,
+                    current_price: Some(sell_price),
+                    amounts: vec![amount],
+                    trader_name: self.config.name.to_owned(),
+                    reason_for_close,
                     atr: None,
                     momentum: None,
+                    dex_index: vec![],
+                    token_index: vec![],
+                    action: TradeAction::SellClose,
                 });
             }
         }

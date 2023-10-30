@@ -486,11 +486,11 @@ impl ForcastTrader {
                     opportunities.push(TradeChance {
                         dex_index: vec![dex_index],
                         token_index: vec![token_b_index, token_a_index],
-                        amounts: vec![proposal.amount],
+                        amounts: proposal.amounts,
                         action: TradeAction::BuyOpen,
-                        currect_price: Some(proposal.execution_price),
+                        current_price: proposal.current_price,
                         predicted_price: proposal.predicted_price,
-                        trader_name: proposal.fund_name.to_owned(),
+                        trader_name: proposal.trader_name.to_owned(),
                         reason_for_close: None,
                         atr: proposal.atr,
                         momentum: proposal.momentum,
@@ -535,12 +535,12 @@ impl ForcastTrader {
                     opportunities.push(TradeChance {
                         dex_index: vec![dex_index],
                         token_index: vec![token_a_index, token_b_index],
-                        amounts: vec![proposal.amount],
+                        amounts: proposal.amounts,
                         action: TradeAction::SellClose,
-                        currect_price: Some(proposal.execution_price),
+                        current_price: proposal.current_price,
                         predicted_price: proposal.predicted_price,
-                        trader_name: proposal.fund_name.to_owned(),
-                        reason_for_close: proposal.reason_for_sell,
+                        trader_name: proposal.trader_name.to_owned(),
+                        reason_for_close: proposal.reason_for_close,
                         atr: None,
                         momentum: None,
                     });
@@ -804,7 +804,7 @@ impl AbstractTrader for ForcastTrader {
 
             let token_a_name = token_a.symbol_name();
             let token_b_name = token_b.symbol_name();
-            let current_price = opportunity.currect_price.unwrap();
+            let current_price = opportunity.current_price.unwrap();
 
             let is_buy_trade = opportunity.action == TradeAction::BuyOpen;
 

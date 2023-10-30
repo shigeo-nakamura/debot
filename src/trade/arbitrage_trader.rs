@@ -275,7 +275,7 @@ impl ArbitrageTrader {
                 token_index,
                 amounts,
                 action: TradeAction::BuyOpen,
-                currect_price: None,
+                current_price: None,
                 predicted_price: None,
                 trader_name: self.name().to_owned(),
                 reason_for_close: None,
