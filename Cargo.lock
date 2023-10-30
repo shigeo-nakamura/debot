@@ -837,6 +837,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctor"
+version = "0.1.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d2301688392eb071b0bf1a37be05c469d3cc4dbbd95df672fe28ab021e6a096"
+dependencies = [
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "ctr"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -897,10 +907,12 @@ dependencies = [
  "bson",
  "chrono",
  "chrono-tz",
+ "ctor",
  "debot-ether-utils",
  "debot-market-analyzer",
  "debot-position-manager",
  "debot-utils",
+ "dex-client",
  "env_logger",
  "ethers",
  "ethers-middleware",
@@ -936,9 +948,9 @@ dependencies = [
 
 [[package]]
 name = "debot-market-analyzer"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42de2e5fef014ee41afd8844e4fbde7a5b50cfc1a7926fa3273beb8cc36c2dc3"
+checksum = "13a4e85ce944ef92cf79e2f73fc7a6582973fa0351544d82fa607b6346c72c95"
 dependencies = [
  "chrono",
  "debot-utils",
@@ -1012,6 +1024,18 @@ dependencies = [
  "quote",
  "rustc_version 0.4.0",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "dex-client"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a14481345822ddbc78aa22943c59ee9c307a95cefbb89eb3f268079270cb867"
+dependencies = [
+ "chrono",
+ "log",
+ "reqwest",
+ "serde",
 ]
 
 [[package]]
@@ -5038,9 +5062,9 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 
 [[package]]
 name = "winnow"
-version = "0.5.17"
+version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3b801d0e0a6726477cc207f60162da452f3a95adb368399bef20a946e06f65c"
+checksum = "176b6138793677221d420fd2f0aeeced263f197688b36484660da767bca2fa32"
 dependencies = [
  "memchr",
 ]

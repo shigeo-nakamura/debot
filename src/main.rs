@@ -442,3 +442,36 @@ fn restore_market_data(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use dex_client::DexClient;
+    use std::env;
+
+    #[ctor::ctor]
+    fn setup() {
+        env_logger::init();
+    }
+
+    fn init_client() -> DexClient {
+        let api_key = env::var("API_KEY").expect("API_KEY must be set");
+        let dex_router_url = env::var("DEX_ROUTER_URL").expect("DEX_ROUTER_URL must be set");
+        DexClient::new(api_key, dex_router_url)
+    }
+
+    #[test]
+    fn test_get_ticker() {
+        let client = init_client();
+        let response = client.get_ticker("BTC-USDC");
+        log::info!("{:?}", response);
+        assert!(response.is_ok());
+    }
+
+    #[test]
+    fn test_get_yesterday_pnl() {
+        let client = init_client();
+        let response = client.get_yesterday_pnl();
+        log::info!("{:?}", response);
+        assert!(response.is_ok());
+    }
+}
