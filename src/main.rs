@@ -29,7 +29,6 @@ mod blockchain_factory;
 mod config;
 mod db;
 mod error_manager;
-mod kws_decrypt;
 mod trade;
 mod wallet;
 
@@ -367,13 +366,7 @@ async fn main_loop(
                 trader.liquidate(config.chain_params.chain_name).await;
             }
 
-            if let Some(_amount) = manage_token_amount(trader, &wallet_address, config).await {
-                trader.rebalance(*wallet_address).await;
-            }
-
-            let mut opportunities = match trader
-                .find_opportunities(config.trading_amount, market_data)
-                .await
+            let mut opportunities = match trader.find_opportunities(100.0 * 10.0, market_data).await
             {
                 Ok(opportunities) => {
                     error_manager.reset_error_count();
@@ -413,43 +406,6 @@ async fn main_loop(
             }
         }
     }
-}
-
-async fn manage_token_amount<T: AbstractTrader>(
-    trader: &T,
-    wallet_address: &Address,
-    config: &EnvConfig,
-) -> Option<f64> {
-    if config.dry_run {
-        return None;
-    }
-
-    let current_amount =
-        match BaseTrader::get_amount_of_token(*wallet_address, &trader.anchor_token()).await {
-            Ok(amount) => amount,
-            Err(e) => {
-                log::error!("get_current_token_amount: {:?}", e);
-                return None;
-            }
-        };
-
-    if config.treasury.is_some() && current_amount > config.max_managed_amount {
-        let treasury = config.treasury.unwrap();
-        let amount = current_amount - (config.max_managed_amount + config.min_managed_amount) / 2.0;
-        match trader
-            .transfer_token(treasury, &trader.anchor_token(), amount)
-            .await
-        {
-            Ok(()) => {
-                return Some(amount);
-            }
-            Err(e) => {
-                log::error!("manage_token_amount transfer: {:?}", e);
-                return None;
-            }
-        }
-    }
-    return None;
 }
 
 async fn handle_sleep_and_signal(interval: f64) -> Result<(), &'static str> {

@@ -3,6 +3,7 @@
 use bigdecimal::num_bigint::BigUint;
 use bigdecimal::BigDecimal;
 use bigdecimal::ToPrimitive;
+use debot_utils::decrypt_data_with_kms;
 use ethers::signers::{LocalWallet, Signer};
 use ethers::utils::hex::{self, encode};
 use ethers_middleware::core::k256::elliptic_curve::SecretKey;
@@ -16,7 +17,6 @@ use web3::types::Address;
 use web3::Web3;
 
 use crate::blockchain_factory::ChainParams;
-use crate::kws_decrypt::decrypt_data_with_kms;
 
 const TOKEN_DECIMALS: usize = 18;
 

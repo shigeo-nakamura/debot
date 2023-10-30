@@ -19,8 +19,6 @@ pub struct EnvConfig {
     pub use_kms: bool,
     pub interval: u64,
     pub min_managed_amount: f64,
-    pub max_managed_amount: f64,
-    pub trading_amount: f64,
     pub allowance_factor: f64,
     pub deadline_secs: u64,
     pub log_limit: u32,
@@ -129,8 +127,6 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
         let use_kms = get_bool_env_var("USE_KMS", false);
         let interval = get_env_var("INTERVAL", "10")?; // sec
         let min_managed_amount = get_env_var("MIN_MANAGED_AMOUNT", "2000.0")?;
-        let max_managed_amount = get_env_var("MAX_MANAGED_AMOUNT", "10000.0")?;
-        let trading_amount = get_env_var("TRADING_AMOUNT", "1000.0")?;
         let allowance_factor = get_env_var("ALLOWANCE_FACTOR", "10000000000.0")?;
         let deadline_secs = get_env_var("DEADLINE_SECS", "60")?;
         let log_limit = get_env_var("LOG_LIMIT", "10000")?;
@@ -165,8 +161,6 @@ pub fn get_config_from_env() -> Result<Vec<EnvConfig>, ConfigError> {
             use_kms,
             interval,
             min_managed_amount,
-            max_managed_amount,
-            trading_amount,
             allowance_factor,
             deadline_secs,
             log_limit,

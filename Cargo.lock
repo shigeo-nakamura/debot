@@ -609,9 +609,9 @@ dependencies = [
 
 [[package]]
 name = "chrono-tz"
-version = "0.8.3"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1369bc6b9e9a7dfdae2055f6ec151fe9c554a9d23d357c0237cee2e25eaabb7"
+checksum = "e23185c0e21df6ed832a12e2bda87c7d1def6842881fb634a8511ced741b0d76"
 dependencies = [
  "chrono",
  "chrono-tz-build",
@@ -620,9 +620,9 @@ dependencies = [
 
 [[package]]
 name = "chrono-tz-build"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2f5ebdc942f57ed96d560a6d1a459bae5851102a25d5bf89dc04ae453e31ecf"
+checksum = "433e39f13c9a060046954e0592a8d0a4bcb1040125cbf91cb8ee58964cfb350f"
 dependencies = [
  "parse-zoneinfo",
  "phf",
@@ -893,7 +893,6 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "async-trait",
- "base64 0.13.1",
  "bigdecimal",
  "bson",
  "chrono",
@@ -912,11 +911,8 @@ dependencies = [
  "mongodb",
  "num",
  "num-rational 0.3.2",
- "openssl",
  "rand",
  "reqwest",
- "rusoto_core",
- "rusoto_kms",
  "serde",
  "serde_json",
  "shared_mongodb",
@@ -940,9 +936,9 @@ dependencies = [
 
 [[package]]
 name = "debot-market-analyzer"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9bc4d6f49d6d5644aaf44c53912e279a46361cdaea431fe78fdff49a3adf6e47"
+checksum = "42de2e5fef014ee41afd8844e4fbde7a5b50cfc1a7926fa3273beb8cc36c2dc3"
 dependencies = [
  "chrono",
  "debot-utils",
@@ -952,9 +948,9 @@ dependencies = [
 
 [[package]]
 name = "debot-position-manager"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2c5040f7357c1d60658737e039f1e9ce2ef8a6ef71579e632f7b169d9af647a"
+checksum = "748d0813bb8aac90ce2d84c741198d1dbf71cc2f259a1824558fe662436ec861"
 dependencies = [
  "chrono",
  "debot-utils",
@@ -964,11 +960,15 @@ dependencies = [
 
 [[package]]
 name = "debot-utils"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "040680c4b20e6d34d380bdf00b9f000f7aa86664f51fcc72f2825e120f62fa80"
+checksum = "4223c7ba4036e516a153f384038a1e5d10c5a29a7e808c46abb17bd8973f0dbe"
 dependencies = [
+ "base64 0.13.1",
  "chrono",
+ "openssl",
+ "rusoto_core",
+ "rusoto_kms",
 ]
 
 [[package]]
@@ -5097,18 +5097,18 @@ checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
 
 [[package]]
 name = "zerocopy"
-version = "0.7.19"
+version = "0.7.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f2bd783c6247b80c3ac2267afe3042452f184478184264e0c1532bbf59adcb7"
+checksum = "dd66a62464e3ffd4e37bd09950c2b9dd6c4f8767380fabba0d523f9a775bc85a"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.7.19"
+version = "0.7.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56feebc4664bdb37f39c0b1b8fc8fa2f5648e3ec5f9cf4344978b4b7ca561fff"
+checksum = "255c4596d41e6916ced49cfafea18727b24d67878fa180ddfd69b9df34fd1726"
 dependencies = [
  "proc-macro2",
  "quote",
