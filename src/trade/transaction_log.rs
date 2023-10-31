@@ -1,6 +1,5 @@
 // transaction_log.rs
 
-use super::TraderState;
 use crate::db::{
     insert_item,
     item::{search_items, update_item},
@@ -32,22 +31,18 @@ async fn get_last_id<T: Default + Entity + HasId>(db: &Database) -> u32 {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppState {
     pub id: u32,
-    pub last_execution_time: HashMap<String, Option<SystemTime>>,
+    pub last_execution_time: Option<SystemTime>,
     pub prev_balance: HashMap<String, Option<f64>>,
     pub liquidated_time: Vec<String>,
-    pub trader_state: HashMap<String, TraderState>,
-    pub latest_scores: HashMap<String, HashMap<String, f64>>,
 }
 
 impl Default for AppState {
     fn default() -> Self {
         Self {
             id: 1,
-            last_execution_time: HashMap::new(),
+            last_execution_time: None,
             prev_balance: HashMap::new(),
             liquidated_time: vec![],
-            trader_state: HashMap::new(),
-            latest_scores: HashMap::new(),
         }
     }
 }
@@ -115,22 +110,18 @@ impl TransactionLog {
     pub fn new(
         max_position_counter: u32,
         max_price_couner: u32,
-        max_performance_counter: u32,
         max_balance_counter: u32,
         position_counter: u32,
         price_counter: u32,
-        performance_counter: u32,
         balance_counter: u32,
         db_name: &str,
     ) -> Self {
         let counter = Counter::new(
             max_position_counter,
             max_price_couner,
-            max_performance_counter,
             max_balance_counter,
             position_counter,
             price_counter,
-            performance_counter,
             balance_counter,
         );
 
@@ -148,7 +139,6 @@ impl TransactionLog {
         match counter_type {
             CounterType::Position => get_last_id::<TradePosition>(db).await,
             CounterType::Price => get_last_id::<PriceLog>(db).await,
-            CounterType::Performance => get_last_id::<PerformanceLog>(db).await,
             CounterType::Balance => get_last_id::<BalanceLog>(db).await,
         }
     }
@@ -176,7 +166,7 @@ impl TransactionLog {
         let items = match search_items(db, &item).await {
             Ok(items) => items
                 .into_iter()
-                .filter(|position| position.sold_amount == None)
+                .filter(|position| position.close_amount == None)
                 .collect(),
             Err(_) => {
                 vec![]
@@ -256,8 +246,6 @@ impl TransactionLog {
         chain_name: &str,
         prev_balance: Option<f64>,
         is_liquidated: bool,
-        trader_state: Option<(String, TraderState)>,
-        scores: Option<(String, HashMap<String, f64>)>,
     ) -> Result<(), Box<dyn error::Error>> {
         let item = AppState::default();
         let mut item = match search_item(db, &item).await {
@@ -267,7 +255,7 @@ impl TransactionLog {
 
         if last_execution_time.is_some() {
             item.last_execution_time
-                .insert(chain_name.to_owned(), last_execution_time);
+                .insert(last_execution_time.unwrap());
         }
 
         if prev_balance.is_some() {
@@ -280,14 +268,6 @@ impl TransactionLog {
             item.liquidated_time.push(date_string);
         }
 
-        if let Some((name, state)) = trader_state {
-            item.trader_state.insert(name, state);
-        }
-
-        if let Some((trader_name, scores)) = scores {
-            item.latest_scores.insert(trader_name, scores);
-        }
-
         update_item(db, &item).await?;
         Ok(())
     }
@@ -296,6 +276,6 @@ impl TransactionLog {
         db: &Database,
         chain_name: &str,
     ) -> Result<(), Box<dyn error::Error>> {
-        TransactionLog::update_app_state(&db, None, chain_name, None, true, None, None).await
+        TransactionLog::update_app_state(&db, None, chain_name, None, true).await
     }
 }

@@ -7,13 +7,10 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
-reqwest = { version = "0.11.4", features = ["blocking", "json"] }
 serde_json = "1.0"
 num-rational = "0.3.2"
 num = "0.2"
 url = "2.2.2"
-ethers = { version = "2.0", features = ["legacy"] }
-ethers-middleware = "2.0"
 async-trait = "0.1.68"
 serde = { version = "1.0", features = ["derive"] }
 chrono = "0.4.24"
@@ -27,7 +24,6 @@ lazy_static = "1.4.0"
 hex-literal = "0.4.1"
 async-recursion = "1.0.4"
 shared_mongodb = "0.1.7"
-web3 = "0.19.0"
 bigdecimal = "0.3.1"
 chrono-tz = "0.8.2"
 ctor = "0.1"
@@ -35,7 +31,6 @@ ctor = "0.1"
 debot-utils ="*"
 debot-market-analyzer ="*"
 debot-position-manager ="*"
-debot-ether-utils ="*"
 dex-client ="*"
 
 [dependencies.mongodb]

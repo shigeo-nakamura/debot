@@ -2,15 +2,15 @@
 
 use crate::db::CounterType;
 
-use super::{DBHandler, DexPrices};
-use debot_market_analyzer::{MarketData, TradingStrategy};
-use debot_position_manager::{
-    ReasonForClose, State, TakeProfitStrategy, TradeAction, TradeChance, TradePosition,
-};
+use super::DBHandler;
+use debot_market_analyzer::{MarketData, TradeAction, TradeChance, TradingStrategy};
+use debot_position_manager::{ReasonForClose, TakeProfitStrategy, TradePosition};
+use dex_client::DexClient;
 use std::collections::HashMap;
+use std::error::Error;
 use std::f64;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+
 use tokio::sync::Mutex;
 
 #[derive(PartialEq)]
@@ -25,18 +25,19 @@ pub struct FundManagerState {
     open_positions: HashMap<String, TradePosition>,
     fund_state: Arc<std::sync::Mutex<FundState>>,
     db_handler: Arc<Mutex<DBHandler>>,
+    dex_client: DexClient,
+    market_data: MarketData,
 }
 
 pub struct FundManagerConfig {
     name: String,
     token_name: String,
     strategy: TradingStrategy,
-    trade_period: usize,
-    activity_time: (u32, u32),
-    buy_signal_threshold: f64,
-    max_hold_interval_in_secs: u64,
     risk_reward: f64,
     trading_amount: f64,
+    trading_period: usize,
+    dry_run: bool,
+    save_prices: bool,
 }
 
 pub struct FundManager {
@@ -49,26 +50,26 @@ impl FundManager {
         fund_name: &str,
         token_name: &str,
         open_positions: Option<HashMap<String, TradePosition>>,
+        market_data: MarketData,
         strategy: TradingStrategy,
-        trade_period: usize,
-        activity_time: (u32, u32),
+        trading_period: usize,
         trading_amount: f64,
         initial_amount: f64,
-        buy_signal_threshold: f64,
-        max_hold_interval_in_secs: u64,
         risk_reward: f64,
         db_handler: Arc<Mutex<DBHandler>>,
+        dex_client: DexClient,
+        dry_run: bool,
+        save_prices: bool,
     ) -> Self {
         let config = FundManagerConfig {
             name: fund_name.to_owned(),
             token_name: token_name.to_owned(),
             strategy,
-            trade_period,
-            activity_time,
-            buy_signal_threshold,
-            max_hold_interval_in_secs,
             risk_reward,
             trading_amount,
+            trading_period,
+            dry_run,
+            save_prices,
         };
 
         let open_positions = match open_positions {
@@ -81,6 +82,8 @@ impl FundManager {
             open_positions,
             fund_state: Arc::new(std::sync::Mutex::new(FundState::Active)),
             db_handler,
+            dex_client,
+            market_data,
         };
 
         Self { config, state }
@@ -92,19 +95,6 @@ impl FundManager {
 
     pub fn amount(&self) -> f64 {
         self.state.amount
-    }
-
-    pub fn set_amount(&mut self, amount: f64) {
-        log::info!("{}'s new amount = {:6.5}", self.name(), amount);
-        self.state.amount = amount;
-    }
-
-    fn amount_of_positinos_in_anchor_token(&self) -> f64 {
-        let mut amount = 0.0;
-        for position in self.state.open_positions.values() {
-            amount += position.amount_in_anchor_token;
-        }
-        amount
     }
 
     pub fn begin_liquidate(&self) {
@@ -123,135 +113,113 @@ impl FundManager {
         *self.state.fund_state.lock().unwrap() == FundState::Liquidated
     }
 
-    pub fn find_buy_opportunities(
-        &self,
-        token_name: &str,
-        buy_price: f64,
-        sell_price: f64,
-        spread: f64,
-        amount: f64,
-        market_data: &mut HashMap<String, MarketData>,
-    ) -> Option<TradeChance> {
-        if token_name != self.config.token_name {
-            return None;
-        }
+    pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let data = &mut self.state.market_data;
+        let token_name = &self.config.token_name;
 
-        let trading_amount = if amount < self.config.trading_amount {
-            amount
-        } else {
-            self.config.trading_amount
+        // Get the token price
+        let result = self
+            .state
+            .dex_client
+            .get_ticker(&self.config.token_name)
+            .await
+            .map_err(|_| format!("Failed to get the price of {}", token_name))?;
+        let price = match result.price.parse::<f64>() {
+            Ok(price) => price,
+            Err(e) => return Err(Box::new(e)),
         };
 
-        if let Some(data) = market_data.get_mut(token_name) {
-            // update ATR
-            data.update_atr(self.config.trade_period);
+        log::debug!("{}: {}", token_name, price);
 
-            if !self.can_create_new_position(token_name) {
+        // Update the market data and predict next prices
+        let price_point = data.add_price(price, None);
+
+        // Save the price in the DB
+        if self.config.save_prices {
+            self.state
+                .db_handler
+                .lock()
+                .await
+                .log_price(data.name(), token_name, price_point)
+                .await;
+        }
+
+        // update ATR
+        data.update_atr(self.config.trading_period);
+
+        self.find_open_chances(price)
+            .await
+            .map_err(|_| "Failed to find open chances".to_owned())?;
+        self.find_close_chances(price)
+            .await
+            .map_err(|_| "Failed to find close chances".to_owned())?;
+
+        self.check_positions(0.0);
+
+        Ok(())
+    }
+
+    async fn find_open_chances(&mut self, current_price: f64) -> Result<(), ()> {
+        let token_name = &self.config.token_name;
+        let data = &self.state.market_data;
+
+        let prediction = data.predict(self.config.trading_period, self.config.strategy);
+        let price_ratio = (prediction.price - current_price) / current_price;
+
+        let color = match prediction.confidence {
+            x if x >= 1.0 => "\x1b[0;32m",
+            x if x < 0.0 => "\x1b[0;31m",
+            _ => "\x1b[0;90m",
+        };
+        log::info!(
+            "{} {:>7.3}%\x1b[0m, {:<30} \x1b[0;34m{:<6}\x1b[0m {:<6.5}(--> {:<6.5})",
+            color,
+            price_ratio * 100.0,
+            self.name(),
+            token_name,
+            current_price,
+            prediction.price,
+        );
+
+        if prediction.confidence >= 1.0 {
+            if self.state.amount < self.config.trading_amount {
                 log::debug!(
-                    "{} Need to wait for a while to create a new position",
-                    self.name()
+                    "No enough fund left({}): remaining = {:6.3}",
+                    self.name(),
+                    self.state.amount,
                 );
-                return None;
+                return Ok(());
             }
 
-            let predicted_price = data.predict(self.config.trade_period, self.config.strategy);
-
-            let price_spread = (buy_price - sell_price) / buy_price;
-            let profit_ratio = (predicted_price - sell_price) / sell_price;
-            if profit_ratio == 0.0 {
-                return None;
-            }
-
-            let color = match profit_ratio {
-                x if x > 0.0 => "\x1b[0;32m",
-                x if x < 0.0 => "\x1b[0;31m",
-                _ => "\x1b[0;90m",
+            let action = if price_ratio > 0.0 {
+                TradeAction::BuyOpen
+            } else {
+                TradeAction::SellOpen
             };
-            log::info!(
-                "{} {:>7.3}%\x1b[0m({:>2.2}%), {:<30} \x1b[0;34m{:<6}\x1b[0m {:<6.5}({:<6.5}) - {:<6.5}",
-                color,
-                profit_ratio * 100.0,
-                price_spread * 100.0,
-                self.name(),
-                token_name,
-                sell_price,
-                predicted_price,
-                buy_price,
-            );
 
-            if profit_ratio * 100.0 >= self.config.buy_signal_threshold {
-                if self.state.amount < trading_amount {
-                    log::debug!(
-                        "No enough fund left({}): remaining = {:6.3} < trading_amount = {:6.3}, invested = {:6.3}",
-                        self.name(),
-                        self.state.amount,
-                        trading_amount,
-                        self.amount_of_positinos_in_anchor_token(),
-                    );
-                    return None;
-                }
-
-                let atr = data.atr(self.config.trade_period);
-                if atr.is_none() {
-                    return None;
-                }
-
-                if atr.unwrap() < spread * sell_price {
-                    log::info!("ATR: {:6.3} < {:6.3}", atr.unwrap(), spread * sell_price);
-                    return None;
-                }
-
-                return Some(TradeChance {
-                    predicted_price: Some(predicted_price),
-                    price: Some(buy_price),
-                    amounts: vec![trading_amount],
-                    trader_name: self.config.name.to_owned(),
-                    atr,
+            self.execute_chances(
+                current_price,
+                TradeChance {
+                    token_name: self.config.token_name.clone(),
+                    predicted_price: Some(prediction.price),
+                    amount: self.config.trading_amount,
+                    atr: data.atr(self.config.trading_period),
                     momentum: Some(data.momentum()),
-                    dex_index: vec![],
-                    token_index: vec![],
-                    action: TradeAction::BuyOpen,
-                    reason_for_close: None,
-                });
-            }
+                    action,
+                    confidence: prediction.confidence,
+                },
+                None,
+            )
+            .await?;
         }
-        None
+        Ok(())
     }
 
-    pub fn check_positions(&self, current_prices: &HashMap<String, DexPrices>) {
-        let mut unrealized_pnl = 0.0;
+    async fn find_close_chances(&mut self, current_price: f64) -> Result<(), ()> {
+        let token_name = &self.config.token_name;
 
-        for (token_name, prices) in current_prices {
-            if let Some(position) = self.state.open_positions.get(token_name) {
-                // caliculate unrialized PnL
-                position.print_info(prices.sell.price);
-                unrealized_pnl +=
-                    prices.sell.price * position.amount - position.amount_in_anchor_token;
-            }
-        }
-
-        if self.amount() + unrealized_pnl < 0.0 {
-            log::info!(
-                "This fund({}) should be liquidated. remaing_amount = {:6.3}, unrealized_pnl = {:6.3}",
-                self.name(),
-                self.amount(),
-                unrealized_pnl
-            );
-            self.begin_liquidate();
-        }
-    }
-
-    pub fn find_sell_opportunities(
-        &self,
-        token_name: &str,
-        sell_price: f64,
-        limitied_sell: bool,
-        _market_data: &mut HashMap<String, MarketData>,
-    ) -> Option<TradeChance> {
         if let Some(position) = self.state.open_positions.get(token_name) {
-            let mut amount = 0.0;
-            let mut reason_for_close;
-            let max_holding_interval = self.config.max_hold_interval_in_secs.try_into().unwrap();
+            let reason_for_close;
 
             let should_liquidate =
                 *self.state.fund_state.lock().unwrap() == FundState::ShouldLiquidate;
@@ -260,62 +228,100 @@ impl FundManager {
                 log::warn!(
                     "Close the position of {}, as its price{:.6} is requested to close",
                     token_name,
-                    sell_price
+                    current_price
                 );
+                self.end_liquidate();
                 reason_for_close = Some(ReasonForClose::Liquidated);
             } else {
-                reason_for_close = position.is_expired(max_holding_interval);
-            }
-
-            if limitied_sell == false && reason_for_close.is_none() {
-                reason_for_close = position.should_close(sell_price, max_holding_interval);
+                reason_for_close = position.should_close(current_price, None);
             }
 
             if reason_for_close.is_some() {
-                amount = position.amount;
-            }
-
-            if amount > 0.0 {
-                return Some(TradeChance {
-                    predicted_price: None,
-                    price: Some(sell_price),
-                    amounts: vec![amount],
-                    trader_name: self.config.name.to_owned(),
+                self.execute_chances(
+                    current_price,
+                    TradeChance {
+                        token_name: self.config.token_name.clone(),
+                        predicted_price: None,
+                        amount: position.amount,
+                        atr: None,
+                        momentum: None,
+                        action: TradeAction::SellClose,
+                        confidence: 0.0,
+                    },
                     reason_for_close,
-                    atr: None,
-                    momentum: None,
-                    dex_index: vec![],
-                    token_index: vec![],
-                    action: TradeAction::SellClose,
-                });
+                )
+                .await?;
             }
         }
-        None
+        Ok(())
     }
 
-    fn can_create_new_position(&self, token_name: &str) -> bool {
-        Self::is_within_activity_time(self.config.activity_time)
-            && self.state.open_positions.get(token_name).is_none()
-    }
+    async fn execute_chances(
+        &mut self,
+        current_price: f64,
+        chance: TradeChance,
+        reason_for_close: Option<ReasonForClose>,
+    ) -> Result<(), ()> {
+        let symbol = &self.config.token_name;
+        let size = chance.amount.to_string();
+        let side = if chance.action.is_buy() {
+            "BUY"
+        } else {
+            "SELL"
+        };
 
-    fn is_within_activity_time(activity_time: (u32, u32)) -> bool {
-        let start = activity_time.0;
-        let end = activity_time.1;
+        log::info!(
+            "Execute: symbol = {}, size = {}, side = {}",
+            symbol,
+            size,
+            side
+        );
 
-        if start > 24 || end > 24 {
-            panic!("Invalid hour provided in tuple.");
+        let executed_price;
+
+        if self.config.dry_run {
+            executed_price = current_price;
+        } else {
+            // Execute the transaction
+            let result = self
+                .state
+                .dex_client
+                .create_order(symbol, &size, side)
+                .await;
+            if result.is_err() {
+                return Err(());
+            }
+            let result = result.unwrap();
+            if result.price.is_none() {
+                log::error!("The price executed is unknown");
+                return Err(());
+            }
+            executed_price = result.price.unwrap();
         }
 
-        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-        let current_hour = (current_time.as_secs() % (24 * 3600)) / 3600;
+        let amount_in = chance.amount;
+        let amount_out = amount_in / executed_price;
 
-        current_hour >= start as u64 && current_hour < end as u64
+        // Update the position
+        self.update_position(
+            chance.action,
+            reason_for_close,
+            &chance.token_name,
+            amount_in,
+            amount_out,
+            chance.atr,
+            chance.momentum,
+            chance.predicted_price,
+        )
+        .await;
+
+        Ok(())
     }
 
     pub async fn update_position(
         &mut self,
         trade_action: TradeAction,
-        reason_for_sell: Option<ReasonForClose>,
+        reason_for_close: Option<ReasonForClose>,
         token_name: &str,
         amount_in: f64,
         amount_out: f64,
@@ -330,11 +336,6 @@ impl FundManager {
         );
 
         if trade_action.is_open() {
-            if atr.is_none() {
-                log::info!("No ATR");
-                return;
-            }
-
             self.state.amount -= amount_in;
 
             let average_price = amount_in / amount_out;
@@ -356,6 +357,7 @@ impl FundManager {
                 // if there are already open positions for this token, update them
                 position.add(
                     average_price,
+                    trade_action.is_buy(),
                     take_profit_price,
                     cut_loss_price,
                     amount_out,
@@ -408,17 +410,8 @@ impl FundManager {
             self.state.amount += amount_out;
 
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
-                let sold_price = amount_out / amount_in;
-
-                let new_state = match reason_for_sell.unwrap() {
-                    ReasonForClose::Liquidated => State::Liquidated,
-                    ReasonForClose::Expired => State::Expired,
-                    ReasonForClose::TakeProfit => State::TookProfit,
-                    ReasonForClose::CutLoss => State::CutLoss,
-                    ReasonForClose::Other => State::Closed,
-                };
-
-                position.del(sold_price, amount_in, new_state);
+                let close_price = amount_out / amount_in;
+                position.del(close_price, &reason_for_close.unwrap().to_string());
 
                 let position_cloned = position.clone();
                 let amount = position.amount;
@@ -429,19 +422,43 @@ impl FundManager {
                     .log_position(&position_cloned)
                     .await;
 
-                if amount > 0.0 {
-                    panic!(
-                        "partial selling is not supported. The remaing amount = {}",
+                if amount != 0.0 {
+                    log::error!(
+                        "Position is partially closed. The remaing amount = {}",
                         amount
                     );
                 }
 
-                self.state.open_positions.remove(token_name); // If all of this token has been sold, remove it from the open positions
-                log::debug!(
-                    "Sold all of token: {}. Removed from open positions.",
-                    token_name
-                );
+                self.state.open_positions.remove(token_name);
             }
+        }
+    }
+
+    pub fn check_positions(&self, price: f64) {
+        let unrealized_pnl =
+            if let Some(position) = self.state.open_positions.get(&self.config.token_name) {
+                // caliculate unrialized PnL
+                position.print_info(price);
+
+                let current_val = if position.is_long_position {
+                    price * position.amount
+                } else {
+                    -price * position.amount
+                };
+
+                current_val - position.amount_in_anchor_token
+            } else {
+                0.0
+            };
+
+        if self.amount() + unrealized_pnl < 0.0 {
+            log::info!(
+                "This fund({}) should be liquidated. remaing_amount = {:6.3}, unrealized_pnl = {:6.3}",
+                self.name(),
+                self.amount(),
+                unrealized_pnl
+            );
+            self.begin_liquidate();
         }
     }
 }

@@ -83,8 +83,6 @@ impl DBHandler {
                 chain_name,
                 prev_balance,
                 is_liquidated,
-                None,
-                None,
             )
             .await
             {
