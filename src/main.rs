@@ -454,7 +454,7 @@ mod tests {
     }
 
     fn init_client() -> DexClient {
-        let api_key = env::var("API_KEY").expect("API_KEY must be set");
+        let api_key = env::var("ENCRYPTED_API_KEY").expect("API_KEY must be set");
         let dex_router_url = env::var("DEX_ROUTER_URL").expect("DEX_ROUTER_URL must be set");
         DexClient::new(api_key, dex_router_url)
     }
