@@ -6,11 +6,12 @@ from Crypto.Util.Padding import pad
 import argparse
 
 # Define the program description
-parser = argparse.ArgumentParser(description='Encrypt a private key using an AES key.')
+parser = argparse.ArgumentParser(description='Encrypt data using an AES key.')
 
 # Define arguments
 parser.add_argument('aes_key', type=str, help='The plaintext data key you got from AWS KMS')
-parser.add_argument('private_key_hex', type=str, help='Your private key as a hexadecimal string')
+parser.add_argument('data_to_encrypt', type=str, help='The data you want to encrypt')
+parser.add_argument('--hex', action='store_true', help='Indicate that the data to encrypt is in hexadecimal format')
 
 # Parse arguments
 args = parser.parse_args()
@@ -18,8 +19,11 @@ args = parser.parse_args()
 # This is the plaintext data key you got from AWS KMS
 aes_key = base64.b64decode(args.aes_key)
 
-# This is the data you want to encrypt, e.g. your private key
-data = bytes.fromhex(args.private_key_hex)
+# Convert the data to bytes. If --hex is provided, treat it as a hex string.
+if args.hex:
+    data = bytes.fromhex(args.data_to_encrypt)
+else:
+    data = args.data_to_encrypt.encode()
 
 cipher = AES.new(aes_key, AES.MODE_CBC)
 ciphertext = cipher.encrypt(pad(data, AES.block_size))
@@ -28,4 +32,3 @@ ciphertext = cipher.encrypt(pad(data, AES.block_size))
 encrypted_data = base64.b64encode(cipher.iv + ciphertext).decode('utf-8')
 
 print(encrypted_data)
-
