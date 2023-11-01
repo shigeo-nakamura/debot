@@ -45,6 +45,7 @@ struct DerivativeTraderConfig {
 
 struct DerivativeTraderState {
     db_handler: Arc<Mutex<DBHandler>>,
+    dex_client: DexClient,
     fund_manager_map: HashMap<String, FundManager>,
 }
 
@@ -102,9 +103,8 @@ impl DerivativeTrader {
     async fn create_fund_managers(
         config: &DerivativeTraderConfig,
         db_client: &Arc<Mutex<ClientHolder>>,
+        dex_client: &DexClient,
         transaction_log: &Arc<TransactionLog>,
-        encrypted_api_key: &str,
-        dex_router_url: &str,
         open_positions_map: &HashMap<String, HashMap<String, TradePosition>>,
         price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
@@ -117,13 +117,6 @@ impl DerivativeTrader {
             db_client.clone(),
             transaction_log.clone(),
         )));
-        let dex_client =
-            DexClient::new(encrypted_api_key.to_owned(), dex_router_url.to_owned()).await;
-        if let Err(e) = dex_client {
-            log::error!("{:?}", e);
-            return vec![];
-        }
-        let dex_client = dex_client.unwrap();
 
         fund_manager_configurations
             .into_iter()
@@ -173,12 +166,18 @@ impl DerivativeTrader {
         risk_reward: f64,
         dry_run: bool,
     ) -> DerivativeTraderState {
+        let dex_client =
+            DexClient::new(encrypted_api_key.to_owned(), dex_router_url.to_owned()).await;
+        if let Err(e) = dex_client {
+            panic!("Failed to create a dex_client: {:?}", e);
+        }
+        let dex_client = dex_client.unwrap();
+
         let fund_managers = Self::create_fund_managers(
             &config,
             &db_client,
+            &dex_client,
             &transaction_log,
-            encrypted_api_key,
-            dex_router_url,
             &open_positions_map,
             &price_market_data,
             load_prices,
@@ -193,6 +192,7 @@ impl DerivativeTrader {
                 db_client.clone(),
                 transaction_log.clone(),
             ))),
+            dex_client,
             fund_manager_map: HashMap::new(),
         };
 
@@ -275,5 +275,9 @@ impl DerivativeTrader {
 
     pub fn db_handler(&self) -> &Arc<Mutex<DBHandler>> {
         &self.state.db_handler
+    }
+
+    pub fn dex_client(&self) -> &DexClient {
+        &self.state.dex_client
     }
 }
