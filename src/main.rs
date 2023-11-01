@@ -183,8 +183,15 @@ async fn main_loop(
                     .await;
 
                 // get and log yesterday's PNL
-                let pnl = 0.0;
-                trader.db_handler().lock().await.log_pnl(pnl).await;
+                if let Ok(res) = trader.dex_client().get_yesterday_pnl().await {
+                    if let Ok(pnl) = res.data.parse::<f64>() {
+                        trader.db_handler().lock().await.log_pnl(pnl).await;
+                    } else {
+                        log::error!("Failed to log PNL");
+                    }
+                } else {
+                    log::error!("Failed to get PNL");
+                }
             }
 
             if error_manager.get_error_count() >= config.max_error_count {
