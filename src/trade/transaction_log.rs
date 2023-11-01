@@ -220,8 +220,7 @@ impl TransactionLog {
         };
 
         if last_execution_time.is_some() {
-            item.last_execution_time
-                .insert(last_execution_time.unwrap());
+            item.last_execution_time = last_execution_time;
         }
 
         if is_liquidated {

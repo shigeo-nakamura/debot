@@ -49,7 +49,6 @@ struct DerivativeTraderState {
 }
 
 pub struct DerivativeTrader {
-    config: DerivativeTraderConfig,
     state: DerivativeTraderState,
 }
 
@@ -97,7 +96,7 @@ impl DerivativeTrader {
         )
         .await;
 
-        Self { config, state }
+        Self { state }
     }
 
     async fn create_fund_managers(
@@ -272,10 +271,6 @@ impl DerivativeTrader {
             config.max_price_size as usize,
             config.interval,
         )
-    }
-
-    pub fn name(&self) -> &str {
-        &self.config.name
     }
 
     pub fn db_handler(&self) -> &Arc<Mutex<DBHandler>> {
