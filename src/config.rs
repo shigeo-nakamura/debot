@@ -81,7 +81,12 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let max_price_size = max_price_size_hours * 60 * 60 / (interval as u32);
 
-    let encrypted_api_key = env::var("ENCRYPTED_API_KEY").expect("ENCRYPTED_API_KEY must be set");
+    let use_testnet = get_bool_env_var("USE_TESTNET", true);
+    let encrypted_api_key = if use_testnet {
+        env::var("ENCRYPTED_API_KEY_TEST").expect("ENCRYPTED_API_KEY for TESTNET must be set")
+    } else {
+        env::var("ENCRYPTED_API_KEY_MAIN").expect("ENCRYPTED_API_KEY for MAINNET must be set")
+    };
     let dex_router_url = env::var("DEX_ROUTER_URL").expect("DEX_ROUTER_URL must be set");
 
     let env_config = EnvConfig {
