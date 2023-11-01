@@ -244,7 +244,7 @@ impl DerivativeTrader {
             .db_handler
             .lock()
             .await
-            .log_liquidate_time(&self.config.name)
+            .log_liquidate_time()
             .await;
     }
 

@@ -10,5 +10,5 @@ pub mod transaction_log;
 pub use db_handler::DBHandler;
 pub use derivative_trader::DerivativeTrader;
 pub use fund_manager::FundManager;
-pub use transaction_log::BalanceLog;
+pub use transaction_log::PnlLog;
 pub use transaction_log::TransactionLog;

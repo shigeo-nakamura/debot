@@ -2,7 +2,7 @@
 
 use crate::{
     db::CounterType,
-    trade::{BalanceLog, TransactionLog},
+    trade::{PnlLog, TransactionLog},
 };
 
 use debot_market_analyzer::PricePoint;
@@ -32,9 +32,9 @@ impl DBHandler {
 }
 
 impl DBHandler {
-    pub async fn log_liquidate_time(&self, chain_name: &str) {
+    pub async fn log_liquidate_time(&self) {
         if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
-            match TransactionLog::update_liquidate_time(&db, chain_name).await {
+            match TransactionLog::update_liquidate_time(&db).await {
                 Ok(_) => {}
                 Err(e) => {
                     log::warn!("log_liquidate_time: {:?}", e);
@@ -43,28 +43,16 @@ impl DBHandler {
         }
     }
 
-    pub async fn log_current_balance(
-        &self,
-        chain_name: &str,
-        current_balance: f64,
-        prev_balance: Option<f64>,
-    ) {
-        log::info!("log_current_balance: {:6.6}", current_balance);
+    pub async fn log_pnl(&self, pnl: f64) {
+        log::info!("log_pnl: {:6.6}", pnl);
 
         if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
-            let change = match prev_balance {
-                Some(balance) => balance - current_balance,
-                None => 0.0,
-            };
-
-            let mut item = BalanceLog::default();
-            item.id = self.increment_counter(CounterType::Balance);
-            item.chain_name = chain_name.to_owned();
+            let mut item = PnlLog::default();
+            item.id = self.increment_counter(CounterType::Pnl);
             item.date = DateTimeUtils::get_current_date_string();
-            item.change = change;
 
-            if let Err(e) = TransactionLog::insert_balance(&db, item).await {
-                log::error!("log_current_balance: {:?}", e);
+            if let Err(e) = TransactionLog::insert_pnl(&db, item).await {
+                log::error!("log_pnl: {:?}", e);
             }
         }
     }
@@ -72,19 +60,13 @@ impl DBHandler {
     pub async fn log_app_state(
         &self,
         last_execution_time: Option<SystemTime>,
-        chain_name: &str,
-        prev_balance: Option<f64>,
         is_liquidated: bool,
     ) {
+        log::info!("log_app_state: {:?}", last_execution_time);
+
         if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
-            if let Err(e) = TransactionLog::update_app_state(
-                &db,
-                last_execution_time,
-                chain_name,
-                prev_balance,
-                is_liquidated,
-            )
-            .await
+            if let Err(e) =
+                TransactionLog::update_app_state(&db, last_execution_time, is_liquidated).await
             {
                 log::warn!("log_app_state: {:?}", e);
             }

@@ -32,7 +32,6 @@ async fn get_last_id<T: Default + Entity + HasId>(db: &Database) -> u32 {
 pub struct AppState {
     pub id: u32,
     pub last_execution_time: Option<SystemTime>,
-    pub prev_balance: HashMap<String, Option<f64>>,
     pub liquidated_time: Vec<String>,
 }
 
@@ -41,21 +40,19 @@ impl Default for AppState {
         Self {
             id: 1,
             last_execution_time: None,
-            prev_balance: HashMap::new(),
             liquidated_time: vec![],
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct BalanceLog {
+pub struct PnlLog {
     pub id: Option<u32>,
-    pub chain_name: String,
     pub date: String,
-    pub change: f64,
+    pub pnl: f64,
 }
 
-impl HasId for BalanceLog {
+impl HasId for PnlLog {
     fn id(&self) -> Option<u32> {
         self.id
     }
@@ -113,7 +110,7 @@ impl TransactionLog {
         match counter_type {
             CounterType::Position => get_last_id::<TradePosition>(db).await,
             CounterType::Price => get_last_id::<PriceLog>(db).await,
-            CounterType::Balance => get_last_id::<BalanceLog>(db).await,
+            CounterType::Pnl => get_last_id::<PnlLog>(db).await,
         }
     }
 
@@ -195,10 +192,7 @@ impl TransactionLog {
         result
     }
 
-    pub async fn insert_balance(
-        db: &Database,
-        item: BalanceLog,
-    ) -> Result<(), Box<dyn error::Error>> {
+    pub async fn insert_pnl(db: &Database, item: PnlLog) -> Result<(), Box<dyn error::Error>> {
         insert_item(db, &item).await?;
         Ok(())
     }
@@ -217,8 +211,6 @@ impl TransactionLog {
     pub async fn update_app_state(
         db: &Database,
         last_execution_time: Option<SystemTime>,
-        chain_name: &str,
-        prev_balance: Option<f64>,
         is_liquidated: bool,
     ) -> Result<(), Box<dyn error::Error>> {
         let item = AppState::default();
@@ -232,11 +224,6 @@ impl TransactionLog {
                 .insert(last_execution_time.unwrap());
         }
 
-        if prev_balance.is_some() {
-            item.prev_balance
-                .insert(chain_name.to_owned(), prev_balance);
-        }
-
         if is_liquidated {
             let date_string = DateTimeUtils::get_current_datetime_string();
             item.liquidated_time.push(date_string);
@@ -246,10 +233,7 @@ impl TransactionLog {
         Ok(())
     }
 
-    pub async fn update_liquidate_time(
-        db: &Database,
-        chain_name: &str,
-    ) -> Result<(), Box<dyn error::Error>> {
-        TransactionLog::update_app_state(&db, None, chain_name, None, true).await
+    pub async fn update_liquidate_time(db: &Database) -> Result<(), Box<dyn error::Error>> {
+        TransactionLog::update_app_state(&db, None, true).await
     }
 }

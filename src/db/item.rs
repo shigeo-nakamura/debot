@@ -13,7 +13,7 @@ use std::io::{Error, ErrorKind};
 
 use crate::trade::transaction_log::AppState;
 use crate::trade::transaction_log::PriceLog;
-use crate::trade::BalanceLog;
+use crate::trade::PnlLog;
 
 #[async_trait]
 pub trait Entity {
@@ -101,7 +101,7 @@ pub async fn create_unique_index(db: &Database) -> Result<(), Box<dyn error::Err
     let item = PriceLog::default();
     item.create_unique_index(db).await?;
 
-    let item = BalanceLog::default();
+    let item = PnlLog::default();
     item.create_unique_index(db).await?;
 
     Ok(())
@@ -146,7 +146,7 @@ impl Entity for TradePosition {
 }
 
 #[async_trait]
-impl Entity for BalanceLog {
+impl Entity for PnlLog {
     async fn insert(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
         let collection = self.get_collection(db);
         collection.insert_one(self, None).await?;

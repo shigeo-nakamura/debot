@@ -53,7 +53,7 @@ async fn main() -> std::io::Result<()> {
     let last_price_counter =
         TransactionLog::get_last_transaction_id(&db, db::CounterType::Price).await;
     let last_balance_counter =
-        TransactionLog::get_last_transaction_id(&db, db::CounterType::Balance).await;
+        TransactionLog::get_last_transaction_id(&db, db::CounterType::Pnl).await;
 
     let transaction_log = Arc::new(TransactionLog::new(
         config.log_limit,
@@ -173,12 +173,18 @@ async fn main_loop(
             }
 
             if now.duration_since(last_execution_time.unwrap()).unwrap() > one_day {
+                // log last_execution_time
+                last_execution_time = Some(now);
                 trader
                     .db_handler()
                     .lock()
                     .await
-                    .log_app_state(last_execution_time, trader.name(), None, false)
+                    .log_app_state(last_execution_time, false)
                     .await;
+
+                // get and log yesterday's PNL
+                let pnl = 0.0;
+                trader.db_handler().lock().await.log_pnl(pnl).await;
             }
 
             if error_manager.get_error_count() >= config.max_error_count {
