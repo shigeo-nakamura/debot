@@ -12,7 +12,6 @@ use std::error;
 use std::io::{Error, ErrorKind};
 
 use crate::trade::transaction_log::AppState;
-use crate::trade::transaction_log::PerformanceLog;
 use crate::trade::transaction_log::PriceLog;
 use crate::trade::BalanceLog;
 
@@ -100,9 +99,6 @@ pub async fn create_unique_index(db: &Database) -> Result<(), Box<dyn error::Err
     item.create_unique_index(db).await?;
 
     let item = PriceLog::default();
-    item.create_unique_index(db).await?;
-
-    let item = PerformanceLog::default();
     item.create_unique_index(db).await?;
 
     let item = BalanceLog::default();
@@ -251,44 +247,6 @@ impl Entity for PriceLog {
 
     fn get_collection_name(&self) -> &str {
         "price"
-    }
-}
-
-#[async_trait]
-impl Entity for PerformanceLog {
-    async fn insert(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
-        let collection = self.get_collection(db);
-        collection.insert_one(self, None).await?;
-        Ok(())
-    }
-
-    async fn update(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
-        let query = doc! { "id": self.id };
-        let update = bson::to_bson(self).unwrap();
-        let update = doc! { "$set" : update };
-        let collection = self.get_collection(db);
-        collection.update(query, update, true).await
-    }
-
-    async fn delete(&self, _db: &Database) -> Result<(), Box<dyn error::Error>> {
-        panic!("Not implemented")
-    }
-
-    async fn delete_all(&self, _db: &Database) -> Result<(), Box<dyn error::Error>> {
-        panic!("Not implemented")
-    }
-
-    async fn search(&self, db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
-        let mut query = doc! { "id": { "$gt": 0 }};
-        if self.id != None {
-            query = doc! { "id": self.id };
-        }
-        let collection = self.get_collection(db);
-        collection.search(query).await
-    }
-
-    fn get_collection_name(&self) -> &str {
-        "performance"
     }
 }
 

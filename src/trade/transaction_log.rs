@@ -8,7 +8,7 @@ use crate::db::{
 use crate::db::{search_item, Counter, CounterType};
 use debot_market_analyzer::PricePoint;
 use debot_position_manager::TradePosition;
-use debot_utils::{DateTimeUtils, HasId, ToDateTimeString};
+use debot_utils::{DateTimeUtils, HasId};
 use mongodb::Database;
 use serde::{Deserialize, Serialize};
 use shared_mongodb::{database, ClientHolder};
@@ -70,32 +70,6 @@ pub struct PriceLog {
 }
 
 impl HasId for PriceLog {
-    fn id(&self) -> Option<u32> {
-        self.id
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct PerformanceLog {
-    pub id: Option<u32>,
-    pub date: String,
-    pub trader_name: String,
-    pub scores: HashMap<String, f64>,
-}
-
-impl Default for PerformanceLog {
-    fn default() -> Self {
-        let now = SystemTime::now();
-        Self {
-            id: None,
-            date: now.to_datetime_string(),
-            trader_name: String::new(),
-            scores: HashMap::new(),
-        }
-    }
-}
-
-impl HasId for PerformanceLog {
     fn id(&self) -> Option<u32> {
         self.id
     }
