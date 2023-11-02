@@ -31,6 +31,7 @@ pub struct FundManagerState {
 
 pub struct FundManagerConfig {
     name: String,
+    index: usize,
     token_name: String,
     strategy: TradingStrategy,
     risk_reward: f64,
@@ -48,6 +49,7 @@ pub struct FundManager {
 impl FundManager {
     pub fn new(
         fund_name: &str,
+        index: usize,
         token_name: &str,
         open_positions: Option<HashMap<String, TradePosition>>,
         market_data: MarketData,
@@ -63,6 +65,7 @@ impl FundManager {
     ) -> Self {
         let config = FundManagerConfig {
             name: fund_name.to_owned(),
+            index,
             token_name: token_name.to_owned(),
             strategy,
             risk_reward,
@@ -135,7 +138,7 @@ impl FundManager {
         let price_point = data.add_price(price, None);
 
         // Save the price in the DB
-        if self.config.save_prices {
+        if self.config.index == 0 && self.config.save_prices {
             self.state
                 .db_handler
                 .lock()
@@ -196,6 +199,14 @@ impl FundManager {
             } else {
                 TradeAction::SellOpen
             };
+
+            if (self.config.strategy == TradingStrategy::TrendFollowingLong
+                && action == TradeAction::SellOpen)
+                || (self.config.strategy == TradingStrategy::TrendFollowingShort
+                    && action == TradeAction::BuyOpen)
+            {
+                return Ok(());
+            }
 
             self.execute_chances(
                 current_price,

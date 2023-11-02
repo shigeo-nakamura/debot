@@ -18,17 +18,21 @@ use super::TransactionLog;
 
 #[derive(Clone)]
 pub struct TradingPeriod {
-    short_term_hour: usize,
-    medium_term_hour: usize,
-    long_term_hour: usize,
+    short_term_minute: usize,
+    medium_term_minute: usize,
+    long_term_minute: usize,
 }
 
 impl TradingPeriod {
-    pub fn new(short_term_hour: usize, medium_term_hour: usize, long_term_hour: usize) -> Self {
+    pub fn new(
+        short_term_minute: usize,
+        medium_term_minute: usize,
+        long_term_minute: usize,
+    ) -> Self {
         Self {
-            short_term_hour,
-            medium_term_hour,
-            long_term_hour,
+            short_term_minute,
+            medium_term_minute,
+            long_term_minute,
         }
     }
 }
@@ -70,14 +74,15 @@ impl DerivativeTrader {
         encrypted_api_key: &str,
         dex_router_url: &str,
     ) -> Self {
-        const SECONDS_IN_HOUR: usize = 3600;
+        const SECONDS_IN_MINUTE: usize = 60;
         let config = DerivativeTraderConfig {
             name: name.to_owned(),
-            short_trade_period: trading_period.short_term_hour * SECONDS_IN_HOUR
+            short_trade_period: trading_period.short_term_minute * SECONDS_IN_MINUTE
                 / interval as usize,
-            medium_trade_period: trading_period.medium_term_hour * SECONDS_IN_HOUR
+            medium_trade_period: trading_period.medium_term_minute * SECONDS_IN_MINUTE
                 / interval as usize,
-            long_trade_period: trading_period.long_term_hour * SECONDS_IN_HOUR / interval as usize,
+            long_trade_period: trading_period.long_term_minute * SECONDS_IN_MINUTE
+                / interval as usize,
             max_price_size,
             interval,
         };
@@ -118,9 +123,11 @@ impl DerivativeTrader {
             transaction_log.clone(),
         )));
 
+        let mut token_name_indices = HashMap::new();
+
         fund_manager_configurations
             .into_iter()
-            .filter_map(|(token_name, strategy, initial_amount, trading_amount)| {
+            .map(|(token_name, strategy, initial_amount, trading_amount)| {
                 let fund_name = format!("{:?}-{}-{}", strategy, token_name, initial_amount);
 
                 let mut market_data = Self::create_market_data(config.clone());
@@ -134,8 +141,14 @@ impl DerivativeTrader {
                     );
                 }
 
-                Some(FundManager::new(
+                let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
+                *token_name_indices.get_mut(&token_name).unwrap() += 1;
+
+                log::info!("create {}-{}-{}", fund_name, index, token_name);
+
+                FundManager::new(
                     &fund_name,
+                    index,
                     &token_name,
                     open_positions_map.get(&fund_name).cloned(),
                     market_data,
@@ -148,7 +161,7 @@ impl DerivativeTrader {
                     dex_client.clone(),
                     dry_run,
                     save_prices,
-                ))
+                )
             })
             .collect()
     }
