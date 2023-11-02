@@ -31,7 +31,7 @@ async fn get_last_id<T: Default + Entity + HasId>(db: &Database) -> u32 {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppState {
     pub id: u32,
-    pub last_execution_time: Option<SystemTime>,
+    pub last_logging_time: Option<SystemTime>,
     pub liquidated_time: Vec<String>,
 }
 
@@ -39,7 +39,7 @@ impl Default for AppState {
     fn default() -> Self {
         Self {
             id: 1,
-            last_execution_time: None,
+            last_logging_time: None,
             liquidated_time: vec![],
         }
     }
@@ -210,7 +210,7 @@ impl TransactionLog {
 
     pub async fn update_app_state(
         db: &Database,
-        last_execution_time: Option<SystemTime>,
+        last_logging_time: Option<SystemTime>,
         is_liquidated: bool,
     ) -> Result<(), Box<dyn error::Error>> {
         let item = AppState::default();
@@ -219,8 +219,8 @@ impl TransactionLog {
             Err(_) => item,
         };
 
-        if last_execution_time.is_some() {
-            item.last_execution_time = last_execution_time;
+        if last_logging_time.is_some() {
+            item.last_logging_time = last_logging_time;
         }
 
         if is_liquidated {

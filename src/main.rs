@@ -79,12 +79,7 @@ async fn main() -> std::io::Result<()> {
     )
     .await;
 
-    main_loop(
-        &mut trader_instances,
-        &config,
-        app_state.last_execution_time,
-    )
-    .await
+    main_loop(&mut trader_instances, &config, app_state.last_logging_time).await
 }
 
 async fn prepare_trader_instances(
@@ -152,13 +147,14 @@ async fn prepare_algorithm_trader_instance(
 async fn main_loop(
     trader_instances: &mut Vec<(DerivativeTrader, &EnvConfig, ErrorManager)>,
     config: &EnvConfig,
-    mut last_execution_time: Option<SystemTime>,
+    mut last_logging_time: Option<SystemTime>,
 ) -> std::io::Result<()> {
     let one_day = Duration::from_secs(24 * 60 * 60);
-    let interval = config.interval as f64 / trader_instances.len() as f64;
+    let interval = Duration::from_secs(config.interval as u64 / trader_instances.len() as u64);
 
-    let execution_time = last_execution_time.unwrap_or(SystemTime::UNIX_EPOCH);
-    last_execution_time = Some(execution_time);
+    let execution_time = last_logging_time.unwrap_or(SystemTime::UNIX_EPOCH);
+    last_logging_time = Some(execution_time);
+    let mut last_execution_time = SystemTime::now();
 
     log::info!("main_loop() starts");
 
@@ -171,14 +167,14 @@ async fn main_loop(
                 loop {}
             }
 
-            if now.duration_since(last_execution_time.unwrap()).unwrap() > one_day {
-                // log last_execution_time
-                last_execution_time = Some(now);
+            if now.duration_since(last_logging_time.unwrap()).unwrap() > one_day {
+                // log last_logging_time
+                last_logging_time = Some(now);
                 trader
                     .db_handler()
                     .lock()
                     .await
-                    .log_app_state(last_execution_time, false)
+                    .log_app_state(last_logging_time, false)
                     .await;
 
                 // get and log yesterday's PNL
@@ -208,15 +204,25 @@ async fn main_loop(
                 }
             };
 
-            if let Err(_) = handle_sleep_and_signal(interval).await {
+            let elapsed = now
+                .duration_since(last_execution_time)
+                .unwrap_or(Duration::ZERO);
+            let duration = if elapsed < interval {
+                interval - elapsed
+            } else {
+                Duration::ZERO
+            };
+
+            if let Err(_) = handle_sleep_and_signal(duration).await {
                 return Ok(());
             }
+            last_execution_time = SystemTime::now();
         }
     }
 }
 
-async fn handle_sleep_and_signal(interval: f64) -> Result<(), &'static str> {
-    let sleep_fut = tokio::time::sleep(Duration::from_secs_f64(interval));
+async fn handle_sleep_and_signal(interval: Duration) -> Result<(), &'static str> {
+    let sleep_fut = tokio::time::sleep(interval);
     let mut sigterm_stream =
         tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
     let ctrl_c_fut = tokio::signal::ctrl_c();

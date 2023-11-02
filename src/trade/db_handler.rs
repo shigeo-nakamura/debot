@@ -57,16 +57,12 @@ impl DBHandler {
         }
     }
 
-    pub async fn log_app_state(
-        &self,
-        last_execution_time: Option<SystemTime>,
-        is_liquidated: bool,
-    ) {
-        log::info!("log_app_state: {:?}", last_execution_time);
+    pub async fn log_app_state(&self, last_logging_time: Option<SystemTime>, is_liquidated: bool) {
+        log::info!("log_app_state: {:?}", last_logging_time);
 
         if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
             if let Err(e) =
-                TransactionLog::update_app_state(&db, last_execution_time, is_liquidated).await
+                TransactionLog::update_app_state(&db, last_logging_time, is_liquidated).await
             {
                 log::warn!("log_app_state: {:?}", e);
             }
