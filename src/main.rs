@@ -52,8 +52,7 @@ async fn main() -> std::io::Result<()> {
         TransactionLog::get_last_transaction_id(&db, db::CounterType::Position).await;
     let last_price_counter =
         TransactionLog::get_last_transaction_id(&db, db::CounterType::Price).await;
-    let last_balance_counter =
-        TransactionLog::get_last_transaction_id(&db, db::CounterType::Pnl).await;
+    let last_pnl_counter = TransactionLog::get_last_transaction_id(&db, db::CounterType::Pnl).await;
 
     let transaction_log = Arc::new(TransactionLog::new(
         config.log_limit,
@@ -61,7 +60,7 @@ async fn main() -> std::io::Result<()> {
         config.log_limit,
         last_position_counter,
         last_price_counter,
-        last_balance_counter,
+        last_pnl_counter,
         &db_name,
     ));
 

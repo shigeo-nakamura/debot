@@ -11,6 +11,8 @@ use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use crate::trade::fund_config::TOKEN_LIST_SIZE;
+
 use super::fund_config;
 use super::DBHandler;
 use super::FundManager;
@@ -83,7 +85,7 @@ impl DerivativeTrader {
                 / interval as usize,
             long_trade_period: trading_period.long_term_minute * SECONDS_IN_MINUTE
                 / interval as usize,
-            max_price_size,
+            max_price_size: max_price_size * TOKEN_LIST_SIZE as u32,
             interval,
         };
 

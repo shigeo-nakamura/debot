@@ -81,7 +81,7 @@ impl TransactionLog {
     pub fn new(
         max_position_counter: u32,
         max_price_couner: u32,
-        max_balance_counter: u32,
+        max_pnl_counter: u32,
         position_counter: u32,
         price_counter: u32,
         balance_counter: u32,
@@ -90,7 +90,7 @@ impl TransactionLog {
         let counter = Counter::new(
             max_position_counter,
             max_price_couner,
-            max_balance_counter,
+            max_pnl_counter,
             position_counter,
             price_counter,
             balance_counter,
