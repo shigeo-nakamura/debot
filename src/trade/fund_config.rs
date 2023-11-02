@@ -27,12 +27,6 @@ pub fn get() -> Vec<(String, TradingStrategy, f64, f64)> {
             100.0, // amount(in USDC) per trading
         ),
         (
-            "LTC-USDC".to_owned(),
-            TradingStrategy::TrendFollowing,
-            200.0, // initial amount(in USDC)
-            100.0, // amount(in USDC) per trading
-        ),
-        (
             "1000PEPE-USDC".to_owned(),
             TradingStrategy::TrendFollowing,
             200.0, // initial amount(in USDC)
@@ -41,19 +35,25 @@ pub fn get() -> Vec<(String, TradingStrategy, f64, f64)> {
         (
             "LINK-USDC".to_owned(),
             TradingStrategy::TrendFollowing,
-            200.0, // initial amount(in USDC)
+            0.0, // initial amount(in USDC)
+            100.0, // amount(in USDC) per trading
+        ),
+        (
+            "LTC-USDC".to_owned(),
+            TradingStrategy::TrendFollowing,
+            0.0, // initial amount(in USDC)
             100.0, // amount(in USDC) per trading
         ),
         (
             "DOGE-USDC".to_owned(),
             TradingStrategy::TrendFollowing,
-            200.0, // initial amount(in USDC)
+            0.0, // initial amount(in USDC)
             100.0, // amount(in USDC) per trading
         ),
         (
             "XRP-USDC".to_owned(),
             TradingStrategy::TrendFollowing,
-            200.0, // initial amount(in USDC)
+            0.0, // initial amount(in USDC)
             100.0, // amount(in USDC) per trading
         ),
     ]
