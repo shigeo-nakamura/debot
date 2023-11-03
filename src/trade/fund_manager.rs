@@ -4,7 +4,7 @@ use crate::db::CounterType;
 
 use super::DBHandler;
 use debot_market_analyzer::{MarketData, TradeAction, TradeChance, TradingStrategy};
-use debot_position_manager::{ReasonForClose, TakeProfitStrategy, TradePosition};
+use debot_position_manager::{ReasonForClose, TradePosition};
 use dex_client::DexClient;
 use std::collections::HashMap;
 use std::error::Error;
@@ -246,7 +246,7 @@ impl FundManager {
                 self.end_liquidate();
                 reason_for_close = Some(ReasonForClose::Liquidated);
             } else {
-                reason_for_close = position.should_close(current_price, None);
+                reason_for_close = position.should_close(current_price);
             }
 
             if reason_for_close.is_some() {
@@ -427,7 +427,6 @@ impl FundManager {
                 let mut position = TradePosition::new(
                     token_name,
                     self.name(),
-                    TakeProfitStrategy::FixedThreshold,
                     average_price,
                     trade_action.is_buy(),
                     take_profit_price,

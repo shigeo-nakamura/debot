@@ -103,10 +103,7 @@ impl DBHandler {
             let open_positions_vec = TransactionLog::get_all_open_positions(&db).await;
 
             // Populate the open_positions_map
-            for mut position in open_positions_vec {
-                // Restore the mutex
-                position.reset_cut_loss_price();
-
+            for position in open_positions_vec {
                 // Ensure a HashMap exists for this fund_name
                 open_positions_map
                     .entry(position.fund_name().to_owned())
