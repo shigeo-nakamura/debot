@@ -21,19 +21,13 @@ use super::TransactionLog;
 #[derive(Clone)]
 pub struct TradingPeriod {
     short_term_minute: usize,
-    medium_term_minute: usize,
     long_term_minute: usize,
 }
 
 impl TradingPeriod {
-    pub fn new(
-        short_term_minute: usize,
-        medium_term_minute: usize,
-        long_term_minute: usize,
-    ) -> Self {
+    pub fn new(short_term_minute: usize, long_term_minute: usize) -> Self {
         Self {
             short_term_minute,
-            medium_term_minute,
             long_term_minute,
         }
     }
@@ -43,7 +37,6 @@ impl TradingPeriod {
 struct DerivativeTraderConfig {
     name: String,
     short_trade_period: usize,
-    medium_trade_period: usize,
     long_trade_period: usize,
     max_price_size: u32,
     interval: u64,
@@ -80,8 +73,6 @@ impl DerivativeTrader {
         let config = DerivativeTraderConfig {
             name: name.to_owned(),
             short_trade_period: trading_period.short_term_minute * SECONDS_IN_MINUTE
-                / interval as usize,
-            medium_trade_period: trading_period.medium_term_minute * SECONDS_IN_MINUTE
                 / interval as usize,
             long_trade_period: trading_period.long_term_minute * SECONDS_IN_MINUTE
                 / interval as usize,
@@ -281,7 +272,6 @@ impl DerivativeTrader {
         MarketData::new(
             config.name.to_owned(),
             config.short_trade_period,
-            config.medium_trade_period,
             config.long_trade_period,
             config.max_price_size as usize,
             config.interval,
