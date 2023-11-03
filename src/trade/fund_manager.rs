@@ -316,11 +316,12 @@ impl FundManager {
                 log::error!("create_order failed: {:?}", result.message);
                 return Err(());
             }
-            executed_price = if result.price.is_none() {
-                log::info!("The price executed is unknown");
-                current_price
-            } else {
-                result.price.unwrap()
+            executed_price = match result.price.parse::<f64>() {
+                Ok(price) => price,
+                Err(e) => {
+                    log::error!("Failed to get the price executed: {:?}", e);
+                    current_price
+                }
             };
         }
 
