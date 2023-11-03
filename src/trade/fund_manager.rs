@@ -218,14 +218,12 @@ impl FundManager {
                 return Ok(());
             }
 
-            let amount = self.config.trading_amount / current_price;
-
             self.execute_chances(
                 current_price,
                 TradeChance {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(prediction.price),
-                    amount,
+                    amount: self.config.trading_amount,
                     atr: data.atr(self.config.trading_period),
                     momentum: Some(data.momentum()),
                     action,
@@ -282,7 +280,7 @@ impl FundManager {
         reason_for_close: Option<ReasonForClose>,
     ) -> Result<(), ()> {
         let symbol = &self.config.token_name;
-        let size = chance.amount.to_string();
+        let size = (chance.amount / current_price).to_string();
         let side = if chance.action.is_buy() {
             "BUY"
         } else {
@@ -296,11 +294,10 @@ impl FundManager {
             side
         );
 
-        let executed_price;
+        let mut amount_in = chance.amount;
+        let mut amount_out = amount_in / current_price;
 
-        if self.config.dry_run {
-            executed_price = current_price;
-        } else {
+        if !self.config.dry_run {
             // Execute the transaction
             let result = self
                 .state
@@ -317,7 +314,7 @@ impl FundManager {
                 return Err(());
             }
 
-            executed_price = match result.price {
+            let executed_price = match result.price {
                 Some(price) => match price.parse::<f64>() {
                     Ok(price) => price,
                     Err(e) => {
@@ -329,11 +326,22 @@ impl FundManager {
                     log::info!("The price executed is unknown");
                     current_price
                 }
-            }
+            };
+            match result.size {
+                Some(size) => match size.parse::<f64>() {
+                    Ok(size) => {
+                        amount_in = executed_price * size;
+                        amount_out = size;
+                    }
+                    Err(e) => {
+                        log::error!("Failed to get the size executed: {:?}", e);
+                    }
+                },
+                None => {
+                    log::info!("The size executed is unknown");
+                }
+            };
         }
-
-        let amount_in = chance.amount;
-        let amount_out = amount_in / executed_price;
 
         // Update the position
         self.update_position(
