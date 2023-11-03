@@ -303,10 +303,15 @@ impl FundManager {
                 .dex_client
                 .create_order(symbol, &size, side)
                 .await;
-            if result.is_err() {
+            if let Err(e) = result {
+                log::error!("create_order failed: {:?}", e);
                 return Err(());
             }
             let result = result.unwrap();
+            if result.result == "Err" {
+                log::error!("create_order failed: {:?}", result.message);
+                return Err(());
+            }
             executed_price = if result.price.is_none() {
                 log::info!("The price executed is unknown");
                 current_price
