@@ -241,7 +241,7 @@ impl FundManager {
 
             if should_liquidate {
                 log::warn!(
-                    "Close the position of {}, as its price{:.6} is requested to close",
+                    "Liquidate the position({}: {}",
                     token_name,
                     current_price
                 );
