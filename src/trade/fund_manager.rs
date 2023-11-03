@@ -259,7 +259,7 @@ impl FundManager {
                     TradeChance {
                         token_name: self.config.token_name.clone(),
                         predicted_price: None,
-                        amount: position.amount,
+                        amount: position.amount(),
                         atr: None,
                         momentum: None,
                         action: TradeAction::SellClose,
@@ -433,12 +433,12 @@ impl FundManager {
                     momentum,
                     predicted_price,
                 );
-                position.id = self
+                position.set_id(self
                     .state
                     .db_handler
                     .lock()
                     .await
-                    .increment_counter(CounterType::Position);
+                    .increment_counter(CounterType::Position));
                 log::info!("Open a new position: {:?}", position);
 
                 let position_cloned = position.clone();
@@ -460,7 +460,7 @@ impl FundManager {
                 position.del(close_price, &reason_for_close.unwrap().to_string());
 
                 let position_cloned = position.clone();
-                let amount = position.amount;
+                let amount = position.amount();
                 self.state
                     .db_handler
                     .lock()
@@ -486,13 +486,13 @@ impl FundManager {
                 // caliculate unrialized PnL
                 position.print_info(price);
 
-                let current_val = if position.is_long_position {
-                    price * position.amount
-                } else {
-                    -price * position.amount
-                };
-
-                current_val - position.amount_in_anchor_token
+                let current_val = price * position.amount();
+                if position.is_long_position() {
+                    current_val - position.amount_in_anchor_token()
+                }
+                else {
+                    position.amount_in_anchor_token() - current_val
+                }
             } else {
                 0.0
             };

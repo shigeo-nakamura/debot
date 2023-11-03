@@ -116,7 +116,7 @@ impl Entity for TradePosition {
     }
 
     async fn update(&self, db: &Database) -> Result<(), Box<dyn error::Error>> {
-        let query = doc! { "id": self.id };
+        let query = doc! { "id": self.id() };
         let update = bson::to_bson(self).unwrap();
         let update = doc! { "$set" : update };
         let collection = self.get_collection(db);
@@ -133,8 +133,8 @@ impl Entity for TradePosition {
 
     async fn search(&self, db: &Database) -> Result<Vec<Self>, Box<dyn error::Error>> {
         let mut query = doc! { "id": { "$gt": 0 }};
-        if self.id != None {
-            query = doc! { "id": self.id.unwrap() };
+        if self.id() != None {
+            query = doc! { "id": self.id().unwrap() };
         }
         let collection = self.get_collection(db);
         collection.search(query).await

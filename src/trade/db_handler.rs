@@ -105,14 +105,13 @@ impl DBHandler {
             // Populate the open_positions_map
             for mut position in open_positions_vec {
                 // Restore the mutex
-                position.cut_loss_price =
-                    Arc::new(std::sync::Mutex::new(position.initial_cut_loss_price));
+                position.reset_cut_loss_price();
 
                 // Ensure a HashMap exists for this fund_name
                 open_positions_map
-                    .entry(position.fund_name.clone())
+                    .entry(position.fund_name().to_owned())
                     .or_insert_with(HashMap::new)
-                    .insert(position.token_name.clone(), position);
+                    .insert(position.token_name().to_owned(), position);
             }
 
             for (fund_name, positions) in &open_positions_map {

@@ -7,7 +7,7 @@ use crate::db::{
 };
 use crate::db::{search_item, Counter, CounterType};
 use debot_market_analyzer::PricePoint;
-use debot_position_manager::TradePosition;
+use debot_position_manager::{TradePosition, State};
 use debot_utils::{DateTimeUtils, HasId};
 use mongodb::Database;
 use serde::{Deserialize, Serialize};
@@ -137,7 +137,7 @@ impl TransactionLog {
         let items = match search_items(db, &item).await {
             Ok(items) => items
                 .into_iter()
-                .filter(|position| position.close_amount == None)
+                .filter(|position| *position.state() == State::Open)
                 .collect(),
             Err(_) => {
                 vec![]
