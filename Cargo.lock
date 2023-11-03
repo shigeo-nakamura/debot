@@ -621,9 +621,9 @@ dependencies = [
 
 [[package]]
 name = "debot-market-analyzer"
-version = "0.2.8"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c03380616aea7d44ff08133e63db1ea0068d5d1e36e2a14826a93d21f9c2ac32"
+checksum = "5c72656d9cbc064bc9f50a5d089090a1157e114a3c563039d1cd51d8a48bda60"
 dependencies = [
  "chrono",
  "debot-utils",
