@@ -46,35 +46,35 @@ pub fn get() -> Vec<(String, TradingStrategy, f64, f64)> {
             0.0,   // initial amount(in USDC)
             100.0, // amount(in USDC) per trading
         ),
-        (
-            TOKEN_LIST[4].to_owned(), // PEPE
-            TradingStrategy::TrendFollowingLong,
-            0.0,   // initial amount(in USDC)
-            100.0, // amount(in USDC) per trading
-        ),
-        (
-            TOKEN_LIST[5].to_owned(), // LINK
-            TradingStrategy::TrendFollowingLong,
-            0.0,   // initial amount(in USDC)
-            100.0, // amount(in USDC) per trading
-        ),
-        (
-            TOKEN_LIST[6].to_owned(), // LTC
-            TradingStrategy::TrendFollowingLong,
-            0.0,   // initial amount(in USDC)
-            100.0, // amount(in USDC) per trading
-        ),
-        (
-            TOKEN_LIST[7].to_owned(), // DOGE
-            TradingStrategy::TrendFollowingLong,
-            0.0,   // initial amount(in USDC)
-            100.0, // amount(in USDC) per trading
-        ),
-        (
-            TOKEN_LIST[8].to_owned(), // XRP
-            TradingStrategy::TrendFollowingLong,
-            0.0,   // initial amount(in USDC)
-            100.0, // amount(in USDC) per trading
-        ),
+        // (
+        //     TOKEN_LIST[4].to_owned(), // PEPE
+        //     TradingStrategy::TrendFollowingLong,
+        //     0.0,   // initial amount(in USDC)
+        //     100.0, // amount(in USDC) per trading
+        // ),
+        // (
+        //     TOKEN_LIST[5].to_owned(), // LINK
+        //     TradingStrategy::TrendFollowingLong,
+        //     0.0,   // initial amount(in USDC)
+        //     100.0, // amount(in USDC) per trading
+        // ),
+        // (
+        //     TOKEN_LIST[6].to_owned(), // LTC
+        //     TradingStrategy::TrendFollowingLong,
+        //     0.0,   // initial amount(in USDC)
+        //     100.0, // amount(in USDC) per trading
+        // ),
+        // (
+        //     TOKEN_LIST[7].to_owned(), // DOGE
+        //     TradingStrategy::TrendFollowingLong,
+        //     0.0,   // initial amount(in USDC)
+        //     100.0, // amount(in USDC) per trading
+        // ),
+        // (
+        //     TOKEN_LIST[8].to_owned(), // XRP
+        //     TradingStrategy::TrendFollowingLong,
+        //     0.0,   // initial amount(in USDC)
+        //     100.0, // amount(in USDC) per trading
+        // ),
     ]
 }
