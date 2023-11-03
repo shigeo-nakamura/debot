@@ -157,12 +157,16 @@ impl FundManager {
             .await
             .map_err(|_| "Failed to find close chances".to_owned())?;
 
-        self.check_positions(0.0);
+        self.check_positions(price);
 
         Ok(())
     }
 
     async fn find_open_chances(&mut self, current_price: f64) -> Result<(), ()> {
+        if self.state.amount == 0.0 {
+            return Ok(());
+        }
+
         let token_name = &self.config.token_name;
         let data = &self.state.market_data;
 
@@ -303,11 +307,12 @@ impl FundManager {
                 return Err(());
             }
             let result = result.unwrap();
-            if result.price.is_none() {
-                log::error!("The price executed is unknown");
-                return Err(());
-            }
-            executed_price = result.price.unwrap();
+            executed_price = if result.price.is_none() {
+                log::info!("The price executed is unknown");
+                current_price
+            } else {
+                result.price.unwrap()
+            };
         }
 
         let amount_in = chance.amount;
