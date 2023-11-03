@@ -28,24 +28,24 @@ pub fn get() -> Vec<(String, TradingStrategy, f64, f64)> {
             500.0, // initial amount(in USDC)
             100.0, // amount(in USDC) per trading
         ),
-        (
-            TOKEN_LIST[1].to_owned(), // ETH
-            TradingStrategy::TrendFollowingLong,
-            0.0,   // initial amount(in USDC)
-            100.0, // amount(in USDC) per trading
-        ),
-        (
-            TOKEN_LIST[2].to_owned(), // SOL
-            TradingStrategy::TrendFollowingLong,
-            0.0,   // initial amount(in USDC)
-            100.0, // amount(in USDC) per trading
-        ),
-        (
-            TOKEN_LIST[3].to_owned(), // MATIC
-            TradingStrategy::TrendFollowingLong,
-            0.0,   // initial amount(in USDC)
-            100.0, // amount(in USDC) per trading
-        ),
+        // (
+        //     TOKEN_LIST[1].to_owned(), // ETH
+        //     TradingStrategy::TrendFollowingLong,
+        //     0.0,   // initial amount(in USDC)
+        //     100.0, // amount(in USDC) per trading
+        // ),
+        // (
+        //     TOKEN_LIST[2].to_owned(), // SOL
+        //     TradingStrategy::TrendFollowingLong,
+        //     0.0,   // initial amount(in USDC)
+        //     100.0, // amount(in USDC) per trading
+        // ),
+        // (
+        //     TOKEN_LIST[3].to_owned(), // MATIC
+        //     TradingStrategy::TrendFollowingLong,
+        //     0.0,   // initial amount(in USDC)
+        //     100.0, // amount(in USDC) per trading
+        // ),
         // (
         //     TOKEN_LIST[4].to_owned(), // PEPE
         //     TradingStrategy::TrendFollowingLong,

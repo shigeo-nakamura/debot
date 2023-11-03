@@ -433,12 +433,13 @@ impl FundManager {
                     momentum,
                     predicted_price,
                 );
-                position.set_id(self
-                    .state
-                    .db_handler
-                    .lock()
-                    .await
-                    .increment_counter(CounterType::Position));
+                position.set_id(
+                    self.state
+                        .db_handler
+                        .lock()
+                        .await
+                        .increment_counter(CounterType::Position),
+                );
                 log::info!("Open a new position: {:?}", position);
 
                 let position_cloned = position.clone();
@@ -489,8 +490,7 @@ impl FundManager {
                 let current_val = price * position.amount();
                 if position.is_long_position() {
                     current_val - position.amount_in_anchor_token()
-                }
-                else {
+                } else {
                     position.amount_in_anchor_token() - current_val
                 }
             } else {

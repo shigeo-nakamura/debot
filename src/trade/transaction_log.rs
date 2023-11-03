@@ -7,7 +7,7 @@ use crate::db::{
 };
 use crate::db::{search_item, Counter, CounterType};
 use debot_market_analyzer::PricePoint;
-use debot_position_manager::{TradePosition, State};
+use debot_position_manager::{State, TradePosition};
 use debot_utils::{DateTimeUtils, HasId};
 use mongodb::Database;
 use serde::{Deserialize, Serialize};
