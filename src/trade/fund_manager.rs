@@ -316,13 +316,20 @@ impl FundManager {
                 log::error!("create_order failed: {:?}", result.message);
                 return Err(());
             }
-            executed_price = match result.price.parse::<f64>() {
-                Ok(price) => price,
-                Err(e) => {
-                    log::error!("Failed to get the price executed: {:?}", e);
+
+            executed_price = match result.price {
+                Some(price) => match price.parse::<f64>() {
+                    Ok(price) => price,
+                    Err(e) => {
+                        log::error!("Failed to get the price executed: {:?}", e);
+                        current_price
+                    }
+                },
+                None => {
+                    log::info!("The price executed is unknown");
                     current_price
                 }
-            };
+            }
         }
 
         let amount_in = chance.amount;
