@@ -218,12 +218,14 @@ impl FundManager {
                 return Ok(());
             }
 
+            let amount = self.config.trading_amount / current_price;
+
             self.execute_chances(
                 current_price,
                 TradeChance {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(prediction.price),
-                    amount: self.config.trading_amount,
+                    amount,
                     atr: data.atr(self.config.trading_period),
                     momentum: Some(data.momentum()),
                     action,
