@@ -163,10 +163,6 @@ impl FundManager {
     }
 
     async fn find_open_chances(&mut self, current_price: f64) -> Result<(), ()> {
-        if self.state.amount == 0.0 {
-            return Ok(());
-        }
-
         let token_name = &self.config.token_name;
         let data = &self.state.market_data;
 
@@ -246,7 +242,7 @@ impl FundManager {
                 *self.state.fund_state.lock().unwrap() == FundState::ShouldLiquidate;
 
             if should_liquidate {
-                log::warn!("Liquidate the position({}: {}", token_name, current_price);
+                log::warn!("Liquidate the position({}: {})", token_name, current_price);
                 self.end_liquidate();
                 reason_for_close = Some(ReasonForClose::Liquidated);
             } else {
@@ -280,12 +276,12 @@ impl FundManager {
         reason_for_close: Option<ReasonForClose>,
     ) -> Result<(), ()> {
         let symbol = &self.config.token_name;
-        let size = if chance.action.is_open() {
+        let trade_amount = if chance.action.is_open() {
             chance.amount / current_price
         } else {
             chance.amount
-        }
-        .to_string();
+        };
+        let size = trade_amount.to_string();
         let side = if chance.action.is_buy() {
             "BUY"
         } else {
@@ -299,8 +295,12 @@ impl FundManager {
             side
         );
 
-        let mut amount_in = chance.amount;
-        let mut amount_out = amount_in / current_price;
+        let mut amount_in = trade_amount;
+        let mut amount_out = if chance.action.is_open() {
+            amount_in / current_price
+        } else {
+            amount_in * current_price
+        };
 
         if !self.config.dry_run {
             // Execute the transaction
@@ -335,8 +335,13 @@ impl FundManager {
             match result.size {
                 Some(size) => match size.parse::<f64>() {
                     Ok(size) => {
-                        amount_in = executed_price * size;
-                        amount_out = size;
+                        if chance.action.is_open() {
+                            amount_in = executed_price * size;
+                            amount_out = size;
+                        } else {
+                            amount_in = size;
+                            amount_out = executed_price * size;
+                        }
                     }
                     Err(e) => {
                         log::error!("Failed to get the size executed: {:?}", e);
@@ -482,27 +487,19 @@ impl FundManager {
     }
 
     pub fn check_positions(&self, price: f64) {
-        let unrealized_pnl =
-            if let Some(position) = self.state.open_positions.get(&self.config.token_name) {
-                // caliculate unrialized PnL
-                position.print_info(price);
+        let pnl = if let Some(position) = self.state.open_positions.get(&self.config.token_name) {
+            position.print_info(price);
+            position.pnl(price)
+        } else {
+            0.0
+        };
 
-                let current_val = price * position.amount();
-                if position.is_long_position() {
-                    current_val - position.amount_in_anchor_token()
-                } else {
-                    position.amount_in_anchor_token() - current_val
-                }
-            } else {
-                0.0
-            };
-
-        if self.amount() + unrealized_pnl < 0.0 {
+        if self.amount() + pnl < 0.0 {
             log::info!(
-                "This fund({}) should be liquidated. remaing_amount = {:6.3}, unrealized_pnl = {:6.3}",
+                "This fund({}) should be liquidated. remaing_amount = {:6.3}, pnl = {:6.3}",
                 self.name(),
                 self.amount(),
-                unrealized_pnl
+                pnl
             );
             self.begin_liquidate();
         }
