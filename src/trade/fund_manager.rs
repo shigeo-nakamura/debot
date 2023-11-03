@@ -174,8 +174,8 @@ impl FundManager {
         let price_ratio = (prediction.price - current_price) / current_price;
 
         let color = match prediction.confidence {
-            x if x >= 1.0 => "\x1b[0;32m",
-            x if x < 0.0 => "\x1b[0;31m",
+            x if x >= 1.0 && price_ratio > 0.0 => "\x1b[0;32m",
+            x if x >= 1.0 && price_ratio < 0.0 => "\x1b[0;31m",
             _ => "\x1b[0;90m",
         };
 
