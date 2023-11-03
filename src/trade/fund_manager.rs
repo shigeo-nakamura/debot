@@ -280,7 +280,12 @@ impl FundManager {
         reason_for_close: Option<ReasonForClose>,
     ) -> Result<(), ()> {
         let symbol = &self.config.token_name;
-        let size = (chance.amount / current_price).to_string();
+        let size = if chance.action.is_open() {
+            chance.amount / current_price
+        } else {
+            chance.amount
+        }
+        .to_string();
         let side = if chance.action.is_buy() {
             "BUY"
         } else {
