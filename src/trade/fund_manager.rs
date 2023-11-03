@@ -178,7 +178,8 @@ impl FundManager {
             x if x < 0.0 => "\x1b[0;31m",
             _ => "\x1b[0;90m",
         };
-        log::info!(
+
+        let log_message = format!(
             "{} {:>7.3}%\x1b[0m, {:<30} \x1b[0;34m{:<6}\x1b[0m {:<6.5}(--> {:<6.5})",
             color,
             price_ratio * 100.0,
@@ -187,6 +188,11 @@ impl FundManager {
             current_price,
             prediction.price,
         );
+        if price_ratio == 0.0 {
+            log::debug!("{}", log_message);
+        } else {
+            log::info!("{}", log_message);
+        }
 
         if prediction.confidence >= 1.0 {
             if self.state.amount < self.config.trading_amount {
@@ -240,11 +246,7 @@ impl FundManager {
                 *self.state.fund_state.lock().unwrap() == FundState::ShouldLiquidate;
 
             if should_liquidate {
-                log::warn!(
-                    "Liquidate the position({}: {}",
-                    token_name,
-                    current_price
-                );
+                log::warn!("Liquidate the position({}: {}", token_name, current_price);
                 self.end_liquidate();
                 reason_for_close = Some(ReasonForClose::Liquidated);
             } else {
