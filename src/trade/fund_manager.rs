@@ -391,18 +391,13 @@ impl FundManager {
 
             let average_price = amount_in / amount_out;
 
-            let cut_loss_price;
-            let distance;
-            let take_profit_price;
-            if trade_action.is_buy() {
-                cut_loss_price = average_price - atr.unwrap() / 2.0;
-                distance = (average_price - cut_loss_price) * self.config.risk_reward;
-                take_profit_price = average_price + distance;
+            let take_profit_price = predicted_price.unwrap();
+            let distance = (take_profit_price - average_price).abs() / self.config.risk_reward;
+            let cut_loss_price = if trade_action.is_buy() {
+                average_price - distance
             } else {
-                cut_loss_price = average_price + atr.unwrap() / 2.0;
-                distance = (cut_loss_price - average_price) * self.config.risk_reward;
-                take_profit_price = average_price - distance;
-            }
+                average_price + distance
+            };
 
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
                 // if there are already open positions for this token, update them

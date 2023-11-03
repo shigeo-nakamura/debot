@@ -146,7 +146,7 @@ impl DerivativeTrader {
                     open_positions_map.get(&fund_name).cloned(),
                     market_data,
                     strategy,
-                    config.short_trade_period,
+                    config.long_trade_period,
                     trading_amount,
                     initial_amount,
                     risk_reward,
