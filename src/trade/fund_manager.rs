@@ -3,15 +3,25 @@
 use crate::db::CounterType;
 
 use super::DBHandler;
-use debot_market_analyzer::{MarketData, TradeAction, TradeChance, TradingStrategy};
+use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
 use debot_position_manager::{ReasonForClose, TradePosition};
 use dex_client::DexClient;
 use std::collections::HashMap;
 use std::error::Error;
 use std::f64;
 use std::sync::Arc;
-
 use tokio::sync::Mutex;
+
+#[derive(Debug, Clone, Default)]
+struct TradeChance {
+    pub action: TradeAction,
+    pub token_name: String,
+    pub predicted_price: Option<f64>,
+    pub amount: f64,
+    pub confidence: f64,
+    pub atr: Option<f64>,
+    pub momentum: Option<f64>,
+}
 
 #[derive(PartialEq)]
 enum FundState {
