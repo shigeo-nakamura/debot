@@ -589,7 +589,7 @@ checksum = "c2e66c9d817f1720209181c316d28635c050fa304f9c79e47a520882661b7308"
 
 [[package]]
 name = "debot"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -621,9 +621,9 @@ dependencies = [
 
 [[package]]
 name = "debot-market-analyzer"
-version = "0.3.0"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ff073f184848af3e0df04bbb56393a4010bc2aeab8d45423a5c05b637349c16"
+checksum = "30fd872a121ac14bdbbe201b93cae5fbbb0d2ae107c8b9acfba88e220b86c58a"
 dependencies = [
  "chrono",
  "debot-utils",
