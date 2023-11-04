@@ -453,9 +453,13 @@ impl FundManager {
                     .insert(token_name.to_owned(), position);
             }
         } else {
-            self.state.amount += amount_out;
-
             if let Some(position) = self.state.open_positions.get_mut(token_name) {
+                if position.is_long_position() {
+                    self.state.amount += amount_out;
+                } else {
+                    self.state.amount = position.amount_in_anchor_token() * 2.0 - amount_out;
+                }
+
                 let close_price = amount_out / amount_in;
                 position.del(close_price, &reason_for_close.unwrap().to_string());
 
