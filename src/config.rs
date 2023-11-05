@@ -75,7 +75,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "4")?;
 
     let risk_reward = get_env_var("RISK_REWARD", "1.5")?;
-    let max_error_count = get_env_var("MAX_ERROR_COUNT", "3")?;
+    let max_error_count = get_env_var("MAX_ERROR_COUNT", "10")?;
     let save_prices = get_bool_env_var("SAVE_PRICES", false);
     let load_prices = get_bool_env_var("LOAD_PRICES", false);
 

@@ -18,9 +18,9 @@ struct TradeChance {
     pub token_name: String,
     pub predicted_price: Option<f64>,
     pub amount: f64,
-    pub confidence: f64,
     pub atr: Option<f64>,
     pub momentum: Option<f64>,
+    pub position_index: Option<usize>,
 }
 
 #[derive(PartialEq)]
@@ -136,7 +136,7 @@ impl FundManager {
             .dex_client
             .get_ticker(&self.config.token_name)
             .await
-            .map_err(|_| format!("Failed to get the price of {}", token_name))?;
+            .map_err(|e| format!("Failed to get the price of {}. {:?}", token_name, e))?;
         let price = match result.price.parse::<f64>() {
             Ok(price) => price,
             Err(e) => return Err(Box::new(e)),
@@ -233,7 +233,7 @@ impl FundManager {
                     atr: data.atr(self.config.trading_period),
                     momentum: Some(data.momentum()),
                     action,
-                    confidence: prediction.confidence,
+                    position_index: None,
                 },
                 None,
             )
@@ -269,7 +269,7 @@ impl FundManager {
                         atr: None,
                         momentum: None,
                         action: TradeAction::SellClose,
-                        confidence: 0.0,
+                        position_index: Some(0),
                     },
                     reason_for_close,
                 )
