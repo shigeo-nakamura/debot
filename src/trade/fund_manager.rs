@@ -190,8 +190,8 @@ impl FundManager {
         let price_ratio = (prediction.price - current_price) / current_price;
 
         let color = match prediction.confidence {
-            x if x >= 1.0 && price_ratio > 0.0 => "\x1b[0;32m",
-            x if x >= 1.0 && price_ratio < 0.0 => "\x1b[0;31m",
+            x if x >= 0.5 && price_ratio > 0.0 => "\x1b[0;32m",
+            x if x >= 0.5 && price_ratio < 0.0 => "\x1b[0;31m",
             _ => "\x1b[0;90m",
         };
 
@@ -202,15 +202,15 @@ impl FundManager {
             self.name(),
             token_name,
             current_price,
-            prediction.price,
+            prediction.price
         );
-        if price_ratio == 0.0 {
+        if prediction.confidence == 0.0 {
             log::debug!("{}", log_message);
         } else {
             log::info!("{}", log_message);
         }
 
-        if prediction.confidence > 0.5 {
+        if prediction.confidence >= 0.5 {
             if self.state.amount < self.config.trading_amount {
                 log::debug!(
                     "No enough fund left({}): remaining = {:6.3}",
@@ -220,9 +220,13 @@ impl FundManager {
                 return Ok(());
             }
 
+            let predicted_price;
+            let fee_percentage = 0.1;
             let action = if price_ratio > 0.0 {
+                predicted_price = prediction.price * (1.0 + fee_percentage / 100.0);
                 TradeAction::BuyOpen
             } else {
+                predicted_price = prediction.price * (1.0 - fee_percentage / 100.0);
                 TradeAction::SellOpen
             };
 
@@ -238,7 +242,7 @@ impl FundManager {
                 current_price,
                 TradeChance {
                     token_name: self.config.token_name.clone(),
-                    predicted_price: Some(prediction.price),
+                    predicted_price: Some(predicted_price),
                     amount: self.config.trading_amount * prediction.confidence,
                     atr: data.atr(self.config.prediction_interval),
                     momentum: Some(data.momentum()),
