@@ -314,7 +314,7 @@ impl FundManager {
             "SELL"
         };
 
-        log::info!(
+        log::debug!(
             "Execute: symbol = {}, size = {}, side = {}",
             symbol,
             size,
@@ -439,7 +439,6 @@ impl FundManager {
                     .await
                     .increment_counter(CounterType::Position),
             );
-            log::info!("Open a new position: {:?}", position);
 
             let position_cloned = position.clone();
             self.state

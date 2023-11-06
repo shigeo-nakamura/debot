@@ -658,9 +658,9 @@ dependencies = [
 
 [[package]]
 name = "debot-position-manager"
-version = "0.2.9"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "789894f8dfc03d41d620cb0d7b03fa0fb8d52999871b3700bc7a7ec2aa788c9b"
+checksum = "71863d81f0ea075d94d8fe5ecbc47c8b2aa1d5bb201f50220beffa72538bf8e7"
 dependencies = [
  "chrono",
  "debot-utils",
