@@ -39,7 +39,6 @@ struct DerivativeTraderConfig {
     short_trade_period: usize,
     long_trade_period: usize,
     max_price_size: u32,
-    interval: u64,
 }
 
 struct DerivativeTraderState {
@@ -58,7 +57,6 @@ impl DerivativeTrader {
         dry_run: bool,
         trading_period: TradingPeriod,
         max_price_size: u32,
-        interval: u64,
         risk_reward: f64,
         db_client: Arc<Mutex<ClientHolder>>,
         transaction_log: Arc<TransactionLog>,
@@ -72,12 +70,9 @@ impl DerivativeTrader {
         const SECONDS_IN_MINUTE: usize = 60;
         let config = DerivativeTraderConfig {
             name: name.to_owned(),
-            short_trade_period: trading_period.short_term_minute * SECONDS_IN_MINUTE
-                / interval as usize,
-            long_trade_period: trading_period.long_term_minute * SECONDS_IN_MINUTE
-                / interval as usize,
+            short_trade_period: trading_period.short_term_minute * SECONDS_IN_MINUTE,
+            long_trade_period: trading_period.long_term_minute * SECONDS_IN_MINUTE,
             max_price_size: max_price_size * TOKEN_LIST_SIZE as u32,
-            interval,
         };
 
         let state = Self::initialize_state(
@@ -274,7 +269,6 @@ impl DerivativeTrader {
             config.short_trade_period,
             config.long_trade_period,
             config.max_price_size as usize,
-            config.interval,
         )
     }
 
