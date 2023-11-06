@@ -118,7 +118,7 @@ async fn prepare_algorithm_trader_instance(
     transaction_log: Arc<TransactionLog>,
     tradeding_preiod: TradingPeriod,
     price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
-    open_positions_map: HashMap<String, HashMap<String, TradePosition>>,
+    open_positions_map: HashMap<String, Vec<TradePosition>>,
 ) -> (DerivativeTrader, &EnvConfig, ErrorManager) {
     // Create an error manager
     let error_manager = ErrorManager::new();

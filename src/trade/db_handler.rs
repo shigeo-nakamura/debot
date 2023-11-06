@@ -98,24 +98,24 @@ impl DBHandler {
     pub async fn get_open_positions_map(
         transaction_log: Arc<TransactionLog>,
         client_holder: Arc<Mutex<ClientHolder>>,
-    ) -> HashMap<String, HashMap<String, TradePosition>> {
+    ) -> HashMap<String, Vec<TradePosition>> {
         let mut open_positions_map = HashMap::new();
         if let Some(db) = transaction_log.get_db(&client_holder).await {
             let open_positions_vec = TransactionLog::get_all_open_positions(&db).await;
 
             // Populate the open_positions_map
             for position in open_positions_vec {
-                // Ensure a HashMap exists for this fund_name
+                // Ensure a Vec exists for this fund_name, then push the position into it
                 open_positions_map
                     .entry(position.fund_name().to_owned())
-                    .or_insert_with(HashMap::new)
-                    .insert(position.token_name().to_owned(), position);
+                    .or_insert_with(Vec::new)
+                    .push(position);
             }
 
             for (fund_name, positions) in &open_positions_map {
                 log::info!("Fund name: {}", fund_name);
-                for (token_name, position) in positions {
-                    log::info!("Token name: {}", token_name);
+                for position in positions {
+                    log::info!("Token name: {}", position.token_name());
                     log::info!("Position: {:?}", position);
                 }
             }

@@ -6,7 +6,6 @@ use super::DBHandler;
 use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
 use debot_position_manager::{ReasonForClose, TradePosition};
 use dex_client::DexClient;
-use std::collections::HashMap;
 use std::error::Error;
 use std::f64;
 use std::sync::Arc;
@@ -32,7 +31,7 @@ enum FundState {
 
 pub struct FundManagerState {
     amount: f64,
-    open_positions: HashMap<String, TradePosition>,
+    open_positions: Vec<TradePosition>,
     fund_state: Arc<std::sync::Mutex<FundState>>,
     db_handler: Arc<Mutex<DBHandler>>,
     dex_client: DexClient,
@@ -61,7 +60,7 @@ impl FundManager {
         fund_name: &str,
         index: usize,
         token_name: &str,
-        open_positions: Option<HashMap<String, TradePosition>>,
+        open_positions: Option<Vec<TradePosition>>,
         market_data: MarketData,
         strategy: TradingStrategy,
         trading_period: usize,
@@ -87,7 +86,7 @@ impl FundManager {
 
         let open_positions = match open_positions {
             Some(positions) => positions,
-            None => HashMap::new(),
+            None => vec![],
         };
 
         let state = FundManagerState {
@@ -254,9 +253,11 @@ impl FundManager {
     }
 
     async fn find_close_chances(&mut self, current_price: f64) -> Result<(), ()> {
-        let token_name = &self.config.token_name;
+        let token_name = self.config.token_name.clone();
 
-        if let Some(position) = self.state.open_positions.get(token_name) {
+        let cloned_open_positions = self.state.open_positions.clone();
+
+        for position in cloned_open_positions {
             let reason_for_close;
 
             let should_liquidate =
@@ -377,6 +378,7 @@ impl FundManager {
             chance.atr,
             chance.momentum,
             chance.predicted_price,
+            chance.position_index,
         )
         .await;
 
@@ -393,6 +395,7 @@ impl FundManager {
         atr: Option<f64>,
         momentum: Option<f64>,
         predicted_price: Option<f64>,
+        position_index: Option<usize>,
     ) {
         log::debug!(
             "update_position: amount_in = {:6.6}, amount_out = {:6.6}",
@@ -415,88 +418,72 @@ impl FundManager {
                 average_price + distance
             };
 
-            if let Some(position) = self.state.open_positions.get_mut(token_name) {
-                // if there are already open positions for this token, update them
-                position.add(
-                    average_price,
-                    trade_action.is_buy(),
-                    take_profit_price,
-                    cut_loss_price,
-                    amount_out,
-                    amount_in,
-                );
-
-                let position_cloned = position.clone();
+            // create a new position
+            let mut position = TradePosition::new(
+                token_name,
+                self.name(),
+                average_price,
+                trade_action.is_buy(),
+                take_profit_price,
+                cut_loss_price,
+                amount_out,
+                amount_in,
+                atr,
+                momentum,
+                predicted_price,
+            );
+            position.set_id(
                 self.state
                     .db_handler
                     .lock()
                     .await
-                    .log_position(&position_cloned)
-                    .await;
-            } else {
-                // else, create a new position
-                let mut position = TradePosition::new(
-                    token_name,
-                    self.name(),
-                    average_price,
-                    trade_action.is_buy(),
-                    take_profit_price,
-                    cut_loss_price,
-                    amount_out,
-                    amount_in,
-                    atr,
-                    momentum,
-                    predicted_price,
-                );
-                position.set_id(
-                    self.state
-                        .db_handler
-                        .lock()
-                        .await
-                        .increment_counter(CounterType::Position),
-                );
-                log::info!("Open a new position: {:?}", position);
+                    .increment_counter(CounterType::Position),
+            );
+            log::info!("Open a new position: {:?}", position);
 
-                let position_cloned = position.clone();
-                self.state
-                    .db_handler
-                    .lock()
-                    .await
-                    .log_position(&position_cloned)
-                    .await;
-                self.state
-                    .open_positions
-                    .insert(token_name.to_owned(), position);
-            }
+            let position_cloned = position.clone();
+            self.state
+                .db_handler
+                .lock()
+                .await
+                .log_position(&position_cloned)
+                .await;
+            self.state.open_positions.push(position);
         } else {
-            if let Some(position) = self.state.open_positions.get_mut(token_name) {
-                if position.is_long_position() {
-                    self.state.amount += amount_out;
-                } else {
-                    self.state.amount += position.amount_in_anchor_token() * 2.0 - amount_out;
-                }
-
-                let close_price = amount_out / amount_in;
-                position.del(close_price, &reason_for_close.unwrap().to_string());
-
-                let position_cloned = position.clone();
-                let amount = position.amount();
-                self.state
-                    .db_handler
-                    .lock()
-                    .await
-                    .log_position(&position_cloned)
-                    .await;
-
-                if amount != 0.0 {
-                    log::error!(
-                        "Position is partially closed. The remaing amount = {}",
-                        amount
-                    );
-                }
-
-                self.state.open_positions.remove(token_name);
+            let position_index = position_index.unwrap();
+            let position = self.state.open_positions.get_mut(position_index);
+            if position.is_none() {
+                log::warn!("The position not found: index = {}", position_index);
+                return;
             }
+            let position = position.unwrap();
+
+            if position.is_long_position() {
+                self.state.amount += amount_out;
+            } else {
+                self.state.amount += position.amount_in_anchor_token() * 2.0 - amount_out;
+            }
+
+            let close_price = amount_out / amount_in;
+            position.del(close_price, &reason_for_close.unwrap().to_string());
+
+            let position_cloned = position.clone();
+            let amount = position.amount();
+            self.state
+                .db_handler
+                .lock()
+                .await
+                .log_position(&position_cloned)
+                .await;
+
+            if amount != 0.0 {
+                log::error!(
+                    "Position is partially closed. The remaing amount = {}",
+                    amount
+                );
+            }
+
+            self.state.open_positions.remove(position_index);
         }
 
         log::info!(
@@ -508,21 +495,19 @@ impl FundManager {
     }
 
     pub fn check_positions(&self, price: f64) {
-        let pnl = if let Some(position) = self.state.open_positions.get(&self.config.token_name) {
+        for position in &self.state.open_positions {
             position.print_info(price);
-            position.pnl(price)
-        } else {
-            0.0
-        };
+            let pnl = position.pnl(price);
 
-        if self.amount() + pnl < 0.0 {
-            log::info!(
-                "This fund({}) should be liquidated. remaing_amount = {:6.3}, pnl = {:6.3}",
-                self.name(),
-                self.amount(),
-                pnl
-            );
-            self.begin_liquidate();
+            if self.amount() + pnl < 0.0 {
+                log::info!(
+                    "This fund({}) should be liquidated. remaing_amount = {:6.3}, pnl = {:6.3}",
+                    self.name(),
+                    self.amount(),
+                    pnl
+                );
+                self.begin_liquidate();
+            }
         }
     }
 }
