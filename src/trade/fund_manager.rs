@@ -396,6 +396,8 @@ impl FundManager {
             amount_out
         );
 
+        let prev_amount = self.state.amount;
+
         if trade_action.is_open() {
             self.state.amount -= amount_in;
 
@@ -492,6 +494,12 @@ impl FundManager {
                 self.state.open_positions.remove(token_name);
             }
         }
+
+        log::info!(
+            "Amount has changed from {} to {}",
+            prev_amount,
+            self.state.amount
+        );
     }
 
     pub fn check_positions(&self, price: f64) {
