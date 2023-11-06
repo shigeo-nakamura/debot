@@ -279,7 +279,11 @@ impl FundManager {
                         amount: position.amount(),
                         atr: None,
                         momentum: None,
-                        action: TradeAction::SellClose,
+                        action: if position.is_long_position() {
+                            TradeAction::SellClose
+                        } else {
+                            TradeAction::BuyClose
+                        },
                         position_index: Some(0),
                     },
                     reason_for_close,
@@ -469,7 +473,7 @@ impl FundManager {
                 if position.is_long_position() {
                     self.state.amount += amount_out;
                 } else {
-                    self.state.amount = position.amount_in_anchor_token() * 2.0 - amount_out;
+                    self.state.amount += position.amount_in_anchor_token() * 2.0 - amount_out;
                 }
 
                 let close_price = amount_out / amount_in;
@@ -496,7 +500,8 @@ impl FundManager {
         }
 
         log::info!(
-            "Amount has changed from {} to {}",
+            "{} Amount has changed from {} to {}",
+            self.config.name,
             prev_amount,
             self.state.amount
         );
