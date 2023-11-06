@@ -1,6 +1,6 @@
-use super::derivative_trader::TradingPeriod;
+use super::derivative_trader::SampleInterval;
 
-pub fn get() -> Vec<(TradingPeriod, String)> {
-    let configs = vec![(TradingPeriod::new(1, 3), "apex".to_owned())];
+pub fn get() -> Vec<(usize, SampleInterval, String)> {
+    let configs = vec![(10, SampleInterval::new(1, 3), "apex".to_owned())];
     configs
 }

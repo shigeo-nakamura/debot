@@ -8,7 +8,7 @@ use error_manager::ErrorManager;
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
-use trade::derivative_trader::TradingPeriod;
+use trade::derivative_trader::SampleInterval;
 use trade::{trader_config, DerivativeTrader, TransactionLog};
 
 use crate::trade::DBHandler;
@@ -94,13 +94,14 @@ async fn prepare_trader_instances(
 
     let mut trader_instances = Vec::new();
 
-    for (trading_period, trader_name) in trader_config::get() {
+    for (prediction_interval, interval, trader_name) in trader_config::get() {
         let trader_instance = prepare_algorithm_trader_instance(
             trader_name.to_string(),
             config,
             client_holder.clone(),
             transaction_log.clone(),
-            trading_period.clone(),
+            prediction_interval,
+            interval.clone(),
             price_market_data.clone(),
             open_positions_map.clone(),
         )
@@ -116,7 +117,8 @@ async fn prepare_algorithm_trader_instance(
     config: &EnvConfig,
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
-    tradeding_preiod: TradingPeriod,
+    prediction_interval: usize,
+    interval: SampleInterval,
     price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
     open_positions_map: HashMap<String, Vec<TradePosition>>,
 ) -> (DerivativeTrader, &EnvConfig, ErrorManager) {
@@ -126,7 +128,8 @@ async fn prepare_algorithm_trader_instance(
     let trader = DerivativeTrader::new(
         &trader_name,
         config.dry_run,
-        tradeding_preiod,
+        prediction_interval,
+        interval,
         config.max_price_size,
         config.risk_reward,
         client_holder.clone(),

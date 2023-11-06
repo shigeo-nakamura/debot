@@ -19,16 +19,16 @@ use super::FundManager;
 use super::TransactionLog;
 
 #[derive(Clone)]
-pub struct TradingPeriod {
-    short_term_minute: usize,
-    long_term_minute: usize,
+pub struct SampleInterval {
+    short_term: usize,
+    long_term: usize,
 }
 
-impl TradingPeriod {
-    pub fn new(short_term_minute: usize, long_term_minute: usize) -> Self {
+impl SampleInterval {
+    pub fn new(short_term: usize, long_term: usize) -> Self {
         Self {
-            short_term_minute,
-            long_term_minute,
+            short_term,
+            long_term,
         }
     }
 }
@@ -55,7 +55,8 @@ impl DerivativeTrader {
     pub async fn new(
         name: &str,
         dry_run: bool,
-        trading_period: TradingPeriod,
+        prediction_interval: usize,
+        interval: SampleInterval,
         max_price_size: u32,
         risk_reward: f64,
         db_client: Arc<Mutex<ClientHolder>>,
@@ -70,8 +71,8 @@ impl DerivativeTrader {
         const SECONDS_IN_MINUTE: usize = 60;
         let config = DerivativeTraderConfig {
             name: name.to_owned(),
-            short_trade_period: trading_period.short_term_minute * SECONDS_IN_MINUTE,
-            long_trade_period: trading_period.long_term_minute * SECONDS_IN_MINUTE,
+            short_trade_period: interval.short_term * SECONDS_IN_MINUTE,
+            long_trade_period: interval.long_term * SECONDS_IN_MINUTE,
             max_price_size: max_price_size * TOKEN_LIST_SIZE as u32,
         };
 
@@ -87,6 +88,7 @@ impl DerivativeTrader {
             save_prices,
             risk_reward,
             dry_run,
+            prediction_interval,
         )
         .await;
 
@@ -104,6 +106,7 @@ impl DerivativeTrader {
         save_prices: bool,
         risk_reward: f64,
         dry_run: bool,
+        prediction_interval: usize,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get();
         let db_handler = Arc::new(Mutex::new(DBHandler::new(
@@ -141,7 +144,7 @@ impl DerivativeTrader {
                     open_positions_map.get(&fund_name).cloned(),
                     market_data,
                     strategy,
-                    config.long_trade_period,
+                    prediction_interval,
                     trading_amount,
                     initial_amount,
                     risk_reward,
@@ -166,6 +169,7 @@ impl DerivativeTrader {
         save_prices: bool,
         risk_reward: f64,
         dry_run: bool,
+        prediction_interval: usize,
     ) -> DerivativeTraderState {
         let dex_client =
             DexClient::new(encrypted_api_key.to_owned(), dex_router_url.to_owned()).await;
@@ -185,6 +189,7 @@ impl DerivativeTrader {
             save_prices,
             risk_reward,
             dry_run,
+            prediction_interval,
         )
         .await;
 

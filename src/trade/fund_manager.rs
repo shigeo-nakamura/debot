@@ -45,7 +45,7 @@ pub struct FundManagerConfig {
     strategy: TradingStrategy,
     risk_reward: f64,
     trading_amount: f64,
-    trading_period: usize,
+    prediction_interval: usize,
     dry_run: bool,
     save_prices: bool,
 }
@@ -63,7 +63,7 @@ impl FundManager {
         open_positions: Option<Vec<TradePosition>>,
         market_data: MarketData,
         strategy: TradingStrategy,
-        trading_period: usize,
+        prediction_interval: usize,
         trading_amount: f64,
         initial_amount: f64,
         risk_reward: f64,
@@ -79,7 +79,7 @@ impl FundManager {
             strategy,
             risk_reward,
             trading_amount,
-            trading_period,
+            prediction_interval,
             dry_run,
             save_prices,
         };
@@ -163,7 +163,7 @@ impl FundManager {
         }
 
         // update ATR
-        data.update_atr(self.config.trading_period);
+        data.update_atr(self.config.prediction_interval);
 
         if price.is_none() {
             return Ok(());
@@ -186,7 +186,7 @@ impl FundManager {
         let token_name = &self.config.token_name;
         let data = &self.state.market_data;
 
-        let prediction = data.predict(self.config.trading_period, self.config.strategy);
+        let prediction = data.predict(self.config.prediction_interval, self.config.strategy);
         let price_ratio = (prediction.price - current_price) / current_price;
 
         let color = match prediction.confidence {
@@ -240,7 +240,7 @@ impl FundManager {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(prediction.price),
                     amount: self.config.trading_amount,
-                    atr: data.atr(self.config.trading_period),
+                    atr: data.atr(self.config.prediction_interval),
                     momentum: Some(data.momentum()),
                     action,
                     position_index: None,
