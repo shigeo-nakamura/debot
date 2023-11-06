@@ -20,13 +20,13 @@ pub fn get() -> Vec<(String, TradingStrategy, f64, f64)> {
             TOKEN_LIST[0].to_owned(), // BTC
             TradingStrategy::TrendFollowingLong,
             2000.0, // initial amount(in USDC)
-            400.0,  // amount(in USDC) per trading
+            500.0,  // amount(in USDC) per trading
         ),
         (
             TOKEN_LIST[0].to_owned(), // BTC
             TradingStrategy::TrendFollowingShort,
             2000.0, // initial amount(in USDC)
-            400.0,  // amount(in USDC) per trading
+            500.0,  // amount(in USDC) per trading
         ),
         // (
         //     TOKEN_LIST[1].to_owned(), // ETH

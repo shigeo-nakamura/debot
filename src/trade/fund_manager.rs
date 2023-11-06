@@ -210,7 +210,7 @@ impl FundManager {
             log::info!("{}", log_message);
         }
 
-        if prediction.confidence >= 1.0 {
+        if prediction.confidence > 0.5 {
             if self.state.amount < self.config.trading_amount {
                 log::debug!(
                     "No enough fund left({}): remaining = {:6.3}",
@@ -239,7 +239,7 @@ impl FundManager {
                 TradeChance {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(prediction.price),
-                    amount: self.config.trading_amount,
+                    amount: self.config.trading_amount * prediction.confidence,
                     atr: data.atr(self.config.prediction_interval),
                     momentum: Some(data.momentum()),
                     action,
