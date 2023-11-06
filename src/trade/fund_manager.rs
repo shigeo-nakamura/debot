@@ -131,18 +131,24 @@ impl FundManager {
         let token_name = &self.config.token_name;
 
         // Get the token price
-        let result = self
+        let res = self
             .state
             .dex_client
             .get_ticker(&self.config.token_name)
             .await
             .map_err(|e| format!("Failed to get the price of {}. {:?}", token_name, e))?;
-        let price = match result.price.parse::<f64>() {
-            Ok(price) => price,
-            Err(e) => return Err(Box::new(e)),
+
+        let price = if res.result == "Err" {
+            log::warn!("Price for {} is not available", token_name);
+            None
+        } else {
+            match res.price.parse::<f64>() {
+                Ok(price) => Some(price),
+                Err(e) => return Err(Box::new(e)),
+            }
         };
 
-        log::debug!("{}: {}", token_name, price);
+        log::debug!("{}: {:?}", token_name, price);
 
         // Update the market data and predict next prices
         let price_point = data.add_price(price, None);
@@ -159,6 +165,11 @@ impl FundManager {
 
         // update ATR
         data.update_atr(self.config.trading_period);
+
+        if price.is_none() {
+            return Ok(());
+        }
+        let price = price.unwrap();
 
         self.find_open_chances(price)
             .await
@@ -314,53 +325,42 @@ impl FundManager {
 
         if !self.config.dry_run {
             // Execute the transaction
-            let result = self
+            let res = self
                 .state
                 .dex_client
                 .create_order(symbol, &size, side)
                 .await;
-            if let Err(e) = result {
+            if let Err(e) = res {
                 log::error!("create_order failed: {:?}", e);
                 return Err(());
             }
-            let result = result.unwrap();
+            let result = res.unwrap();
             if result.result == "Err" {
                 log::error!("create_order failed: {:?}", result.message);
                 return Err(());
             }
 
-            let executed_price = match result.price {
-                Some(price) => match price.parse::<f64>() {
-                    Ok(price) => price,
-                    Err(e) => {
-                        log::error!("Failed to get the price executed: {:?}", e);
-                        current_price
-                    }
-                },
-                None => {
-                    log::info!("The price executed is unknown");
+            let executed_price = match result.price.parse::<f64>() {
+                Ok(price) => price,
+                Err(e) => {
+                    log::error!("Failed to get the price executed: {:?}", e);
                     current_price
                 }
             };
-            match result.size {
-                Some(size) => match size.parse::<f64>() {
-                    Ok(size) => {
-                        if chance.action.is_open() {
-                            amount_in = executed_price * size;
-                            amount_out = size;
-                        } else {
-                            amount_in = size;
-                            amount_out = executed_price * size;
-                        }
+            match size.parse::<f64>() {
+                Ok(size) => {
+                    if chance.action.is_open() {
+                        amount_in = executed_price * size;
+                        amount_out = size;
+                    } else {
+                        amount_in = size;
+                        amount_out = executed_price * size;
                     }
-                    Err(e) => {
-                        log::error!("Failed to get the size executed: {:?}", e);
-                    }
-                },
-                None => {
-                    log::info!("The size executed is unknown");
                 }
-            };
+                Err(e) => {
+                    log::error!("Failed to get the size executed: {:?}", e);
+                }
+            }
         }
 
         // Update the position
