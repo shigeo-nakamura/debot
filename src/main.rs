@@ -147,85 +147,101 @@ async fn main_loop(
     trader_instances: &mut Vec<(DerivativeTrader, &EnvConfig, ErrorManager)>,
     mut last_execution_time: Option<SystemTime>,
 ) -> std::io::Result<()> {
-    let one_day = Duration::from_secs(24 * 60 * 60);
-
-    let execution_time = last_execution_time.unwrap_or(SystemTime::UNIX_EPOCH);
-    last_execution_time = Some(execution_time);
-
     log::info!("main_loop() starts");
 
     loop {
         let now = SystemTime::now();
+        let one_day = Duration::from_secs(24 * 60 * 60);
 
-        for (trader, config, error_manager) in trader_instances.iter_mut() {
-            if trader.is_any_fund_liquidated() {
-                log::info!("Paused");
-                loop {}
-            }
+        // Check if last_execution_time is None or it's been more than one day
+        if last_execution_time.map_or(true, |last_time| {
+            now.duration_since(last_time)
+                .map_or(false, |duration| duration > one_day)
+        }) {
+            // Update the last_execution_time to now
+            last_execution_time = Some(now);
 
-            if now.duration_since(last_execution_time.unwrap()).unwrap() > one_day {
-                // log last_execution_time
-                last_execution_time = Some(now);
-                trader
-                    .db_handler()
-                    .lock()
-                    .await
-                    .log_app_state(last_execution_time, false)
-                    .await;
+            // Log the new last_execution_time
+            let trader = &trader_instances[0].0;
+            trader
+                .db_handler()
+                .lock()
+                .await
+                .log_app_state(last_execution_time, false)
+                .await;
 
-                // get and log yesterday's PNL
-                if let Ok(res) = trader.dex_client().get_yesterday_pnl().await {
-                    if let Ok(pnl) = res.data.parse::<f64>() {
-                        trader.db_handler().lock().await.log_pnl(pnl).await;
-                    } else {
-                        log::error!("Failed to log PNL");
-                    }
+            // Get and log yesterday's PNL
+            if let Ok(res) = trader.dex_client().get_yesterday_pnl().await {
+                if let Ok(pnl) = res.data.parse::<f64>() {
+                    trader.db_handler().lock().await.log_pnl(pnl).await;
                 } else {
-                    log::error!("Failed to get PNL");
+                    log::error!("Failed to log PNL");
                 }
+            } else {
+                log::error!("Failed to get PNL");
             }
+        }
 
-            if error_manager.get_error_count() >= config.max_error_count {
-                log::error!("Error count reached the limit");
-                trader.liquidate().await;
+        let mut trader_futures = Vec::new();
+
+        // Create a new scope to ensure that futures are dropped after use
+        {
+            for (trader, config, error_manager) in trader_instances.iter_mut() {
+                // Create a non-mutable borrow for the function
+                let trader_future =
+                    Box::pin(handle_trader_activities(trader, config, error_manager));
+                trader_futures.push(trader_future);
             }
+        } // End of new scope, all futures are dropped here
 
-            match trader.find_chances().await {
-                Ok(_) => {
-                    error_manager.reset_error_count();
-                }
-                Err(e) => {
-                    log::error!("Error while finding opportunities: {}", e);
-                    error_manager.increment_error_count();
-                }
-            };
+        let mut sigterm_stream =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+        let ctrl_c_fut = tokio::signal::ctrl_c();
 
-            if let Err(_) = handle_sleep_and_signal(Duration::from_secs_f64(0.0)).await {
+        tokio::select! {
+            _ = sigterm_stream.recv() => {
+                log::info!("SIGTERM received. Shutting down...");
                 return Ok(());
+            },
+            _ = ctrl_c_fut => {
+                log::info!("SIGINT received. Shutting down...");
+                return Ok(());
+            },
+            _ = futures::future::select_all(trader_futures) => {
+                // One of the trader tasks has completed.
+                // Handle the result or re-schedule as needed.
+
+                // Update `last_execution_time` here after all traders have been handled
+                last_execution_time = Some(SystemTime::now());
             }
         }
     }
 }
 
-async fn handle_sleep_and_signal(interval: Duration) -> Result<(), &'static str> {
-    let sleep_fut = tokio::time::sleep(interval);
-    let mut sigterm_stream =
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
-    let ctrl_c_fut = tokio::signal::ctrl_c();
-    tokio::select! {
-        _ = sleep_fut => {
-            // continue to the next iteration of loop
-        },
-        _ = sigterm_stream.recv() => {
-            log::info!("SIGTERM received. Shutting down...");
-            return Err("SIGTERM received");
-        },
-        _ = ctrl_c_fut => {
-            log::info!("SIGINT received. Shutting down...");
-            return Err("SIGINT received");
+async fn handle_trader_activities(
+    trader: &mut DerivativeTrader,
+    config: &EnvConfig,
+    error_manager: &mut ErrorManager,
+) {
+    if trader.is_any_fund_liquidated() {
+        log::info!("Paused");
+        loop {}
+    }
+
+    if error_manager.get_error_count() >= config.max_error_count {
+        log::error!("Error count reached the limit");
+        trader.liquidate().await;
+    }
+
+    match trader.find_chances().await {
+        Ok(_) => {
+            error_manager.reset_error_count();
+        }
+        Err(e) => {
+            log::error!("Error while finding opportunities: {}", e);
+            error_manager.increment_error_count();
         }
     }
-    Ok(())
 }
 
 #[cfg(test)]
