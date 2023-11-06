@@ -50,6 +50,7 @@ impl DBHandler {
             let mut item = PnlLog::default();
             item.id = self.increment_counter(CounterType::Pnl);
             item.date = DateTimeUtils::get_current_date_string();
+            item.pnl = pnl;
 
             if let Err(e) = TransactionLog::insert_pnl(&db, item).await {
                 log::error!("log_pnl: {:?}", e);
