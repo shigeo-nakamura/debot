@@ -384,6 +384,7 @@ impl FundManager {
         );
 
         let prev_amount = self.state.amount;
+        let prev_balance = self.state.balance;
 
         if trade_action.is_open() {
             if self.config.strategy == TradingStrategy::TrendFollowReactive {
@@ -473,12 +474,21 @@ impl FundManager {
             self.state.open_positions.remove(position_index);
         }
 
-        log::info!(
-            "{} Amount has changed from {} to {}",
-            self.config.name,
-            prev_amount,
-            self.state.amount
-        );
+        if self.config.strategy == TradingStrategy::TrendFollowReactive {
+            log::info!(
+                "{} Balance has changed from {} to {}",
+                self.config.name,
+                prev_balance,
+                self.state.balance
+            );
+        } else {
+            log::info!(
+                "{} Amount has changed from {} to {}",
+                self.config.name,
+                prev_amount,
+                self.state.amount
+            );
+        }
     }
 
     pub fn check_positions(&self, price: f64) {
