@@ -8,6 +8,7 @@ use error_manager::ErrorManager;
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
+use tokio::time::Instant;
 use trade::derivative_trader::SampleInterval;
 use trade::{trader_config, DerivativeTrader, TransactionLog};
 
@@ -152,9 +153,13 @@ async fn main_loop(
 ) -> std::io::Result<()> {
     log::info!("main_loop() starts");
 
+    let mut sigterm_stream =
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+
     loop {
         let now = SystemTime::now();
         let one_day = Duration::from_secs(24 * 60 * 60);
+        let loop_start = Instant::now();
 
         // Check if last_execution_time is None or it's been more than one day
         if last_execution_time.map_or(true, |last_time| {
@@ -197,25 +202,30 @@ async fn main_loop(
             }
         } // End of new scope, all futures are dropped here
 
-        let mut sigterm_stream =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-        let ctrl_c_fut = tokio::signal::ctrl_c();
+        let elapsed = loop_start.elapsed();
+        let sleep_duration = if let Some(remaining) = Duration::from_secs(1).checked_sub(elapsed) {
+            remaining
+        } else {
+            Duration::from_secs(0)
+        };
+
+        let sleep = tokio::time::sleep(sleep_duration);
+        tokio::pin!(sleep);
 
         tokio::select! {
             _ = sigterm_stream.recv() => {
                 log::info!("SIGTERM received. Shutting down...");
                 return Ok(());
             },
-            _ = ctrl_c_fut => {
+            _ = tokio::signal::ctrl_c() => {
                 log::info!("SIGINT received. Shutting down...");
                 return Ok(());
+            },
+            _ = &mut sleep => {
             },
             _ = futures::future::select_all(trader_futures) => {
                 // One of the trader tasks has completed.
                 // Handle the result or re-schedule as needed.
-
-                // Update `last_execution_time` here after all traders have been handled
-                last_execution_time = Some(SystemTime::now());
             }
         }
     }

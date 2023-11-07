@@ -703,9 +703,9 @@ dependencies = [
 
 [[package]]
 name = "dex-client"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24e4c64e94773f4bee087e3e457a7df27c541b23577fe70960d65e59e4a483da"
+checksum = "89ace0bd9ee45509dc1755c604404fd69e912c36d730ebf9d1d4dbd2fe07cd50"
 dependencies = [
  "chrono",
  "log",
