@@ -119,7 +119,10 @@ impl DerivativeTrader {
         fund_manager_configurations
             .into_iter()
             .map(|(token_name, strategy, initial_amount, trading_amount)| {
-                let fund_name = format!("{:?}-{}-{}", strategy, token_name, initial_amount);
+                let fund_name = format!(
+                    "{:?}-{}-{}-{}",
+                    strategy, token_name, config.short_trade_period, config.long_trade_period
+                );
 
                 let mut market_data = Self::create_market_data(config.clone());
 
