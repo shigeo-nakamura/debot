@@ -78,7 +78,13 @@ impl FundManager {
         };
 
         let open_positions = match open_positions {
-            Some(positions) => positions,
+            Some(positions) => {
+                if strategy == TradingStrategy::TrendFollowReactive {
+                    vec![]
+                } else {
+                    positions
+                }
+            }
             None => vec![],
         };
 
