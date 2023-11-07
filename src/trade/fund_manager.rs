@@ -235,9 +235,9 @@ impl FundManager {
                 TradeAction::SellOpen
             };
 
-            if (self.config.strategy == TradingStrategy::TrendFollowingLong
+            if (self.config.strategy == TradingStrategy::TrendFollowLong
                 && action == TradeAction::SellOpen)
-                || (self.config.strategy == TradingStrategy::TrendFollowingShort
+                || (self.config.strategy == TradingStrategy::TrendFollowShort
                     && action == TradeAction::BuyOpen)
             {
                 return Ok(());
