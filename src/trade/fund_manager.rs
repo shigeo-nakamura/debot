@@ -22,17 +22,9 @@ struct TradeChance {
     pub position_index: Option<usize>,
 }
 
-#[derive(PartialEq)]
-enum FundState {
-    Active,
-    ShouldLiquidate,
-    Liquidated,
-}
-
 pub struct FundManagerState {
     amount: f64,
     open_positions: Vec<TradePosition>,
-    fund_state: Arc<std::sync::Mutex<FundState>>,
     db_handler: Arc<Mutex<DBHandler>>,
     dex_client: DexClient,
     market_data: MarketData,
@@ -92,7 +84,6 @@ impl FundManager {
         let state = FundManagerState {
             amount: initial_amount,
             open_positions,
-            fund_state: Arc::new(std::sync::Mutex::new(FundState::Active)),
             db_handler,
             dex_client,
             market_data,
@@ -103,31 +94,6 @@ impl FundManager {
 
     pub fn name(&self) -> &str {
         &self.config.name
-    }
-
-    pub fn amount(&self) -> f64 {
-        self.state.amount
-    }
-
-    pub async fn liquidate(&mut self) {
-        self.begin_liquidate();
-        let _ = self.find_close_chances(0.0).await;
-    }
-
-    fn begin_liquidate(&self) {
-        let mut fund_state = self.state.fund_state.lock().unwrap();
-        *fund_state = FundState::ShouldLiquidate;
-    }
-
-    fn end_liquidate(&self) {
-        let mut fund_state = self.state.fund_state.lock().unwrap();
-        if *fund_state == FundState::ShouldLiquidate {
-            *fund_state = FundState::Liquidated;
-        }
-    }
-
-    pub fn is_liquidated(&self) -> bool {
-        *self.state.fund_state.lock().unwrap() == FundState::Liquidated
     }
 
     pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -262,23 +228,10 @@ impl FundManager {
     }
 
     async fn find_close_chances(&mut self, current_price: f64) -> Result<(), ()> {
-        let token_name = self.config.token_name.clone();
-
         let cloned_open_positions = self.state.open_positions.clone();
 
         for position in cloned_open_positions {
-            let reason_for_close;
-
-            let should_liquidate =
-                *self.state.fund_state.lock().unwrap() == FundState::ShouldLiquidate;
-
-            if should_liquidate {
-                log::warn!("Liquidate the position({}: {})", token_name, current_price);
-                self.end_liquidate();
-                reason_for_close = Some(ReasonForClose::Liquidated);
-            } else {
-                reason_for_close = position.should_close(current_price);
-            }
+            let reason_for_close = position.should_close(current_price);
 
             if reason_for_close.is_some() {
                 self.execute_chances(
@@ -505,17 +458,7 @@ impl FundManager {
     pub fn check_positions(&self, price: f64) {
         for position in &self.state.open_positions {
             position.print_info(price);
-            let pnl = position.pnl(price);
-
-            if self.amount() + pnl < 0.0 {
-                log::info!(
-                    "This fund({}) should be liquidated. remaing_amount = {:6.3}, pnl = {:6.3}",
-                    self.name(),
-                    self.amount(),
-                    pnl
-                );
-                self.begin_liquidate();
-            }
+            let _ = position.pnl(price);
         }
     }
 }

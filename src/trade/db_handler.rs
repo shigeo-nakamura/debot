@@ -32,17 +32,6 @@ impl DBHandler {
 }
 
 impl DBHandler {
-    pub async fn log_liquidate_time(&self) {
-        if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
-            match TransactionLog::update_liquidate_time(&db).await {
-                Ok(_) => {}
-                Err(e) => {
-                    log::warn!("log_liquidate_time: {:?}", e);
-                }
-            }
-        }
-    }
-
     pub async fn log_pnl(&self, pnl: f64) {
         log::info!("log_pnl: {:6.6}", pnl);
 

@@ -234,28 +234,6 @@ impl DerivativeTrader {
         Ok(())
     }
 
-    pub fn is_any_fund_liquidated(&self) -> bool {
-        for fund_manager in self.state.fund_manager_map.values() {
-            if fund_manager.is_liquidated() {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub async fn liquidate(&mut self) {
-        for fund_manager in self.state.fund_manager_map.values_mut() {
-            fund_manager.liquidate().await;
-        }
-
-        self.state
-            .db_handler
-            .lock()
-            .await
-            .log_liquidate_time()
-            .await;
-    }
-
     fn restore_market_data(
         market_data: &mut MarketData,
         trader_name: &str,

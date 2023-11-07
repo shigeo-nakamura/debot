@@ -226,19 +226,12 @@ async fn handle_trader_activities(
     config: &EnvConfig,
     error_manager: &mut ErrorManager,
 ) {
-    if trader.is_any_fund_liquidated() {
-        log::info!("Paused");
-        loop {}
-    }
-
     let error_duration = Duration::from_secs(config.max_error_duration);
 
     // Check if the error duration has passed
     if error_manager.has_error_duration_passed(error_duration) {
         log::error!("Error duration exceeded the limit");
-        trader.liquidate().await;
-        error_manager.reset_error_time();
-        return;
+        loop {}
     }
 
     match trader.find_chances().await {

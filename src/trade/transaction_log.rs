@@ -231,8 +231,4 @@ impl TransactionLog {
         update_item(db, &item).await?;
         Ok(())
     }
-
-    pub async fn update_liquidate_time(db: &Database) -> Result<(), Box<dyn error::Error>> {
-        TransactionLog::update_app_state(&db, None, true).await
-    }
 }
