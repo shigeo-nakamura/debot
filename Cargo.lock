@@ -82,19 +82,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-channel"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d37875bd9915b7d67c2f117ea2c30a0989874d0b2cb694fe25403c85763c0c9e"
-dependencies = [
- "concurrent-queue",
- "event-listener 3.0.1",
- "event-listener-strategy",
- "futures-core",
- "pin-project-lite",
-]
-
-[[package]]
 name = "async-executor"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -114,7 +101,7 @@ version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1b6f5d7df27bd294849f8eec66ecfc63d11814df7a4f5d74168a2394467b776"
 dependencies = [
- "async-channel 1.9.0",
+ "async-channel",
  "async-executor",
  "async-io 1.13.0",
  "async-lock 2.8.0",
@@ -236,7 +223,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62565bb4402e926b29953c785397c6dc0391b7b446e45008b0049eb43cec6f5d"
 dependencies = [
  "async-attributes",
- "async-channel 1.9.0",
+ "async-channel",
  "async-global-executor",
  "async-io 1.13.0",
  "async-lock 2.8.0",
@@ -383,16 +370,16 @@ dependencies = [
 
 [[package]]
 name = "blocking"
-version = "1.5.0"
+version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "864b30e660d766b7e9b47347d9b6558a17f1cfa22274034fa6f55b274b3e4620"
+checksum = "8c36a4d0d48574b3dd360b4b7d95cc651d2b6557b6402848a27d4b228a473e2a"
 dependencies = [
- "async-channel 2.1.0",
- "async-lock 3.0.0",
+ "async-channel",
+ "async-lock 2.8.0",
  "async-task",
  "fastrand 2.0.1",
  "futures-io",
- "futures-lite 2.0.1",
+ "futures-lite 1.13.0",
  "piper",
  "tracing",
 ]
@@ -716,14 +703,15 @@ dependencies = [
 
 [[package]]
 name = "dex-client"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7685fcabe3b36ec6ac7a7938c43fbc5876a15049e600dc44e3bf53231d3bc349"
+checksum = "e0a8970685f1348b1c8c301b1315b64037218bc84a60bea96a515c9c14817725"
 dependencies = [
  "chrono",
  "log",
  "reqwest",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2331,9 +2319,9 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "serde"
-version = "1.0.191"
+version = "1.0.192"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a834c4821019838224821468552240d4d95d14e751986442c816572d39a080c9"
+checksum = "bca2a08484b285dcb282d0f67b26cadc0df8b19f8c12502c13d966bf9482f001"
 dependencies = [
  "serde_derive",
 ]
@@ -2349,9 +2337,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.191"
+version = "1.0.192"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46fa52d5646bce91b680189fe5b1c049d2ea38dabb4e2e7c8d00ca12cfbfbcfd"
+checksum = "d6c7207fbec9faa48073f3e3074cbe553af6ea512d7c21ba46e434e70ea9fbc1"
 dependencies = [
  "proc-macro2",
  "quote",

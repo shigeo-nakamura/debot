@@ -1,22 +1,31 @@
-#[derive(Clone)]
-pub struct ErrorManager {
-    error_count: u32,
+use std::time::{Duration, Instant};
+
+pub(crate) struct ErrorManager {
+    first_error_time: Option<Instant>,
 }
 
 impl ErrorManager {
     pub fn new() -> Self {
-        ErrorManager { error_count: 0 }
+        ErrorManager {
+            first_error_time: None,
+        }
     }
 
-    pub fn increment_error_count(&mut self) {
-        self.error_count += 1;
+    pub fn save_first_error_time(&mut self) {
+        if self.first_error_time.is_none() {
+            self.first_error_time = Some(Instant::now());
+        }
     }
 
-    pub fn get_error_count(&self) -> u32 {
-        self.error_count
+    pub fn reset_error_time(&mut self) {
+        self.first_error_time = None;
     }
 
-    pub fn reset_error_count(&mut self) {
-        self.error_count = 0;
+    pub fn has_error_duration_passed(&self, error_duration: Duration) -> bool {
+        if let Some(first_error_time) = self.first_error_time {
+            first_error_time.elapsed() > error_duration
+        } else {
+            false
+        }
     }
 }

@@ -231,18 +231,23 @@ async fn handle_trader_activities(
         loop {}
     }
 
-    if error_manager.get_error_count() >= config.max_error_count {
-        log::error!("Error count reached the limit");
+    let error_duration = Duration::from_secs(config.max_error_duration);
+
+    // Check if the error duration has passed
+    if error_manager.has_error_duration_passed(error_duration) {
+        log::error!("Error duration exceeded the limit");
         trader.liquidate().await;
+        error_manager.reset_error_time();
+        return;
     }
 
     match trader.find_chances().await {
         Ok(_) => {
-            error_manager.reset_error_count();
+            error_manager.reset_error_time();
         }
         Err(e) => {
             log::error!("Error while finding opportunities: {}", e);
-            error_manager.increment_error_count();
+            error_manager.save_first_error_time();
         }
     }
 }

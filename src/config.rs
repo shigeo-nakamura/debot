@@ -10,7 +10,7 @@ pub struct EnvConfig {
     pub dry_run: bool,
     pub max_price_size: u32,
     pub risk_reward: f64,
-    pub max_error_count: u32,
+    pub max_error_duration: u64,
     pub save_prices: bool,
     pub load_prices: bool,
     pub encrypted_api_key: String,
@@ -73,7 +73,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "4")?;
 
     let risk_reward = get_env_var("RISK_REWARD", "1.5")?;
-    let max_error_count = get_env_var("MAX_ERROR_COUNT", "10")?;
+    let max_error_duration = get_env_var("MAX_ERROR_duration", "60")?;
     let save_prices = get_bool_env_var("SAVE_PRICES", false);
     let load_prices = get_bool_env_var("LOAD_PRICES", false);
 
@@ -94,7 +94,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         dry_run,
         max_price_size,
         risk_reward,
-        max_error_count,
+        max_error_duration,
         save_prices,
         load_prices,
         encrypted_api_key,

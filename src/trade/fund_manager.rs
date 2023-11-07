@@ -109,12 +109,17 @@ impl FundManager {
         self.state.amount
     }
 
-    pub fn begin_liquidate(&self) {
+    pub async fn liquidate(&mut self) {
+        self.begin_liquidate();
+        let _ = self.find_close_chances(0.0).await;
+    }
+
+    fn begin_liquidate(&self) {
         let mut fund_state = self.state.fund_state.lock().unwrap();
         *fund_state = FundState::ShouldLiquidate;
     }
 
-    pub fn end_liquidate(&self) {
+    fn end_liquidate(&self) {
         let mut fund_state = self.state.fund_state.lock().unwrap();
         if *fund_state == FundState::ShouldLiquidate {
             *fund_state = FundState::Liquidated;
