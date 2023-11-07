@@ -24,6 +24,7 @@ struct TradeChance {
 
 pub struct FundManagerState {
     amount: f64,
+    balance: f64,
     open_positions: Vec<TradePosition>,
     db_handler: Arc<Mutex<DBHandler>>,
     dex_client: DexClient,
@@ -82,6 +83,7 @@ impl FundManager {
         };
 
         let state = FundManagerState {
+            balance: 0.0,
             amount: initial_amount,
             open_positions,
             db_handler,
@@ -144,6 +146,7 @@ impl FundManager {
         self.find_open_chances(price)
             .await
             .map_err(|_| "Failed to find open chances".to_owned())?;
+
         self.find_close_chances(price)
             .await
             .map_err(|_| "Failed to find close chances".to_owned())?;
@@ -182,13 +185,24 @@ impl FundManager {
         }
 
         if prediction.confidence >= 0.5 {
-            if self.state.amount < self.config.trading_amount {
-                log::debug!(
-                    "No enough fund left({}): remaining = {:6.3}",
-                    self.name(),
-                    self.state.amount,
-                );
-                return Ok(());
+            if self.config.strategy == TradingStrategy::TrendFollowReactive {
+                if self.state.balance.abs() > self.config.trading_amount {
+                    log::debug!(
+                        "No margine left({}): balance = {:6.3}",
+                        self.name(),
+                        self.state.balance
+                    );
+                    return Ok(());
+                }
+            } else {
+                if self.state.amount < self.config.trading_amount {
+                    log::debug!(
+                        "No enough fund left({}): remaining = {:6.3}",
+                        self.name(),
+                        self.state.amount,
+                    );
+                    return Ok(());
+                }
             }
 
             let predicted_price;
@@ -228,6 +242,10 @@ impl FundManager {
     }
 
     async fn find_close_chances(&mut self, current_price: f64) -> Result<(), ()> {
+        if self.config.strategy == TradingStrategy::TrendFollowReactive {
+            return Ok(());
+        }
+
         let cloned_open_positions = self.state.open_positions.clone();
 
         for position in cloned_open_positions {
@@ -368,7 +386,15 @@ impl FundManager {
         let prev_amount = self.state.amount;
 
         if trade_action.is_open() {
-            self.state.amount -= amount_in;
+            if self.config.strategy == TradingStrategy::TrendFollowReactive {
+                if trade_action.is_buy() {
+                    self.state.balance += amount_in;
+                } else {
+                    self.state.balance -= amount_in;
+                }
+            } else {
+                self.state.amount -= amount_in;
+            }
 
             let average_price = amount_in / amount_out;
 
