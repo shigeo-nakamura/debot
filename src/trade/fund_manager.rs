@@ -391,27 +391,20 @@ impl FundManager {
             amount_out
         );
 
-        if self.config.strategy == TradingStrategy::TrendFollowReactive {
-            let prev_balance = self.state.balance;
-            if trade_action.is_buy() {
-                self.state.balance += amount_in;
-            } else {
-                self.state.balance -= amount_in;
-            }
-
-            log::info!(
-                "{} Balance has changed from {} to {}",
-                self.config.name,
-                prev_balance,
-                self.state.balance
-            );
-
-            return;
-        }
-
         let prev_amount = self.state.amount;
+        let prev_balance = self.state.balance;
 
         if trade_action.is_open() {
+            if self.config.strategy == TradingStrategy::TrendFollowReactive {
+                if trade_action.is_buy() {
+                    self.state.balance += amount_in;
+                } else {
+                    self.state.balance -= amount_in;
+                }
+            } else {
+                self.state.amount -= amount_in;
+            }
+
             let average_price = amount_in / amount_out;
 
             let take_profit_price = predicted_price.unwrap();
@@ -489,12 +482,21 @@ impl FundManager {
             self.state.open_positions.remove(position_index);
         }
 
-        log::info!(
-            "{} Amount has changed from {} to {}",
-            self.config.name,
-            prev_amount,
-            self.state.amount
-        );
+        if self.config.strategy == TradingStrategy::TrendFollowReactive {
+            log::info!(
+                "{} Balance has changed from {} to {}",
+                self.config.name,
+                prev_balance,
+                self.state.balance
+            );
+        } else {
+            log::info!(
+                "{} Amount has changed from {} to {}",
+                self.config.name,
+                prev_amount,
+                self.state.amount
+            );
+        }
     }
 
     pub fn check_positions(&self, price: f64) {
