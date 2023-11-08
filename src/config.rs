@@ -15,6 +15,7 @@ pub struct EnvConfig {
     pub load_prices: bool,
     pub encrypted_api_key: String,
     pub dex_router_url: String,
+    pub interval_msec: u64,
 }
 
 #[derive(Debug)]
@@ -87,6 +88,8 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     };
     let dex_router_url = env::var("DEX_ROUTER_URL").expect("DEX_ROUTER_URL must be set");
 
+    let interval_msec = get_env_var("INTERVAL_MSEC", "500")?;
+
     let env_config = EnvConfig {
         mongodb_uri,
         db_name,
@@ -99,6 +102,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         load_prices,
         encrypted_api_key,
         dex_router_url,
+        interval_msec,
     };
 
     Ok(env_config)

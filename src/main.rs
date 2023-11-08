@@ -80,7 +80,12 @@ async fn main() -> std::io::Result<()> {
     )
     .await;
 
-    main_loop(&mut trader_instances, app_state.last_execution_time).await
+    main_loop(
+        &mut trader_instances,
+        &config,
+        app_state.last_execution_time,
+    )
+    .await
 }
 
 async fn prepare_trader_instances(
@@ -149,6 +154,7 @@ async fn prepare_algorithm_trader_instance(
 
 async fn main_loop(
     trader_instances: &mut Vec<(DerivativeTrader, &EnvConfig, ErrorManager)>,
+    config: &EnvConfig,
     mut last_execution_time: Option<SystemTime>,
 ) -> std::io::Result<()> {
     log::info!("main_loop() starts");
@@ -192,7 +198,6 @@ async fn main_loop(
 
         let mut trader_futures = Vec::new();
 
-        // Create a new scope to ensure that futures are dropped after use
         {
             for (trader, config, error_manager) in trader_instances.iter_mut() {
                 // Create a non-mutable borrow for the function
@@ -200,10 +205,27 @@ async fn main_loop(
                     Box::pin(handle_trader_activities(trader, config, error_manager));
                 trader_futures.push(trader_future);
             }
-        } // End of new scope, all futures are dropped here
+        }
+
+        tokio::select! {
+            _ = sigterm_stream.recv() => {
+                log::info!("SIGTERM received. Shutting down...");
+                return Ok(());
+            },
+            _ = tokio::signal::ctrl_c() => {
+                log::info!("SIGINT received. Shutting down...");
+                return Ok(());
+            },
+            _ = futures::future::select_all(trader_futures) => {
+                // One of the trader tasks has completed.
+                // Handle the result or re-schedule as needed.
+            },
+        }
 
         let elapsed = loop_start.elapsed();
-        let sleep_duration = if let Some(remaining) = Duration::from_secs(1).checked_sub(elapsed) {
+        let sleep_duration = if let Some(remaining) =
+            Duration::from_millis(config.interval_msec).checked_sub(elapsed)
+        {
             remaining
         } else {
             Duration::from_secs(0)
@@ -223,10 +245,6 @@ async fn main_loop(
             },
             _ = &mut sleep => {
             },
-            _ = futures::future::select_all(trader_futures) => {
-                // One of the trader tasks has completed.
-                // Handle the result or re-schedule as needed.
-            }
         }
     }
 }
