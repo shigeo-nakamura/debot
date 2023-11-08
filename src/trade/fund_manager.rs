@@ -38,6 +38,7 @@ pub struct FundManagerConfig {
     strategy: TradingStrategy,
     risk_reward: f64,
     trading_amount: f64,
+    initial_amount: f64,
     prediction_interval: usize,
     dry_run: bool,
     save_prices: bool,
@@ -72,6 +73,7 @@ impl FundManager {
             strategy,
             risk_reward,
             trading_amount,
+            initial_amount,
             prediction_interval,
             dry_run,
             save_prices,
@@ -192,7 +194,7 @@ impl FundManager {
 
         if prediction.confidence >= 0.5 {
             if self.config.strategy == TradingStrategy::TrendFollowReactive {
-                if self.state.balance.abs() > self.config.trading_amount {
+                if self.state.balance.abs() > self.config.initial_amount {
                     log::debug!(
                         "No margine left({}): balance = {:6.3}",
                         self.name(),
