@@ -106,10 +106,10 @@ impl DBHandler {
             }
 
             for (fund_name, positions) in &open_positions_map {
-                log::info!("Fund name: {}", fund_name);
+                log::debug!("Fund name: {}", fund_name);
                 for position in positions {
-                    log::info!("Token name: {}", position.token_name());
-                    log::info!("Position: {:?}", position);
+                    log::debug!("Token name: {}", position.token_name());
+                    log::debug!("Position: {:?}", position);
                 }
             }
         }
