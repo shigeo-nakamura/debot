@@ -75,6 +75,7 @@ impl DerivativeTrader {
             long_trade_period: interval.long_term * SECONDS_IN_MINUTE,
             max_price_size: max_price_size * TOKEN_LIST_SIZE as u32,
         };
+        let interval = prediction_interval * SECONDS_IN_MINUTE;
 
         let state = Self::initialize_state(
             config.clone(),
@@ -88,7 +89,7 @@ impl DerivativeTrader {
             save_prices,
             risk_reward,
             dry_run,
-            prediction_interval,
+            interval,
         )
         .await;
 
