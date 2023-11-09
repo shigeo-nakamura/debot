@@ -294,7 +294,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_ticker() {
         let client = init_client().await;
-        let response = client.get_ticker("BTC-USDC").await;
+        let response = client.get_ticker("BTCUSDC").await;
         assert!(response.is_ok());
     }
 
@@ -309,7 +309,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_order_buy() {
         let client = init_client().await;
-        let response = client.create_order("BTC-USDC", "0.001", "BUY").await;
+        let response = client.create_order("BTCUSDC", "0.001", "BUY").await;
         log::info!("{:?}", response);
         assert!(response.is_ok());
     }
@@ -317,7 +317,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_order_sell() {
         let client = init_client().await;
-        let response = client.create_order("BTC-USDC", "0.001", "SELL").await;
+        let response = client.create_order("BTCUSDC", "0.001", "SELL").await;
         log::info!("{:?}", response);
         assert!(response.is_ok());
     }
