@@ -193,16 +193,7 @@ impl FundManager {
         }
 
         if prediction.confidence >= 0.5 {
-            if self.config.strategy == TradingStrategy::TrendFollowReactive {
-                if self.state.balance.abs() > self.config.initial_amount {
-                    log::debug!(
-                        "No margine left({}): balance = {:6.3}",
-                        self.name(),
-                        self.state.balance
-                    );
-                    return Ok(());
-                }
-            } else {
+            if self.config.strategy != TradingStrategy::TrendFollowReactive {
                 if self.state.amount < self.config.trading_amount {
                     log::debug!(
                         "No enough fund left({}): remaining = {:6.3}",
@@ -223,12 +214,27 @@ impl FundManager {
                 TradeAction::SellOpen
             };
 
-            if (self.config.strategy == TradingStrategy::TrendFollowLong
-                && action == TradeAction::SellOpen)
-                || (self.config.strategy == TradingStrategy::TrendFollowShort
+            if self.config.strategy == TradingStrategy::TrendFollowReactive {
+                if (self.state.balance > self.config.initial_amount
                     && action == TradeAction::BuyOpen)
-            {
-                return Ok(());
+                    || (self.state.balance < -self.config.initial_amount
+                        && action == TradeAction::SellOpen)
+                {
+                    log::debug!(
+                        "No margine left({}): balance = {:6.3}",
+                        self.name(),
+                        self.state.balance
+                    );
+                    return Ok(());
+                }
+            } else {
+                if (self.config.strategy == TradingStrategy::TrendFollowLong
+                    && action == TradeAction::SellOpen)
+                    || (self.config.strategy == TradingStrategy::TrendFollowShort
+                        && action == TradeAction::BuyOpen)
+                {
+                    return Ok(());
+                }
             }
 
             self.execute_chances(
