@@ -511,4 +511,8 @@ impl FundManager {
             let _ = position.pnl(price);
         }
     }
+
+    pub fn reset_dex_client(&mut self, dex_client: DexClient) {
+        self.state.dex_client = dex_client;
+    }
 }

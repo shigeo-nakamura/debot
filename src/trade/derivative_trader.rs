@@ -39,6 +39,8 @@ struct DerivativeTraderConfig {
     short_trade_period: usize,
     long_trade_period: usize,
     max_price_size: u32,
+    encrypted_api_key: String,
+    dex_router_url: String,
 }
 
 struct DerivativeTraderState {
@@ -48,6 +50,7 @@ struct DerivativeTraderState {
 }
 
 pub struct DerivativeTrader {
+    config: DerivativeTraderConfig,
     state: DerivativeTraderState,
 }
 
@@ -74,6 +77,8 @@ impl DerivativeTrader {
             short_trade_period: interval.short_term * SECONDS_IN_MINUTE,
             long_trade_period: interval.long_term * SECONDS_IN_MINUTE,
             max_price_size: max_price_size * TOKEN_LIST_SIZE as u32,
+            encrypted_api_key: encrypted_api_key.to_owned(),
+            dex_router_url: dex_router_url.to_owned(),
         };
         let interval = prediction_interval * SECONDS_IN_MINUTE;
 
@@ -93,7 +98,58 @@ impl DerivativeTrader {
         )
         .await;
 
-        Self { state }
+        Self { config, state }
+    }
+
+    async fn initialize_state(
+        config: DerivativeTraderConfig,
+        db_client: Arc<Mutex<ClientHolder>>,
+        transaction_log: Arc<TransactionLog>,
+        encrypted_api_key: &str,
+        dex_router_url: &str,
+        open_positions_map: HashMap<String, Vec<TradePosition>>,
+        price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
+        load_prices: bool,
+        save_prices: bool,
+        risk_reward: f64,
+        dry_run: bool,
+        prediction_interval: usize,
+    ) -> DerivativeTraderState {
+        let dex_client = Self::create_dex_clinet(encrypted_api_key, dex_router_url)
+            .await
+            .expect("Failed to initialize DexClient");
+
+        let fund_managers = Self::create_fund_managers(
+            &config,
+            &db_client,
+            &dex_client,
+            &transaction_log,
+            &open_positions_map,
+            &price_market_data,
+            load_prices,
+            save_prices,
+            risk_reward,
+            dry_run,
+            prediction_interval,
+        )
+        .await;
+
+        let mut state = DerivativeTraderState {
+            db_handler: Arc::new(Mutex::new(DBHandler::new(
+                db_client.clone(),
+                transaction_log.clone(),
+            ))),
+            dex_client,
+            fund_manager_map: HashMap::new(),
+        };
+
+        for fund_manager in fund_managers {
+            state
+                .fund_manager_map
+                .insert(fund_manager.name().to_owned(), fund_manager);
+        }
+
+        state
     }
 
     async fn create_fund_managers(
@@ -161,78 +217,16 @@ impl DerivativeTrader {
             .collect()
     }
 
-    async fn initialize_state(
-        config: DerivativeTraderConfig,
-        db_client: Arc<Mutex<ClientHolder>>,
-        transaction_log: Arc<TransactionLog>,
-        encrypted_api_key: &str,
-        dex_router_url: &str,
-        open_positions_map: HashMap<String, Vec<TradePosition>>,
-        price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
-        load_prices: bool,
-        save_prices: bool,
-        risk_reward: f64,
-        dry_run: bool,
-        prediction_interval: usize,
-    ) -> DerivativeTraderState {
+    async fn create_dex_clinet(encrypted_api_key: &str, dex_router_url: &str) -> Option<DexClient> {
         let dex_client =
             DexClient::new(encrypted_api_key.to_owned(), dex_router_url.to_owned()).await;
-        if let Err(e) = dex_client {
-            panic!("Failed to create a dex_client: {:?}", e);
-        }
-        let dex_client = dex_client.unwrap();
-
-        let fund_managers = Self::create_fund_managers(
-            &config,
-            &db_client,
-            &dex_client,
-            &transaction_log,
-            &open_positions_map,
-            &price_market_data,
-            load_prices,
-            save_prices,
-            risk_reward,
-            dry_run,
-            prediction_interval,
-        )
-        .await;
-
-        let mut state = DerivativeTraderState {
-            db_handler: Arc::new(Mutex::new(DBHandler::new(
-                db_client.clone(),
-                transaction_log.clone(),
-            ))),
-            dex_client,
-            fund_manager_map: HashMap::new(),
-        };
-
-        for fund_manager in fund_managers {
-            state
-                .fund_manager_map
-                .insert(fund_manager.name().to_owned(), fund_manager);
-        }
-
-        state
-    }
-
-    pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let futures: Vec<_> = self
-            .state
-            .fund_manager_map
-            .values_mut()
-            .map(|fund_manager| fund_manager.find_chances())
-            .collect();
-
-        let results: Vec<Result<_, _>> = join_all(futures).await;
-
-        for result in results {
-            match result {
-                Ok(()) => (),
-                Err(err) => return Err(err),
+        match dex_client {
+            Ok(client) => Some(client),
+            Err(e) => {
+                log::error!("Failed to create a dex_client: {:?}", e);
+                None
             }
         }
-
-        Ok(())
     }
 
     fn restore_market_data(
@@ -257,6 +251,45 @@ impl DerivativeTrader {
             config.long_trade_period,
             config.max_price_size as usize,
         )
+    }
+
+    pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let futures: Vec<_> = self
+            .state
+            .fund_manager_map
+            .values_mut()
+            .map(|fund_manager| fund_manager.find_chances())
+            .collect();
+
+        let results: Vec<Result<_, _>> = join_all(futures).await;
+
+        for result in results {
+            match result {
+                Ok(()) => (),
+                Err(err) => return Err(err),
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn reset_dex_client(&mut self) -> bool {
+        let dex_client =
+            Self::create_dex_clinet(&self.config.encrypted_api_key, &self.config.dex_router_url)
+                .await;
+        if dex_client.is_none() {
+            return false;
+        }
+
+        let dex_client = dex_client.unwrap();
+
+        for fund_manager in self.state.fund_manager_map.iter_mut() {
+            fund_manager.1.reset_dex_client(dex_client.clone());
+        }
+
+        self.state.dex_client = dex_client;
+
+        true
     }
 
     pub fn db_handler(&self) -> &Arc<Mutex<DBHandler>> {

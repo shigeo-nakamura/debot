@@ -269,6 +269,7 @@ async fn handle_trader_activities(
         Err(e) => {
             log::error!("Error while finding opportunities: {}", e);
             error_manager.save_first_error_time();
+            let _ = trader.reset_dex_client().await;
         }
     }
 }
