@@ -330,7 +330,7 @@ impl FundManager {
                 .create_order(symbol, &size, side)
                 .await;
             if let Err(e) = res {
-                log::error!("create_order failed: {:?}", e);
+                log::error!("create_order failed({}, {}): {:?}", size, side, e);
                 return Err(());
             }
             let result = res.unwrap();
