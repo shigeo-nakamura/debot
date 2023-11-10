@@ -293,6 +293,10 @@ impl DerivativeTrader {
         true
     }
 
+    pub async fn liquidate(&self) {
+        self.dex_client().delete_open_orders(None).await;
+    }
+
     pub fn db_handler(&self) -> &Arc<Mutex<DBHandler>> {
         &self.state.db_handler
     }

@@ -259,6 +259,7 @@ async fn handle_trader_activities(
     // Check if the error duration has passed
     if error_manager.has_error_duration_passed(error_duration) {
         log::error!("Error duration exceeded the limit");
+        trader.liquidate().await;
         loop {}
     }
 
@@ -319,6 +320,14 @@ mod tests {
     async fn test_create_order_sell() {
         let client = init_client().await;
         let response = client.create_order("BTC-USDC", "0.001", "SELL").await;
+        log::info!("{:?}", response);
+        assert!(response.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_delete_open_orders() {
+        let client = init_client().await;
+        let response = client.delete_open_orders(None).await;
         log::info!("{:?}", response);
         assert!(response.is_ok());
     }
