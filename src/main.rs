@@ -325,9 +325,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_delete_open_orders() {
+    async fn test_close_all_positions() {
         let client = init_client().await;
-        let response = client.delete_open_orders(None).await;
+        let response = client.close_all_positions(None).await;
+        log::info!("{:?}", response);
+        assert!(response.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_close_all_positions_for_specific_token() {
+        let client = init_client().await;
+        let response = client
+            .close_all_positions(Some("SOL-USDC".to_string()))
+            .await;
         log::info!("{:?}", response);
         assert!(response.is_ok());
     }

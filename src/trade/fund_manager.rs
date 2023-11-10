@@ -220,11 +220,13 @@ impl FundManager {
                     || (self.state.balance < -self.config.initial_amount
                         && action == TradeAction::SellOpen)
                 {
-                    log::debug!(
-                        "No margine left({}): balance = {:6.3}",
+                    log::warn!(
+                        "No margine left({}): balance = {:6.3}. Liquidate the all positions.",
                         self.name(),
                         self.state.balance
                     );
+                    self.liquidate().await;
+                    self.state.balance = 0.0;
                     return Ok(());
                 }
             } else {
@@ -502,6 +504,22 @@ impl FundManager {
                 prev_amount,
                 self.state.amount
             );
+        }
+    }
+
+    async fn liquidate(&self) {
+        let res = self
+            .state
+            .dex_client
+            .close_all_positions(Some(self.config.token_name.clone()))
+            .await;
+        if let Err(e) = res {
+            log::error!("liquidate failed: {:?}", e);
+            return;
+        }
+        let result = res.unwrap();
+        if result.result == "Err" {
+            log::error!("liquidate failed");
         }
     }
 

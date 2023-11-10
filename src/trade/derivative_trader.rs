@@ -294,7 +294,15 @@ impl DerivativeTrader {
     }
 
     pub async fn liquidate(&self) {
-        self.dex_client().delete_open_orders(None).await;
+        let res = self.state.dex_client.close_all_positions(None).await;
+        if let Err(e) = res {
+            log::error!("liquidate failed: {:?}", e);
+            return;
+        }
+        let result = res.unwrap();
+        if result.result == "Err" {
+            log::error!("liquidate failed");
+        }
     }
 
     pub fn db_handler(&self) -> &Arc<Mutex<DBHandler>> {
