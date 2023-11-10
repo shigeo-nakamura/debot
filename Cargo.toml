@@ -28,10 +28,10 @@ bigdecimal = "0.3.1"
 chrono-tz = "0.8.2"
 ctor = "0.1"
 
-debot-utils ="*"
-debot-market-analyzer ="*"
-debot-position-manager ="*"
-dex-client ="*"
+debot-utils = "*"
+debot-market-analyzer = "=0.4.3"
+debot-position-manager = "*"
+dex-client = "*"
 
 [dependencies.mongodb]
 version = "2.2.1"
