@@ -274,6 +274,7 @@ impl DerivativeTrader {
     }
 
     pub async fn reset_dex_client(&mut self) -> bool {
+        log::info!("reset dex_client");
         let dex_client =
             Self::create_dex_clinet(&self.config.encrypted_api_key, &self.config.dex_router_url)
                 .await;
