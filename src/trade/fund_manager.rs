@@ -118,14 +118,9 @@ impl FundManager {
             .await
             .map_err(|e| format!("Failed to get the price of {}. {:?}", token_name, e))?;
 
-        let price = if res.result == "Err" {
-            log::warn!("Price for {} is not available", token_name);
-            None
-        } else {
-            match res.price.parse::<f64>() {
-                Ok(price) => Some(price),
-                Err(e) => return Err(Box::new(e)),
-            }
+        let price = match res.price.parse::<f64>() {
+            Ok(price) => Some(price),
+            Err(e) => return Err(Box::new(e)),
         };
 
         log::debug!("{}: {:?}", token_name, price);
@@ -335,13 +330,7 @@ impl FundManager {
                 log::error!("create_order failed({}, {}): {:?}", size, side, e);
                 return Err(());
             }
-            let result = res.unwrap();
-            if result.result == "Err" {
-                log::error!("create_order failed: {:?}", result.message);
-                return Err(());
-            }
-
-            let executed_price = match result.price.parse::<f64>() {
+            let executed_price = match res.unwrap().price.parse::<f64>() {
                 Ok(price) => price,
                 Err(e) => {
                     log::error!("Failed to get the price executed: {:?}", e);
@@ -516,10 +505,6 @@ impl FundManager {
         if let Err(e) = res {
             log::error!("liquidate failed: {:?}", e);
             return;
-        }
-        let result = res.unwrap();
-        if result.result == "Err" {
-            log::error!("liquidate failed");
         }
     }
 

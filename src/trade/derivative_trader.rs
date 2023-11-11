@@ -299,10 +299,6 @@ impl DerivativeTrader {
             log::error!("liquidate failed: {:?}", e);
             return;
         }
-        let result = res.unwrap();
-        if result.result == "Err" {
-            log::error!("liquidate failed");
-        }
     }
 
     pub fn db_handler(&self) -> &Arc<Mutex<DBHandler>> {
