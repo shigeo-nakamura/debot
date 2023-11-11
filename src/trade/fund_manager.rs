@@ -324,7 +324,7 @@ impl FundManager {
             let res = self
                 .state
                 .dex_client
-                .create_order(symbol, &size, side)
+                .create_order(symbol, &size, side, Some(current_price.to_string()))
                 .await;
             if let Err(e) = res {
                 log::error!("create_order failed({}, {}): {:?}", size, side, e);
