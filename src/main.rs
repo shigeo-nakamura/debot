@@ -209,19 +209,28 @@ async fn main_loop(
             }
         }
 
+        let mut exit;
         tokio::select! {
             _ = sigterm_stream.recv() => {
                 log::info!("SIGTERM received. Shutting down...");
-                return Ok(());
+                exit = true;
             },
             _ = tokio::signal::ctrl_c() => {
                 log::info!("SIGINT received. Shutting down...");
-                return Ok(());
+                exit = true;
             },
             _ = futures::future::select_all(trader_futures) => {
                 // One of the trader tasks has completed.
                 // Handle the result or re-schedule as needed.
+                exit = false;
             },
+        }
+
+        if exit {
+            for (trader, _config, _error_manager) in trader_instances.iter_mut() {
+                trader.liquidate().await;
+            }
+            return Ok(());
         }
 
         let elapsed = loop_start.elapsed();
@@ -239,14 +248,22 @@ async fn main_loop(
         tokio::select! {
             _ = sigterm_stream.recv() => {
                 log::info!("SIGTERM received. Shutting down...");
-                return Ok(());
+                exit = true;
             },
             _ = tokio::signal::ctrl_c() => {
                 log::info!("SIGINT received. Shutting down...");
-                return Ok(());
+                exit = true;
             },
             _ = &mut sleep => {
+                exit = false;
             },
+        }
+
+        if exit {
+            for (trader, _config, _error_manager) in trader_instances.iter_mut() {
+                trader.liquidate().await;
+            }
+            return Ok(());
         }
     }
 }
