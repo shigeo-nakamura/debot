@@ -8,7 +8,7 @@ use crate::db::{
 use crate::db::{search_item, Counter, CounterType};
 use debot_market_analyzer::PricePoint;
 use debot_position_manager::{State, TradePosition};
-use debot_utils::{DateTimeUtils, HasId};
+use debot_utils::HasId;
 use mongodb::Database;
 use serde::{Deserialize, Serialize};
 use shared_mongodb::{database, ClientHolder};
@@ -32,7 +32,7 @@ async fn get_last_id<T: Default + Entity + HasId>(db: &Database) -> u32 {
 pub struct AppState {
     pub id: u32,
     pub last_execution_time: Option<SystemTime>,
-    pub liquidated_time: Vec<String>,
+    pub last_equity: Option<f64>,
 }
 
 impl Default for AppState {
@@ -40,7 +40,7 @@ impl Default for AppState {
         Self {
             id: 1,
             last_execution_time: None,
-            liquidated_time: vec![],
+            last_equity: None,
         }
     }
 }
@@ -211,7 +211,7 @@ impl TransactionLog {
     pub async fn update_app_state(
         db: &Database,
         last_execution_time: Option<SystemTime>,
-        is_liquidated: bool,
+        last_equity: Option<f64>,
     ) -> Result<(), Box<dyn error::Error>> {
         let item = AppState::default();
         let mut item = match search_item(db, &item).await {
@@ -223,9 +223,8 @@ impl TransactionLog {
             item.last_execution_time = last_execution_time;
         }
 
-        if is_liquidated {
-            let date_string = DateTimeUtils::get_current_datetime_string();
-            item.liquidated_time.push(date_string);
+        if last_equity.is_some() {
+            item.last_equity = last_equity;
         }
 
         update_item(db, &item).await?;

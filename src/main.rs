@@ -86,6 +86,7 @@ async fn main() -> std::io::Result<()> {
         &mut trader_instances,
         &config,
         app_state.last_execution_time,
+        app_state.last_equity,
     )
     .await
 }
@@ -158,6 +159,7 @@ async fn main_loop(
     trader_instances: &mut Vec<(DerivativeTrader, &EnvConfig, ErrorManager)>,
     config: &EnvConfig,
     mut last_execution_time: Option<SystemTime>,
+    mut last_equity: Option<f64>,
 ) -> std::io::Result<()> {
     log::info!("main_loop() starts");
 
@@ -177,25 +179,31 @@ async fn main_loop(
             // Update the last_execution_time to now
             last_execution_time = Some(now);
 
-            // Log the new last_execution_time
             let trader = &trader_instances[0].0;
-            trader
-                .db_handler()
-                .lock()
-                .await
-                .log_app_state(last_execution_time, false)
-                .await;
 
             // Get and log yesterday's PNL
-            if let Ok(res) = trader.dex_client().get_yesterday_pnl().await {
-                if let Ok(pnl) = res.data.parse::<f64>() {
+            if let Ok(res) = trader.dex_client().get_balance().await {
+                if let Ok(balance) = res.balance.parse::<f64>() {
+                    let pnl = match last_equity {
+                        Some(prev_balance) => balance - prev_balance,
+                        None => 0.0,
+                    };
                     trader.db_handler().lock().await.log_pnl(pnl).await;
+                    last_equity = Some(balance);
                 } else {
                     log::error!("Failed to log PNL");
                 }
             } else {
                 log::error!("Failed to get PNL");
             }
+
+            // Log the new last_execution_time and equity
+            trader
+                .db_handler()
+                .lock()
+                .await
+                .log_app_state(last_execution_time, last_equity)
+                .await;
         }
 
         let mut trader_futures = Vec::new();
@@ -328,9 +336,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_yesterday_pnl() {
+    async fn test_get_balance() {
         let client = init_client().await;
-        let response = client.get_yesterday_pnl().await;
+        let response = client.get_balance().await;
         log::info!("{:?}", response);
         assert!(response.is_ok());
     }
