@@ -2,6 +2,8 @@ use std::env;
 use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
 
+use debot_utils::decrypt_data_with_kms;
+
 #[derive(Debug)]
 pub struct EnvConfig {
     pub mongodb_uri: String,
@@ -13,7 +15,7 @@ pub struct EnvConfig {
     pub max_error_duration: u64,
     pub save_prices: bool,
     pub load_prices: bool,
-    pub encrypted_api_key: String,
+    pub dex_router_api_key: String,
     pub dex_router_url: String,
     pub interval_msec: u64,
 }
@@ -66,7 +68,7 @@ fn get_bool_env_var(var: &str, default: bool) -> bool {
     }
 }
 
-pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
+pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
     let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
     let log_limit = get_env_var("LOG_LIMIT", "10000")?;
@@ -80,12 +82,20 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let max_price_size = max_price_size_hours * 60 * 60;
 
-    let use_testnet = get_bool_env_var("USE_TESTNET", true);
-    let encrypted_api_key = if use_testnet {
-        env::var("ENCRYPTED_API_KEY_TEST").expect("ENCRYPTED_API_KEY for TESTNET must be set")
-    } else {
-        env::var("ENCRYPTED_API_KEY_MAIN").expect("ENCRYPTED_API_KEY for MAINNET must be set")
-    };
+    let encrypted_data_key = env::var("ENCRYPTED_DATA_KEY")
+        .expect("ENCRYPTED_DATA_KEY must be set")
+        .replace(" ", ""); // Remove whitespace characters
+
+    let encrypted_dex_router_api_key = env::var("ENCRYPTED_DEX_ROUTER_API_KEY")
+        .expect("ENCRYPTED_DEX_ROUTER_API_KEY must be set")
+        .replace(" ", ""); // Remove whitespace characters
+
+    let dex_router_api_key =
+        decrypt_data_with_kms(encrypted_data_key, encrypted_dex_router_api_key)
+            .await
+            .unwrap();
+    let dex_router_api_key = String::from_utf8(dex_router_api_key).unwrap();
+
     let dex_router_url = env::var("DEX_ROUTER_URL").expect("DEX_ROUTER_URL must be set");
 
     let interval_msec = get_env_var("INTERVAL_MSEC", "500")?;
@@ -100,7 +110,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         max_error_duration,
         save_prices,
         load_prices,
-        encrypted_api_key,
+        dex_router_api_key,
         dex_router_url,
         interval_msec,
     };

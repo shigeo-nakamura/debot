@@ -27,7 +27,9 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
 
     // Load the configs
-    let config = config::get_config_from_env().expect("Invalid configuration");
+    let config = config::get_config_from_env()
+        .await
+        .expect("Invalid configuration");
 
     // Set up the DB client holder
     let mut client_options = match ClientOptions::parse(&config.mongodb_uri).await {
@@ -144,7 +146,7 @@ async fn prepare_algorithm_trader_instance(
         price_market_data.clone(),
         config.load_prices,
         config.save_prices,
-        &config.encrypted_api_key,
+        &config.dex_router_api_key,
         &config.dex_router_url,
     )
     .await;
@@ -277,6 +279,7 @@ async fn handle_trader_activities(
 
 #[cfg(test)]
 mod tests {
+    use debot_utils::decrypt_data_with_kms;
     use dex_client::DexClient;
     use std::env;
 
@@ -286,9 +289,23 @@ mod tests {
     }
 
     async fn init_client() -> DexClient {
-        let api_key = env::var("ENCRYPTED_API_KEY_TEST").expect("API_KEY for TESTNET must be set");
+        let encrypted_data_key = env::var("ENCRYPTED_DATA_KEY")
+            .expect("ENCRYPTED_DATA_KEY must be set")
+            .replace(" ", ""); // Remove whitespace characters
+
+        let encrypted_dex_router_api_key = env::var("ENCRYPTED_DEX_ROUTER_API_KEY")
+            .expect("ENCRYPTED_DEX_ROUTER_API_KEY must be set")
+            .replace(" ", ""); // Remove whitespace characters
+
+        let dex_router_api_key =
+            decrypt_data_with_kms(encrypted_data_key, encrypted_dex_router_api_key)
+                .await
+                .unwrap();
+        let dex_router_api_key = String::from_utf8(dex_router_api_key).unwrap();
+
         let dex_router_url = env::var("DEX_ROUTER_URL").expect("DEX_ROUTER_URL must be set");
-        DexClient::new(api_key, dex_router_url)
+
+        DexClient::new(dex_router_api_key, dex_router_url)
             .await
             .expect("Failed to initialize DexClient")
     }

@@ -39,7 +39,7 @@ struct DerivativeTraderConfig {
     short_trade_period: usize,
     long_trade_period: usize,
     max_price_size: u32,
-    encrypted_api_key: String,
+    dex_router_api_key: String,
     dex_router_url: String,
 }
 
@@ -68,7 +68,7 @@ impl DerivativeTrader {
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
         save_prices: bool,
-        encrypted_api_key: &str,
+        dex_router_api_key: &str,
         dex_router_url: &str,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
@@ -77,7 +77,7 @@ impl DerivativeTrader {
             short_trade_period: interval.short_term * SECONDS_IN_MINUTE,
             long_trade_period: interval.long_term * SECONDS_IN_MINUTE,
             max_price_size: max_price_size * TOKEN_LIST_SIZE as u32,
-            encrypted_api_key: encrypted_api_key.to_owned(),
+            dex_router_api_key: dex_router_api_key.to_owned(),
             dex_router_url: dex_router_url.to_owned(),
         };
         let interval = prediction_interval * SECONDS_IN_MINUTE;
@@ -86,7 +86,7 @@ impl DerivativeTrader {
             config.clone(),
             db_client,
             transaction_log,
-            encrypted_api_key,
+            dex_router_api_key,
             dex_router_url,
             open_positions_map,
             price_market_data,
@@ -105,7 +105,7 @@ impl DerivativeTrader {
         config: DerivativeTraderConfig,
         db_client: Arc<Mutex<ClientHolder>>,
         transaction_log: Arc<TransactionLog>,
-        encrypted_api_key: &str,
+        dex_router_api_key: &str,
         dex_router_url: &str,
         open_positions_map: HashMap<String, Vec<TradePosition>>,
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
@@ -115,7 +115,7 @@ impl DerivativeTrader {
         dry_run: bool,
         prediction_interval: usize,
     ) -> DerivativeTraderState {
-        let dex_client = Self::create_dex_clinet(encrypted_api_key, dex_router_url)
+        let dex_client = Self::create_dex_clinet(dex_router_api_key, dex_router_url)
             .await
             .expect("Failed to initialize DexClient");
 
@@ -217,9 +217,12 @@ impl DerivativeTrader {
             .collect()
     }
 
-    async fn create_dex_clinet(encrypted_api_key: &str, dex_router_url: &str) -> Option<DexClient> {
+    async fn create_dex_clinet(
+        dex_router_api_key: &str,
+        dex_router_url: &str,
+    ) -> Option<DexClient> {
         let dex_client =
-            DexClient::new(encrypted_api_key.to_owned(), dex_router_url.to_owned()).await;
+            DexClient::new(dex_router_api_key.to_owned(), dex_router_url.to_owned()).await;
         match dex_client {
             Ok(client) => Some(client),
             Err(e) => {
@@ -276,7 +279,7 @@ impl DerivativeTrader {
     pub async fn reset_dex_client(&mut self) -> bool {
         log::info!("reset dex_client");
         let dex_client =
-            Self::create_dex_clinet(&self.config.encrypted_api_key, &self.config.dex_router_url)
+            Self::create_dex_clinet(&self.config.dex_router_api_key, &self.config.dex_router_url)
                 .await;
         if dex_client.is_none() {
             return false;
