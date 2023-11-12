@@ -29,7 +29,7 @@ chrono-tz = "0.8.2"
 ctor = "0.1"
 
 debot-utils = "*"
-debot-market-analyzer = "=0.4.3"
+debot-market-analyzer = "=0.4.*"
 debot-position-manager = "*"
 dex-client = "*"
 
