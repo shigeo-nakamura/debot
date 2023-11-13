@@ -29,7 +29,6 @@ pub struct FundManagerState {
     db_handler: Arc<Mutex<DBHandler>>,
     dex_client: DexClient,
     market_data: MarketData,
-    prev_crossover_price: Option<f64>,
 }
 
 pub struct FundManagerConfig {
@@ -98,7 +97,6 @@ impl FundManager {
             db_handler,
             dex_client,
             market_data,
-            prev_crossover_price: None,
         };
 
         Self { config, state }
@@ -226,11 +224,6 @@ impl FundManager {
                     self.state.balance = 0.0;
                     return Ok(());
                 }
-                if let Some(prev_price) = self.state.prev_crossover_price {
-                    if (current_price - prev_price).abs() / prev_price < fee_percentage / 100.0 {
-                        return Ok(());
-                    }
-                }
             } else {
                 if (self.config.strategy == TradingStrategy::TrendFollowLong
                     && action == TradeAction::SellOpen)
@@ -299,8 +292,6 @@ impl FundManager {
         chance: TradeChance,
         reason_for_close: Option<ReasonForClose>,
     ) -> Result<(), ()> {
-        self.state.prev_crossover_price = Some(current_price);
-
         let symbol = &self.config.token_name;
         let trade_amount = if chance.action.is_open() {
             chance.amount / current_price
