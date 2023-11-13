@@ -299,15 +299,9 @@ impl DerivativeTrader {
         true
     }
 
-    pub async fn liquidate(&self) {
-        let res = self
-            .state
-            .dex_client
-            .close_all_positions(&self.config.dex_name, None)
-            .await;
-        if let Err(e) = res {
-            log::error!("liquidate failed: {:?}", e);
-            return;
+    pub async fn liquidate(&mut self) {
+        for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
+            fund_manager.liquidate().await;
         }
     }
 

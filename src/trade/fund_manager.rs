@@ -202,13 +202,14 @@ impl FundManager {
                 }
             }
 
-            let predicted_price;
-            let fee_percentage = 0.1;
+            let fee_rate = 0.001;
+            if price_ratio.abs() < fee_rate {
+                return Ok(());
+            }
+
             let action = if price_ratio > 0.0 {
-                predicted_price = prediction.price * (1.0 + fee_percentage / 100.0);
                 TradeAction::BuyOpen
             } else {
-                predicted_price = prediction.price * (1.0 - fee_percentage / 100.0);
                 TradeAction::SellOpen
             };
 
@@ -230,7 +231,7 @@ impl FundManager {
                     return Ok(());
                 }
                 if let Some(atr) = atr {
-                    if atr / current_price * 100.0 < fee_percentage {
+                    if atr / current_price < fee_rate {
                         return Ok(());
                     }
                 }
@@ -248,7 +249,7 @@ impl FundManager {
                 current_price,
                 TradeChance {
                     token_name: self.config.token_name.clone(),
-                    predicted_price: Some(predicted_price),
+                    predicted_price: Some(prediction.price),
                     amount: self.config.trading_amount * prediction.confidence,
                     atr,
                     momentum: Some(data.momentum()),
@@ -512,12 +513,17 @@ impl FundManager {
         }
     }
 
-    async fn liquidate(&self) {
+    pub async fn liquidate(&mut self) {
         let res = self
             .state
             .dex_client
             .close_all_positions(&self.config.dex_name, Some(self.config.token_name.clone()))
             .await;
+
+        for position in self.state.open_positions.iter_mut() {
+            position.del(0.0, "Liquidated");
+        }
+
         if let Err(e) = res {
             log::error!("liquidate failed: {:?}", e);
             return;
