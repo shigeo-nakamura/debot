@@ -35,7 +35,8 @@ impl SampleInterval {
 
 #[derive(Clone)]
 struct DerivativeTraderConfig {
-    name: String,
+    trader_name: String,
+    dex_name: String,
     short_trade_period: usize,
     long_trade_period: usize,
     max_price_size: u32,
@@ -56,7 +57,7 @@ pub struct DerivativeTrader {
 
 impl DerivativeTrader {
     pub async fn new(
-        name: &str,
+        dex_name: &str,
         dry_run: bool,
         prediction_interval: usize,
         interval: SampleInterval,
@@ -73,7 +74,8 @@ impl DerivativeTrader {
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let config = DerivativeTraderConfig {
-            name: name.to_owned(),
+            trader_name: dex_name.to_owned(),
+            dex_name: dex_name.to_owned(),
             short_trade_period: interval.short_term * SECONDS_IN_MINUTE,
             long_trade_period: interval.long_term * SECONDS_IN_MINUTE,
             max_price_size: max_price_size * TOKEN_LIST_SIZE as u32,
@@ -146,7 +148,7 @@ impl DerivativeTrader {
         for fund_manager in fund_managers {
             state
                 .fund_manager_map
-                .insert(fund_manager.name().to_owned(), fund_manager);
+                .insert(fund_manager.fund_name().to_owned(), fund_manager);
         }
 
         state
@@ -186,7 +188,7 @@ impl DerivativeTrader {
                 if load_prices {
                     Self::restore_market_data(
                         &mut market_data,
-                        &config.name,
+                        &config.trader_name,
                         &token_name,
                         &price_market_data,
                     );
@@ -199,6 +201,7 @@ impl DerivativeTrader {
 
                 FundManager::new(
                     &fund_name,
+                    &config.dex_name,
                     index,
                     &token_name,
                     open_positions_map.get(&fund_name).cloned(),
@@ -249,7 +252,7 @@ impl DerivativeTrader {
 
     fn create_market_data(config: DerivativeTraderConfig) -> MarketData {
         MarketData::new(
-            config.name.to_owned(),
+            config.trader_name.to_owned(),
             config.short_trade_period,
             config.long_trade_period,
             config.max_price_size as usize,
@@ -297,7 +300,11 @@ impl DerivativeTrader {
     }
 
     pub async fn liquidate(&self) {
-        let res = self.state.dex_client.close_all_positions(None).await;
+        let res = self
+            .state
+            .dex_client
+            .close_all_positions(&self.config.dex_name, None)
+            .await;
         if let Err(e) = res {
             log::error!("liquidate failed: {:?}", e);
             return;
@@ -310,5 +317,9 @@ impl DerivativeTrader {
 
     pub fn dex_client(&self) -> &DexClient {
         &self.state.dex_client
+    }
+
+    pub fn dex_name(&self) -> &str {
+        &self.config.dex_name
     }
 }

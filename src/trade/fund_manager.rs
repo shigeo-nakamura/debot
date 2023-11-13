@@ -32,7 +32,8 @@ pub struct FundManagerState {
 }
 
 pub struct FundManagerConfig {
-    name: String,
+    fund_name: String,
+    dex_name: String,
     index: usize,
     token_name: String,
     strategy: TradingStrategy,
@@ -52,6 +53,7 @@ pub struct FundManager {
 impl FundManager {
     pub fn new(
         fund_name: &str,
+        dex_name: &str,
         index: usize,
         token_name: &str,
         open_positions: Option<Vec<TradePosition>>,
@@ -67,7 +69,8 @@ impl FundManager {
         save_prices: bool,
     ) -> Self {
         let config = FundManagerConfig {
-            name: fund_name.to_owned(),
+            fund_name: fund_name.to_owned(),
+            dex_name: dex_name.to_owned(),
             index,
             token_name: token_name.to_owned(),
             strategy,
@@ -102,8 +105,8 @@ impl FundManager {
         Self { config, state }
     }
 
-    pub fn name(&self) -> &str {
-        &self.config.name
+    pub fn fund_name(&self) -> &str {
+        &self.config.fund_name
     }
 
     pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -114,7 +117,7 @@ impl FundManager {
         let res = self
             .state
             .dex_client
-            .get_ticker(&self.config.token_name)
+            .get_ticker(&self.config.dex_name, &self.config.token_name)
             .await
             .map_err(|e| format!("Failed to get the price of {}. {:?}", token_name, e))?;
 
@@ -176,7 +179,7 @@ impl FundManager {
             "{} {:>7.3}%\x1b[0m, {:<30} \x1b[0;34m{:<6}\x1b[0m {:<6.5}(--> {:<6.5})",
             color,
             price_ratio * 100.0,
-            self.name(),
+            self.config.fund_name,
             token_name,
             current_price,
             prediction.price
@@ -192,7 +195,7 @@ impl FundManager {
                 if self.state.amount < self.config.trading_amount {
                     log::debug!(
                         "No enough fund left({}): remaining = {:6.3}",
-                        self.name(),
+                        self.config.fund_name,
                         self.state.amount,
                     );
                     return Ok(());
@@ -219,7 +222,7 @@ impl FundManager {
                 {
                     log::warn!(
                         "No margine left({}): balance = {:6.3}. Liquidate the all positions.",
-                        self.name(),
+                        self.config.fund_name,
                         self.state.balance
                     );
                     self.liquidate().await;
@@ -331,7 +334,13 @@ impl FundManager {
             let res = self
                 .state
                 .dex_client
-                .create_order(symbol, &size, side, Some(current_price.to_string()))
+                .create_order(
+                    &self.config.dex_name,
+                    symbol,
+                    &size,
+                    side,
+                    Some(current_price.to_string()),
+                )
                 .await;
             if let Err(e) = res {
                 log::error!("create_order failed({}, {}): {:?}", size, side, e);
@@ -422,7 +431,7 @@ impl FundManager {
             // create a new position
             let mut position = TradePosition::new(
                 token_name,
-                self.name(),
+                &self.config.fund_name,
                 average_price,
                 trade_action.is_buy(),
                 take_profit_price,
@@ -489,14 +498,14 @@ impl FundManager {
         if self.config.strategy == TradingStrategy::TrendFollowReactive {
             log::info!(
                 "{} Balance has changed from {} to {}",
-                self.config.name,
+                self.config.fund_name,
                 prev_balance,
                 self.state.balance
             );
         } else {
             log::info!(
                 "{} Amount has changed from {} to {}",
-                self.config.name,
+                self.config.fund_name,
                 prev_amount,
                 self.state.amount
             );
@@ -507,7 +516,7 @@ impl FundManager {
         let res = self
             .state
             .dex_client
-            .close_all_positions(Some(self.config.token_name.clone()))
+            .close_all_positions(&self.config.dex_name, Some(self.config.token_name.clone()))
             .await;
         if let Err(e) = res {
             log::error!("liquidate failed: {:?}", e);
