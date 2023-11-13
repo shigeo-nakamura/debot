@@ -209,6 +209,8 @@ impl FundManager {
                 TradeAction::SellOpen
             };
 
+            let atr = data.atr(self.config.prediction_interval);
+
             if self.config.strategy == TradingStrategy::TrendFollowReactive {
                 if (self.state.balance > self.config.initial_amount
                     && action == TradeAction::BuyOpen)
@@ -223,6 +225,11 @@ impl FundManager {
                     self.liquidate().await;
                     self.state.balance = 0.0;
                     return Ok(());
+                }
+                if let Some(atr) = atr {
+                    if atr / current_price * 100.0 < fee_percentage {
+                        return Ok(());
+                    }
                 }
             } else {
                 if (self.config.strategy == TradingStrategy::TrendFollowLong
@@ -240,7 +247,7 @@ impl FundManager {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(predicted_price),
                     amount: self.config.trading_amount * prediction.confidence,
-                    atr: data.atr(self.config.prediction_interval),
+                    atr,
                     momentum: Some(data.momentum()),
                     action,
                     position_index: None,
