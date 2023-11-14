@@ -716,15 +716,16 @@ dependencies = [
 
 [[package]]
 name = "dex-client"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c29a6520e917d81b7a06fac1687dda2f962018c749be47a4001a0a3133b00b1"
+checksum = "c4bc1698d23e2c21e14854f110edde29dbc5527c1bfae85a95ba4eb74063767d"
 dependencies = [
  "chrono",
  "log",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2 0.10.8",
 ]
 
 [[package]]
