@@ -156,7 +156,7 @@ dependencies = [
  "futures-lite 2.0.1",
  "parking",
  "polling 3.3.0",
- "rustix 0.38.22",
+ "rustix 0.38.23",
  "slab",
  "tracing",
  "waker-fn",
@@ -196,7 +196,7 @@ dependencies = [
  "cfg-if",
  "event-listener 3.1.0",
  "futures-lite 1.13.0",
- "rustix 0.38.22",
+ "rustix 0.38.23",
  "windows-sys",
 ]
 
@@ -223,7 +223,7 @@ dependencies = [
  "cfg-if",
  "futures-core",
  "futures-io",
- "rustix 0.38.22",
+ "rustix 0.38.23",
  "signal-hook-registry",
  "slab",
  "windows-sys",
@@ -658,9 +658,9 @@ dependencies = [
 
 [[package]]
 name = "debot-position-manager"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71863d81f0ea075d94d8fe5ecbc47c8b2aa1d5bb201f50220beffa72538bf8e7"
+checksum = "24ebc91ed0d329e782df9a47ccd393cce4ba0a1bb4b8a147aba13bdf675b5279"
 dependencies = [
  "chrono",
  "debot-utils",
@@ -1332,7 +1332,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb0889898416213fab133e1d33a0e5858a48177452750691bde3666d0fdbaf8b"
 dependencies = [
  "hermit-abi",
- "rustix 0.38.22",
+ "rustix 0.38.23",
  "windows-sys",
 ]
 
@@ -1892,7 +1892,7 @@ dependencies = [
  "cfg-if",
  "concurrent-queue",
  "pin-project-lite",
- "rustix 0.38.22",
+ "rustix 0.38.23",
  "tracing",
  "windows-sys",
 ]
@@ -2213,9 +2213,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.22"
+version = "0.38.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80109a168d9bc0c7f483083244543a6eb0dba02295d33ca268145e6190d6df0c"
+checksum = "ffb93593068e9babdad10e4fce47dc9b3ac25315a72a59766ffd9e9a71996a04"
 dependencies = [
  "bitflags 2.4.1",
  "errno",
@@ -2599,7 +2599,7 @@ dependencies = [
  "cfg-if",
  "fastrand 2.0.1",
  "redox_syscall",
- "rustix 0.38.22",
+ "rustix 0.38.23",
  "windows-sys",
 ]
 

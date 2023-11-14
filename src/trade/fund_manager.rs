@@ -226,7 +226,7 @@ impl FundManager {
                         self.config.fund_name,
                         self.state.balance
                     );
-                    self.liquidate().await;
+                    self.liquidate("No margin left").await;
                     self.state.balance = 0.0;
                     return Ok(());
                 }
@@ -475,7 +475,7 @@ impl FundManager {
             }
 
             let close_price = amount_out / amount_in;
-            position.del(close_price, &reason_for_close.unwrap().to_string());
+            position.del(Some(close_price), &reason_for_close.unwrap().to_string());
 
             let position_cloned = position.clone();
             let amount = position.amount();
@@ -513,7 +513,7 @@ impl FundManager {
         }
     }
 
-    pub async fn liquidate(&mut self) {
+    pub async fn liquidate(&mut self, reason: &str) {
         let res = self
             .state
             .dex_client
@@ -521,7 +521,13 @@ impl FundManager {
             .await;
 
         for position in self.state.open_positions.iter_mut() {
-            position.del(0.0, "Liquidated");
+            position.del(None, reason);
+            self.state
+                .db_handler
+                .lock()
+                .await
+                .log_position(&position)
+                .await;
         }
 
         if let Err(e) = res {

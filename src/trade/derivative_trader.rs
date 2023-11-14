@@ -299,9 +299,9 @@ impl DerivativeTrader {
         true
     }
 
-    pub async fn liquidate(&mut self) {
+    pub async fn liquidate(&mut self, reason: &str) {
         for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
-            fund_manager.liquidate().await;
+            fund_manager.liquidate(reason).await;
         }
     }
 
