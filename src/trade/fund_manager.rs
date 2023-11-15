@@ -347,13 +347,7 @@ impl FundManager {
                 log::error!("create_order failed({}, {}): {:?}", size, side, e);
                 return Err(());
             }
-            let executed_price = match res.unwrap().price.parse::<f64>() {
-                Ok(price) => price,
-                Err(e) => {
-                    log::error!("Failed to get the price executed: {:?}", e);
-                    current_price
-                }
-            };
+            let executed_price = current_price;
             match size.parse::<f64>() {
                 Ok(size) => {
                     if chance.action.is_open() {
