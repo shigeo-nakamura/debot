@@ -230,11 +230,6 @@ impl FundManager {
                     self.state.balance = 0.0;
                     return Ok(());
                 }
-                if let Some(atr) = atr {
-                    if atr / current_price < fee_rate {
-                        return Ok(());
-                    }
-                }
             } else {
                 if (self.config.strategy == TradingStrategy::TrendFollowLong
                     && action == TradeAction::SellOpen)
