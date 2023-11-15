@@ -121,9 +121,15 @@ impl FundManager {
             .await
             .map_err(|e| format!("Failed to get the price of {}. {:?}", token_name, e))?;
 
-        let price = match res.price.parse::<f64>() {
-            Ok(price) => Some(price),
-            Err(e) => return Err(Box::new(e)),
+        let price = match res.price {
+            Some(price) => match price.parse::<f64>() {
+                Ok(price) => Some(price),
+                Err(e) => return Err(Box::new(e)),
+            },
+            None => {
+                log::warn!("Price is unknown");
+                return Ok(());
+            }
         };
 
         log::debug!("{}: {:?}", token_name, price);

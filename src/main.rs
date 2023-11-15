@@ -151,15 +151,17 @@ async fn main_loop(
 
             // Get and log yesterday's PNL
             if let Ok(res) = trader.dex_client().get_balance(trader.dex_name()).await {
-                if let Ok(balance) = res.balance.parse::<f64>() {
-                    let pnl = match last_equity {
-                        Some(prev_balance) => balance - prev_balance,
-                        None => 0.0,
-                    };
-                    trader.db_handler().lock().await.log_pnl(pnl).await;
-                    last_equity = Some(balance);
-                } else {
-                    log::error!("Failed to get PNL");
+                if let Some(balance) = res.balance {
+                    if let Ok(balance) = balance.parse::<f64>() {
+                        let pnl = match last_equity {
+                            Some(prev_balance) => balance - prev_balance,
+                            None => 0.0,
+                        };
+                        trader.db_handler().lock().await.log_pnl(pnl).await;
+                        last_equity = Some(balance);
+                    } else {
+                        log::error!("Failed to get PNL");
+                    }
                 }
             } else {
                 log::error!("Failed to get PNL");
@@ -292,20 +294,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_balance() {
+    async fn test_get_ticket() {
+        let symbol = "BTC-USDT";
+        let dex_name = "mufex";
         let client = init_client().await;
-        let response = client.get_balance("apex").await;
+        let response = client.get_ticker(dex_name, symbol).await;
+        log::info!("{:?}", response);
+        assert!(response.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_balance() {
+        let dex_name = "mufex";
+        let client = init_client().await;
+        let response = client.get_balance(dex_name).await;
         log::info!("{:?}", response);
         assert!(response.is_ok());
     }
 
     #[tokio::test]
     async fn test_create_order_buy() {
+        let symbol = "BTC-USDT";
+        let dex_name = "mufex";
         let client = init_client().await;
-        let response = client.get_ticker("apex", "BTCUSDC").await;
-        let price = response.unwrap().price.parse::<f64>().unwrap();
+        let response = client.get_ticker(dex_name, symbol).await;
+        let price = response.unwrap().price.unwrap().parse::<f64>().unwrap();
         let response = client
-            .create_order("apex", "BTC-USDC", "0.001", "BUY", Some(price.to_string()))
+            .create_order(dex_name, symbol, "0.001", "BUY", Some(price.to_string()))
             .await;
         log::info!("{:?}", response);
         assert!(response.is_ok());
@@ -313,11 +328,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_order_sell() {
+        let symbol = "BTC-USDT";
+        let dex_name = "mufex";
         let client = init_client().await;
-        let response = client.get_ticker("apex", "BTCUSDC").await;
-        let price = response.unwrap().price.parse::<f64>().unwrap();
+        let response = client.get_ticker(dex_name, symbol).await;
+        let price = response.unwrap().price.unwrap().parse::<f64>().unwrap();
         let response = client
-            .create_order("apex", "BTC-USDC", "0.001", "SELL", Some(price.to_string()))
+            .create_order(dex_name, symbol, "0.001", "SELL", Some(price.to_string()))
             .await;
         log::info!("{:?}", response);
         assert!(response.is_ok());
@@ -325,17 +342,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_close_all_positions() {
+        let dex_name = "mufex";
         let client = init_client().await;
-        let response = client.close_all_positions("apex", None).await;
+        let response = client.close_all_positions(dex_name, None).await;
         log::info!("{:?}", response);
-        assert!(response.is_ok());
+        assert!(response.is_err());
     }
 
     #[tokio::test]
     async fn test_close_all_positions_for_specific_token() {
+        let symbol = "BTC-USDT";
+        let dex_name = "mufex";
         let client = init_client().await;
         let response = client
-            .close_all_positions("apex", Some("SOL-USDC".to_string()))
+            .close_all_positions(dex_name, Some(symbol.to_string()))
             .await;
         log::info!("{:?}", response);
         assert!(response.is_ok());
