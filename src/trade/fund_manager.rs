@@ -167,7 +167,8 @@ impl FundManager {
         let data = &self.state.market_data;
 
         let prediction = data.predict(self.config.prediction_interval, self.config.strategy);
-        let price_ratio = (prediction.price - current_price) / current_price;
+        let mut predicted_price = prediction.price;
+        let price_ratio = (predicted_price - current_price) / current_price;
 
         let color = match prediction.confidence {
             x if x >= 0.5 && price_ratio > 0.0 => "\x1b[0;32m",
@@ -182,7 +183,7 @@ impl FundManager {
             self.config.fund_name,
             token_name,
             current_price,
-            prediction.price
+            predicted_price,
         );
         if prediction.confidence == 0.0 {
             log::debug!("{}", log_message);
@@ -243,13 +244,17 @@ impl FundManager {
                 {
                     return Ok(());
                 }
+                let max_profit_rate = 1.01;
+                if predicted_price / current_price > max_profit_rate {
+                    predicted_price = current_price * max_profit_rate;
+                }
             }
 
             self.execute_chances(
                 current_price,
                 TradeChance {
                     token_name: self.config.token_name.clone(),
-                    predicted_price: Some(prediction.price),
+                    predicted_price: Some(predicted_price),
                     amount: self.config.trading_amount * prediction.confidence,
                     atr,
                     momentum: Some(data.momentum()),
