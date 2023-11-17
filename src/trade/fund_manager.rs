@@ -50,6 +50,9 @@ pub struct FundManager {
     state: FundManagerState,
 }
 
+const TRADING_FEE_RATE: f64 = 0.001; // 0.1%
+const PRICE_CHANGE_THRESHOLD: f64 = 0.01; // 1%
+
 impl FundManager {
     pub fn new(
         fund_name: &str,
@@ -208,8 +211,7 @@ impl FundManager {
                 }
             }
 
-            let fee_rate = 0.001;
-            if price_ratio.abs() < fee_rate {
+            if price_ratio.abs() < TRADING_FEE_RATE {
                 return Ok(());
             }
 
@@ -246,11 +248,26 @@ impl FundManager {
                 }
             }
 
+            let mut predicted_price = prediction.price;
+            match action {
+                TradeAction::BuyOpen => {
+                    if price_ratio.abs() > PRICE_CHANGE_THRESHOLD {
+                        predicted_price = current_price * (1.0 + PRICE_CHANGE_THRESHOLD);
+                    }
+                }
+                TradeAction::BuyClose => {
+                    if price_ratio.abs() < 1.0 / PRICE_CHANGE_THRESHOLD {
+                        predicted_price = current_price * (1.0 - PRICE_CHANGE_THRESHOLD);
+                    }
+                }
+                _ => {}
+            }
+
             self.execute_chances(
                 current_price,
                 TradeChance {
                     token_name: self.config.token_name.clone(),
-                    predicted_price: Some(prediction.price),
+                    predicted_price: Some(predicted_price),
                     amount: self.config.trading_amount * prediction.confidence,
                     atr,
                     momentum: Some(data.momentum()),
