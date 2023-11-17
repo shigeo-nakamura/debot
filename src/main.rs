@@ -20,6 +20,7 @@ mod db;
 mod error_manager;
 mod trade;
 
+#[cfg(test)]
 #[macro_use]
 extern crate lazy_static;
 
@@ -352,10 +353,13 @@ mod tests {
     #[tokio::test]
     async fn test_close_all_positions() {
         for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
+            if *dex_name == "mufex" {
+                continue; // Not supported
+            }
             let client = init_client().await;
             let response = client.close_all_positions(dex_name, None).await;
             log::info!("{:?}", response);
-            assert!(response.is_err());
+            assert!(response.is_ok());
         }
     }
 
