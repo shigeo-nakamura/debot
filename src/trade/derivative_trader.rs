@@ -167,7 +167,7 @@ impl DerivativeTrader {
         dry_run: bool,
         prediction_interval: usize,
     ) -> Vec<FundManager> {
-        let fund_manager_configurations = fund_config::get();
+        let fund_manager_configurations = fund_config::get(&config.dex_name);
         let db_handler = Arc::new(Mutex::new(DBHandler::new(
             db_client.clone(),
             transaction_log.clone(),

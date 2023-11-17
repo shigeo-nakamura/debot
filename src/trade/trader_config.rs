@@ -1,5 +1,8 @@
+use std::env;
+
 use super::derivative_trader::SampleInterval;
 
 pub fn get() -> (usize, SampleInterval, String) {
-    (5, SampleInterval::new(1, 3), "mufex".to_owned())
+    let dex_name = env::var("DEX_NAME").expect("DEX_NAME must be specified");
+    (5, SampleInterval::new(1, 3), dex_name.to_owned())
 }
