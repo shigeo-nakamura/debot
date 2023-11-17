@@ -20,6 +20,9 @@ mod db;
 mod error_manager;
 mod trade;
 
+#[macro_use]
+extern crate lazy_static;
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
@@ -293,71 +296,78 @@ mod tests {
             .expect("Failed to initialize DexClient")
     }
 
+    lazy_static! {
+        static ref DEX_TEST_CONFIG: Vec<(&'static str, &'static str)> =
+            vec![("apex", "BTC-USDC"), ("mufex", "BTC-USDT")];
+    }
+
     #[tokio::test]
     async fn test_get_ticket() {
-        let symbol = "BTC-USDT";
-        let dex_name = "mufex";
         let client = init_client().await;
-        let response = client.get_ticker(dex_name, symbol).await;
-        log::info!("{:?}", response);
-        assert!(response.is_ok());
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let response = client.get_ticker(dex_name, symbol).await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
     }
 
     #[tokio::test]
     async fn test_get_balance() {
-        let dex_name = "mufex";
-        let client = init_client().await;
-        let response = client.get_balance(dex_name).await;
-        log::info!("{:?}", response);
-        assert!(response.is_ok());
+        for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_client().await;
+            let response = client.get_balance(dex_name).await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
     }
 
     #[tokio::test]
     async fn test_create_order_buy() {
-        let symbol = "BTC-USDT";
-        let dex_name = "mufex";
-        let client = init_client().await;
-        let response = client.get_ticker(dex_name, symbol).await;
-        let price = response.unwrap().price.unwrap().parse::<f64>().unwrap();
-        let response = client
-            .create_order(dex_name, symbol, "0.001", "BUY", Some(price.to_string()))
-            .await;
-        log::info!("{:?}", response);
-        assert!(response.is_ok());
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_client().await;
+            let response = client.get_ticker(dex_name, symbol).await;
+            let price = response.unwrap().price.unwrap().parse::<f64>().unwrap();
+            let response = client
+                .create_order(dex_name, symbol, "0.001", "BUY", Some(price.to_string()))
+                .await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
     }
 
     #[tokio::test]
     async fn test_create_order_sell() {
-        let symbol = "BTC-USDT";
-        let dex_name = "mufex";
-        let client = init_client().await;
-        let response = client.get_ticker(dex_name, symbol).await;
-        let price = response.unwrap().price.unwrap().parse::<f64>().unwrap();
-        let response = client
-            .create_order(dex_name, symbol, "0.001", "SELL", Some(price.to_string()))
-            .await;
-        log::info!("{:?}", response);
-        assert!(response.is_ok());
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_client().await;
+            let response = client.get_ticker(dex_name, symbol).await;
+            let price = response.unwrap().price.unwrap().parse::<f64>().unwrap();
+            let response = client
+                .create_order(dex_name, symbol, "0.001", "SELL", Some(price.to_string()))
+                .await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
     }
 
     #[tokio::test]
     async fn test_close_all_positions() {
-        let dex_name = "mufex";
-        let client = init_client().await;
-        let response = client.close_all_positions(dex_name, None).await;
-        log::info!("{:?}", response);
-        assert!(response.is_err());
+        for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_client().await;
+            let response = client.close_all_positions(dex_name, None).await;
+            log::info!("{:?}", response);
+            assert!(response.is_err());
+        }
     }
 
     #[tokio::test]
     async fn test_close_all_positions_for_specific_token() {
-        let symbol = "BTC-USDT";
-        let dex_name = "mufex";
-        let client = init_client().await;
-        let response = client
-            .close_all_positions(dex_name, Some(symbol.to_string()))
-            .await;
-        log::info!("{:?}", response);
-        assert!(response.is_ok());
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_client().await;
+            let response = client
+                .close_all_positions(dex_name, Some(symbol.to_string()))
+                .await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
     }
 }
