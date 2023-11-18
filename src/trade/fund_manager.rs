@@ -341,9 +341,13 @@ impl FundManager {
             side
         );
 
-        let mut amount_in = trade_amount;
+        let mut amount_in = if chance.action.is_open() {
+            trade_amount * current_price
+        } else {
+            trade_amount
+        };
         let mut amount_out = if chance.action.is_open() {
-            amount_in / current_price
+            trade_amount
         } else {
             amount_in * current_price
         };
