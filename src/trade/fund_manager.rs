@@ -354,7 +354,7 @@ impl FundManager {
 
         if !self.config.dry_run {
             // Execute the transaction
-            let res = self
+            let res: Result<dex_client::CreateOrderResponse, dex_client::DexError> = self
                 .state
                 .dex_client
                 .create_order(
@@ -369,20 +369,37 @@ impl FundManager {
                 log::error!("create_order failed({}, {}): {:?}", size, side, e);
                 return Err(());
             }
-            let executed_price = current_price;
-            match size.parse::<f64>() {
-                Ok(size) => {
-                    if chance.action.is_open() {
-                        amount_in = executed_price * size;
-                        amount_out = size;
-                    } else {
-                        amount_in = size;
-                        amount_out = executed_price * size;
+
+            let res = res.unwrap();
+            let executed_price = res.price;
+            let executed_size = res.size;
+            if executed_price.is_some() && executed_size.is_some() {
+                let executed_price = executed_price.unwrap();
+                let executed_size = executed_size.unwrap();
+                match executed_size.parse::<f64>() {
+                    Ok(size) => match executed_price.parse::<f64>() {
+                        Ok(price) => {
+                            if chance.action.is_open() {
+                                amount_in = price * size;
+                                amount_out = size;
+                            } else {
+                                amount_in = size;
+                                amount_out = price * size;
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to get the price executed: {:?}", e);
+                            return Ok(());
+                        }
+                    },
+                    Err(e) => {
+                        log::error!("Failed to get the size executed: {:?}", e);
+                        return Ok(());
                     }
                 }
-                Err(e) => {
-                    log::error!("Failed to get the size executed: {:?}", e);
-                }
+            } else {
+                log::warn!("The order was not filled");
+                return Ok(());
             }
         }
 
