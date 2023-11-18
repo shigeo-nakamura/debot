@@ -50,7 +50,7 @@ pub struct FundManager {
     state: FundManagerState,
 }
 
-const TRADING_FEE_RATE: f64 = 0.001; // 0.1%
+const TRADING_COST_RATE: f64 = 0.003; // 0.3%
 const PRICE_CHANGE_THRESHOLD: f64 = 0.01; // 1%
 
 impl FundManager {
@@ -211,7 +211,7 @@ impl FundManager {
                 }
             }
 
-            if price_ratio.abs() < TRADING_FEE_RATE {
+            if price_ratio.abs() < TRADING_COST_RATE {
                 return Ok(());
             }
 
