@@ -232,7 +232,7 @@ async fn main_loop(
         }
 
         if exit {
-            trader.liquidate("reboot").await;
+            // trader.liquidate("reboot").await;
             return Ok(());
         }
     }

@@ -346,11 +346,14 @@ impl FundManager {
         } else {
             trade_amount
         };
+
         let mut amount_out = if chance.action.is_open() {
             trade_amount
         } else {
             amount_in * current_price
         };
+
+        let mut fee = 0.0;
 
         if !self.config.dry_run {
             // Execute the transaction
@@ -397,6 +400,7 @@ impl FundManager {
                         return Ok(());
                     }
                 }
+                fee = res.fee.unwrap_or_default().parse::<f64>().unwrap_or(0.0);
             } else {
                 log::warn!("The order was not filled");
                 return Ok(());
@@ -410,6 +414,7 @@ impl FundManager {
             &chance.token_name,
             amount_in,
             amount_out,
+            fee,
             chance.atr,
             chance.momentum,
             chance.predicted_price,
@@ -427,6 +432,7 @@ impl FundManager {
         token_name: &str,
         amount_in: f64,
         amount_out: f64,
+        fee: f64,
         atr: Option<f64>,
         momentum: Option<f64>,
         predicted_price: Option<f64>,
@@ -472,6 +478,7 @@ impl FundManager {
                 cut_loss_price,
                 amount_out,
                 amount_in,
+                fee,
                 atr,
                 momentum,
                 predicted_price,
@@ -508,7 +515,11 @@ impl FundManager {
             }
 
             let close_price = amount_out / amount_in;
-            position.del(Some(close_price), &reason_for_close.unwrap().to_string());
+            position.del(
+                Some(close_price),
+                fee,
+                &reason_for_close.unwrap().to_string(),
+            );
 
             let position_cloned = position.clone();
             let amount = position.amount();
@@ -554,7 +565,7 @@ impl FundManager {
             .await;
 
         for position in self.state.open_positions.iter_mut() {
-            position.del(None, reason);
+            position.del(None, 0.0, reason);
             self.state
                 .db_handler
                 .lock()

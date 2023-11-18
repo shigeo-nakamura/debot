@@ -658,9 +658,9 @@ dependencies = [
 
 [[package]]
 name = "debot-position-manager"
-version = "0.3.1"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24ebc91ed0d329e782df9a47ccd393cce4ba0a1bb4b8a147aba13bdf675b5279"
+checksum = "30187b084619dd9d419a94d8d7a6943f1f43d9a823696c6da1bbece56b42807a"
 dependencies = [
  "chrono",
  "debot-utils",
@@ -716,9 +716,9 @@ dependencies = [
 
 [[package]]
 name = "dex-client"
-version = "0.3.8"
+version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5acf1c87e15be8fdd813df1a19164818b0cf6239c3011b14bc92480126ef6b9"
+checksum = "5148044b2e2ab49f50c4e52e48ba238d682a28472ff1658b2602865a8c1dd422"
 dependencies = [
  "chrono",
  "log",
