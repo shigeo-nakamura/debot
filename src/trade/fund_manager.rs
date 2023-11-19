@@ -18,7 +18,6 @@ struct TradeChance {
     pub predicted_price: Option<f64>,
     pub amount: f64,
     pub atr: Option<f64>,
-    pub momentum: Option<f64>,
     pub position_index: Option<usize>,
 }
 
@@ -270,7 +269,6 @@ impl FundManager {
                     predicted_price: Some(predicted_price),
                     amount: self.config.trading_amount * prediction.confidence,
                     atr,
-                    momentum: Some(data.momentum()),
                     action,
                     position_index: None,
                 },
@@ -299,7 +297,6 @@ impl FundManager {
                         predicted_price: None,
                         amount: position.amount(),
                         atr: None,
-                        momentum: None,
                         action: if position.is_long_position() {
                             TradeAction::SellClose
                         } else {
@@ -416,7 +413,6 @@ impl FundManager {
             amount_out,
             fee,
             chance.atr,
-            chance.momentum,
             chance.predicted_price,
             chance.position_index,
         )
@@ -434,7 +430,6 @@ impl FundManager {
         amount_out: f64,
         fee: f64,
         atr: Option<f64>,
-        momentum: Option<f64>,
         predicted_price: Option<f64>,
         position_index: Option<usize>,
     ) {
@@ -480,7 +475,6 @@ impl FundManager {
                 amount_in,
                 fee,
                 atr,
-                momentum,
                 predicted_price,
             );
             position.set_id(
