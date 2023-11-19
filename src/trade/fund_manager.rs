@@ -402,7 +402,7 @@ impl FundManager {
                 }
                 fee = res.fee.unwrap_or_default().parse::<f64>().unwrap_or(0.0);
             } else {
-                log::warn!("The order was not filled");
+                log::warn!("The order was not filled({}, {})", size, side);
                 return Ok(());
             }
         }

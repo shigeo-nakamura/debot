@@ -98,7 +98,7 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let dex_router_url = env::var("DEX_ROUTER_URL").expect("DEX_ROUTER_URL must be set");
 
-    let interval_msec = get_env_var("INTERVAL_MSEC", "500")?;
+    let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
 
     let env_config = EnvConfig {
         mongodb_uri,
