@@ -18,6 +18,7 @@ pub struct EnvConfig {
     pub dex_router_api_key: String,
     pub dex_router_url: String,
     pub interval_msec: u64,
+    pub cross_effective_duration_secs: i64,
 }
 
 #[derive(Debug)]
@@ -100,6 +101,8 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
 
+    let cross_effective_duration_secs = get_env_var("CROSS_EFFECTIVE_DURATION_SECS", "10")?;
+
     let env_config = EnvConfig {
         mongodb_uri,
         db_name,
@@ -113,6 +116,7 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         dex_router_api_key,
         dex_router_url,
         interval_msec,
+        cross_effective_duration_secs,
     };
 
     Ok(env_config)

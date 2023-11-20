@@ -28,6 +28,7 @@ pub struct FundManagerState {
     db_handler: Arc<Mutex<DBHandler>>,
     dex_client: DexClient,
     market_data: MarketData,
+    last_trade_time: Option<i64>,
 }
 
 pub struct FundManagerConfig {
@@ -42,6 +43,7 @@ pub struct FundManagerConfig {
     prediction_interval: usize,
     dry_run: bool,
     save_prices: bool,
+    non_trading_period_secs: i64,
 }
 
 pub struct FundManager {
@@ -49,8 +51,8 @@ pub struct FundManager {
     state: FundManagerState,
 }
 
-const TRADING_COST_RATE: f64 = 0.003; // 0.3%
-const PRICE_CHANGE_THRESHOLD: f64 = 0.01; // 1%
+const MIN_PRICE_CHANGE: f64 = 0.005; // 0.5%
+const MAX_PRICE_CHANGE: f64 = 0.015; // 1.5%
 
 impl FundManager {
     pub fn new(
@@ -69,6 +71,7 @@ impl FundManager {
         dex_client: DexClient,
         dry_run: bool,
         save_prices: bool,
+        cross_effective_duration_secs: i64,
     ) -> Self {
         let config = FundManagerConfig {
             fund_name: fund_name.to_owned(),
@@ -82,6 +85,7 @@ impl FundManager {
             prediction_interval,
             dry_run,
             save_prices,
+            non_trading_period_secs: cross_effective_duration_secs / 4,
         };
 
         let open_positions = match open_positions {
@@ -102,6 +106,7 @@ impl FundManager {
             db_handler,
             dex_client,
             market_data,
+            last_trade_time: None,
         };
 
         Self { config, state }
@@ -177,28 +182,37 @@ impl FundManager {
         let prediction = data.predict(self.config.prediction_interval, self.config.strategy);
         let price_ratio = (prediction.price - current_price) / current_price;
 
+        const GREEN: &str = "\x1b[0;32m";
+        const RED: &str = "\x1b[0;31m";
+        const GREY: &str = "\x1b[0;90m";
+        const RESET: &str = "\x1b[0m";
+        const BLUE: &str = "\x1b[0;34m";
+
         let color = match prediction.confidence {
-            x if x >= 0.5 && price_ratio > 0.0 => "\x1b[0;32m",
-            x if x >= 0.5 && price_ratio < 0.0 => "\x1b[0;31m",
-            _ => "\x1b[0;90m",
+            x if x >= 0.5 && price_ratio > 0.0 => GREEN,
+            x if x <= -0.5 && price_ratio < 0.0 => RED,
+            _ => GREY,
         };
 
         let log_message = format!(
-            "{} {:>7.3}%\x1b[0m, {:<30} \x1b[0;34m{:<6}\x1b[0m {:<6.5}(--> {:<6.5})",
+            "{}{:>7.3}%{}, {:<30} {}{:<6}{} {:<6.5}(--> {:<6.5})",
             color,
             price_ratio * 100.0,
+            RESET,
             self.config.fund_name,
+            BLUE,
             token_name,
+            RESET,
             current_price,
-            prediction.price
+            prediction.price,
         );
-        if prediction.confidence == 0.0 {
+        if color == GREY {
             log::debug!("{}", log_message);
         } else {
             log::info!("{}", log_message);
         }
 
-        if prediction.confidence >= 0.5 {
+        if prediction.confidence.abs() >= 0.5 {
             if self.config.strategy != TradingStrategy::TrendFollowReactive {
                 if self.state.amount < self.config.trading_amount {
                     log::debug!(
@@ -210,7 +224,7 @@ impl FundManager {
                 }
             }
 
-            if price_ratio.abs() < TRADING_COST_RATE {
+            if price_ratio.abs() < MIN_PRICE_CHANGE {
                 return Ok(());
             }
 
@@ -243,20 +257,30 @@ impl FundManager {
                     || (self.config.strategy == TradingStrategy::TrendFollowShort
                         && action == TradeAction::BuyOpen)
                 {
+                    log::error!("Wrong action: {:?}, atr: {:?}", action, atr);
                     return Ok(());
                 }
             }
 
+            if let Some(last_time) = self.state.last_trade_time {
+                if chrono::Utc::now().timestamp() - last_time <= self.config.non_trading_period_secs
+                {
+                    return Ok(());
+                }
+            }
+
+            self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
+
             let mut predicted_price = prediction.price;
             match action {
                 TradeAction::BuyOpen => {
-                    if price_ratio.abs() > PRICE_CHANGE_THRESHOLD {
-                        predicted_price = current_price * (1.0 + PRICE_CHANGE_THRESHOLD);
+                    if price_ratio.abs() > MAX_PRICE_CHANGE {
+                        predicted_price = current_price * (1.0 + MAX_PRICE_CHANGE);
                     }
                 }
                 TradeAction::BuyClose => {
-                    if price_ratio.abs() < 1.0 / PRICE_CHANGE_THRESHOLD {
-                        predicted_price = current_price * (1.0 - PRICE_CHANGE_THRESHOLD);
+                    if price_ratio.abs() < 1.0 / MAX_PRICE_CHANGE {
+                        predicted_price = current_price * (1.0 - MAX_PRICE_CHANGE);
                     }
                 }
                 _ => {}
@@ -267,7 +291,7 @@ impl FundManager {
                 TradeChance {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(predicted_price),
-                    amount: self.config.trading_amount * prediction.confidence,
+                    amount: self.config.trading_amount * prediction.confidence.abs(),
                     atr,
                     action,
                     position_index: None,
@@ -403,6 +427,8 @@ impl FundManager {
                 return Ok(());
             }
         }
+
+        self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
 
         // Update the position
         self.update_position(

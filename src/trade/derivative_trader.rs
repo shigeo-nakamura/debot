@@ -71,6 +71,7 @@ impl DerivativeTrader {
         save_prices: bool,
         dex_router_api_key: &str,
         dex_router_url: &str,
+        cross_effective_duration_secs: i64,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let config = DerivativeTraderConfig {
@@ -97,6 +98,7 @@ impl DerivativeTrader {
             risk_reward,
             dry_run,
             interval,
+            cross_effective_duration_secs,
         )
         .await;
 
@@ -116,6 +118,7 @@ impl DerivativeTrader {
         risk_reward: f64,
         dry_run: bool,
         prediction_interval: usize,
+        cross_effective_duration_secs: i64,
     ) -> DerivativeTraderState {
         let dex_client = Self::create_dex_clinet(dex_router_api_key, dex_router_url)
             .await
@@ -133,6 +136,7 @@ impl DerivativeTrader {
             risk_reward,
             dry_run,
             prediction_interval,
+            cross_effective_duration_secs,
         )
         .await;
 
@@ -166,6 +170,7 @@ impl DerivativeTrader {
         risk_reward: f64,
         dry_run: bool,
         prediction_interval: usize,
+        cross_effective_duration_secs: i64,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name);
         let db_handler = Arc::new(Mutex::new(DBHandler::new(
@@ -183,7 +188,8 @@ impl DerivativeTrader {
                     strategy, token_name, config.short_trade_period, config.long_trade_period
                 );
 
-                let mut market_data = Self::create_market_data(config.clone());
+                let mut market_data =
+                    Self::create_market_data(config.clone(), cross_effective_duration_secs);
 
                 if load_prices {
                     Self::restore_market_data(
@@ -215,6 +221,7 @@ impl DerivativeTrader {
                     dex_client.clone(),
                     dry_run,
                     save_prices,
+                    cross_effective_duration_secs,
                 )
             })
             .collect()
@@ -250,12 +257,16 @@ impl DerivativeTrader {
         }
     }
 
-    fn create_market_data(config: DerivativeTraderConfig) -> MarketData {
+    fn create_market_data(
+        config: DerivativeTraderConfig,
+        cross_effective_duration_secs: i64,
+    ) -> MarketData {
         MarketData::new(
             config.trader_name.to_owned(),
             config.short_trade_period,
             config.long_trade_period,
             config.max_price_size as usize,
+            cross_effective_duration_secs,
         )
     }
 
