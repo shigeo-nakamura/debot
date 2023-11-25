@@ -123,6 +123,7 @@ async fn prepare_trader_instance(
         &config.dex_router_api_key,
         &config.dex_router_url,
         config.cross_effective_duration_secs,
+        config.non_trading_period_secs,
     )
     .await;
 

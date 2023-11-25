@@ -72,6 +72,7 @@ impl DerivativeTrader {
         dex_router_api_key: &str,
         dex_router_url: &str,
         cross_effective_duration_secs: i64,
+        non_trading_period_secs: i64,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let config = DerivativeTraderConfig {
@@ -99,6 +100,7 @@ impl DerivativeTrader {
             dry_run,
             interval,
             cross_effective_duration_secs,
+            non_trading_period_secs,
         )
         .await;
 
@@ -119,6 +121,7 @@ impl DerivativeTrader {
         dry_run: bool,
         prediction_interval: usize,
         cross_effective_duration_secs: i64,
+        non_trading_period_secs: i64,
     ) -> DerivativeTraderState {
         let dex_client = Self::create_dex_clinet(dex_router_api_key, dex_router_url)
             .await
@@ -137,6 +140,7 @@ impl DerivativeTrader {
             dry_run,
             prediction_interval,
             cross_effective_duration_secs,
+            non_trading_period_secs,
         )
         .await;
 
@@ -171,6 +175,7 @@ impl DerivativeTrader {
         dry_run: bool,
         prediction_interval: usize,
         cross_effective_duration_secs: i64,
+        non_trading_period_secs: i64,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name);
         let db_handler = Arc::new(Mutex::new(DBHandler::new(
@@ -221,7 +226,7 @@ impl DerivativeTrader {
                     dex_client.clone(),
                     dry_run,
                     save_prices,
-                    cross_effective_duration_secs,
+                    non_trading_period_secs,
                 )
             })
             .collect()

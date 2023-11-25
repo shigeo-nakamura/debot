@@ -71,7 +71,7 @@ impl FundManager {
         dex_client: DexClient,
         dry_run: bool,
         save_prices: bool,
-        cross_effective_duration_secs: i64,
+        non_trading_period_secs: i64,
     ) -> Self {
         let config = FundManagerConfig {
             fund_name: fund_name.to_owned(),
@@ -85,7 +85,7 @@ impl FundManager {
             prediction_interval,
             dry_run,
             save_prices,
-            non_trading_period_secs: cross_effective_duration_secs / 4,
+            non_trading_period_secs,
         };
 
         let open_positions = match open_positions {
@@ -257,7 +257,7 @@ impl FundManager {
                     || (self.config.strategy == TradingStrategy::TrendFollowShort
                         && action == TradeAction::BuyOpen)
                 {
-                    log::error!("Wrong action: {:?}, atr: {:?}", action, atr);
+                    log::error!("Wrong action: {:?}, atr: {}", action, atr);
                     return Ok(());
                 }
             }
@@ -292,7 +292,7 @@ impl FundManager {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(predicted_price),
                     amount: self.config.trading_amount * prediction.confidence.abs(),
-                    atr,
+                    atr: Some(atr),
                     action,
                     position_index: None,
                 },
