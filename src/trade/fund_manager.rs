@@ -99,9 +99,15 @@ impl FundManager {
             None => vec![],
         };
 
+        let mut amount = initial_amount;
+        for position in open_positions.clone() {
+            amount -= position.amount_in_anchor_token();
+        }
+        log::info!("available amount = {}", amount);
+
         let state = FundManagerState {
             balance: 0.0,
-            amount: initial_amount,
+            amount,
             open_positions,
             db_handler,
             dex_client,
