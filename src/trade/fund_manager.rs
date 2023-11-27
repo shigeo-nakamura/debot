@@ -23,7 +23,6 @@ struct TradeChance {
 
 pub struct FundManagerState {
     amount: f64,
-    balance: f64,
     open_positions: Vec<TradePosition>,
     db_handler: Arc<Mutex<DBHandler>>,
     dex_client: DexClient,
@@ -39,7 +38,6 @@ pub struct FundManagerConfig {
     strategy: TradingStrategy,
     risk_reward: f64,
     trading_amount: f64,
-    initial_amount: f64,
     prediction_interval: usize,
     dry_run: bool,
     save_prices: bool,
@@ -81,7 +79,6 @@ impl FundManager {
             strategy,
             risk_reward,
             trading_amount,
-            initial_amount,
             prediction_interval,
             dry_run,
             save_prices,
@@ -89,13 +86,7 @@ impl FundManager {
         };
 
         let open_positions = match open_positions {
-            Some(positions) => {
-                if strategy == TradingStrategy::TrendFollowReactive {
-                    vec![]
-                } else {
-                    positions
-                }
-            }
+            Some(positions) => positions,
             None => vec![],
         };
 
@@ -106,7 +97,6 @@ impl FundManager {
         log::info!("available amount = {}", amount);
 
         let state = FundManagerState {
-            balance: 0.0,
             amount,
             open_positions,
             db_handler,
@@ -159,9 +149,6 @@ impl FundManager {
                 .log_price(data.name(), token_name, price_point)
                 .await;
         }
-
-        // update ATR
-        data.update_atr(self.config.prediction_interval);
 
         if price.is_none() {
             return Ok(());
@@ -219,17 +206,6 @@ impl FundManager {
         }
 
         if prediction.confidence.abs() >= 0.5 {
-            if self.config.strategy != TradingStrategy::TrendFollowReactive {
-                if self.state.amount < self.config.trading_amount {
-                    log::debug!(
-                        "No enough fund left({}): remaining = {:6.3}",
-                        self.config.fund_name,
-                        self.state.amount,
-                    );
-                    return Ok(());
-                }
-            }
-
             if price_ratio.abs() < MIN_PRICE_CHANGE {
                 return Ok(());
             }
@@ -242,30 +218,15 @@ impl FundManager {
 
             let atr = data.atr(self.config.prediction_interval);
 
-            if self.config.strategy == TradingStrategy::TrendFollowReactive {
-                if (self.state.balance > self.config.initial_amount
-                    && action == TradeAction::BuyOpen)
-                    || (self.state.balance < -self.config.initial_amount
-                        && action == TradeAction::SellOpen)
-                {
-                    log::warn!(
-                        "No margine left({}): balance = {:6.3}. Liquidate the all positions.",
-                        self.config.fund_name,
-                        self.state.balance
-                    );
-                    self.liquidate("No margin left").await;
-                    self.state.balance = 0.0;
-                    return Ok(());
-                }
-            } else {
-                if (self.config.strategy == TradingStrategy::TrendFollowLong
-                    && action == TradeAction::SellOpen)
-                    || (self.config.strategy == TradingStrategy::TrendFollowShort
-                        && action == TradeAction::BuyOpen)
-                {
-                    log::error!("Wrong action: {:?}, atr: {}", action, atr);
-                    return Ok(());
-                }
+            let is_valid_action = match self.config.strategy {
+                TradingStrategy::TrendFollowLong => action == TradeAction::BuyOpen,
+                TradingStrategy::TrendFollowShort => action == TradeAction::SellOpen,
+                TradingStrategy::MeanReversionLong => action == TradeAction::BuyOpen,
+                TradingStrategy::MeanReversionShort => action == TradeAction::SellOpen,
+            };
+            if !is_valid_action {
+                log::error!("Wrong action: {:?}, atr: {}", action, atr);
+                return Ok(());
             }
 
             if let Some(last_time) = self.state.last_trade_time {
@@ -310,10 +271,6 @@ impl FundManager {
     }
 
     async fn find_close_chances(&mut self, current_price: f64) -> Result<(), ()> {
-        if self.config.strategy == TradingStrategy::TrendFollowReactive {
-            return Ok(());
-        }
-
         let cloned_open_positions = self.state.open_positions.clone();
 
         for position in cloned_open_positions {
@@ -472,18 +429,9 @@ impl FundManager {
         );
 
         let prev_amount = self.state.amount;
-        let prev_balance = self.state.balance;
 
         if trade_action.is_open() {
-            if self.config.strategy == TradingStrategy::TrendFollowReactive {
-                if trade_action.is_buy() {
-                    self.state.balance += amount_in;
-                } else {
-                    self.state.balance -= amount_in;
-                }
-            } else {
-                self.state.amount -= amount_in;
-            }
+            self.state.amount -= amount_in;
 
             let average_price = amount_in / amount_out;
 
@@ -566,21 +514,12 @@ impl FundManager {
             self.state.open_positions.remove(position_index);
         }
 
-        if self.config.strategy == TradingStrategy::TrendFollowReactive {
-            log::info!(
-                "{} Balance has changed from {} to {}",
-                self.config.fund_name,
-                prev_balance,
-                self.state.balance
-            );
-        } else {
-            log::info!(
-                "{} Amount has changed from {} to {}",
-                self.config.fund_name,
-                prev_amount,
-                self.state.amount
-            );
-        }
+        log::info!(
+            "{} Amount has changed from {} to {}",
+            self.config.fund_name,
+            prev_amount,
+            self.state.amount
+        );
     }
 
     pub async fn liquidate(&mut self, reason: &str) {

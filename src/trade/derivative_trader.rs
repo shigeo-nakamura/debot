@@ -39,6 +39,8 @@ struct DerivativeTraderConfig {
     dex_name: String,
     short_trade_period: usize,
     long_trade_period: usize,
+    trade_period: usize,
+
     max_price_size: u32,
     dex_router_api_key: String,
     dex_router_url: String,
@@ -59,8 +61,8 @@ impl DerivativeTrader {
     pub async fn new(
         dex_name: &str,
         dry_run: bool,
-        prediction_interval: usize,
-        interval: SampleInterval,
+        trade_interval: usize,
+        sample_interval: SampleInterval,
         max_price_size: u32,
         risk_reward: f64,
         db_client: Arc<Mutex<ClientHolder>>,
@@ -78,13 +80,13 @@ impl DerivativeTrader {
         let config = DerivativeTraderConfig {
             trader_name: dex_name.to_owned(),
             dex_name: dex_name.to_owned(),
-            short_trade_period: interval.short_term * SECONDS_IN_MINUTE,
-            long_trade_period: interval.long_term * SECONDS_IN_MINUTE,
+            short_trade_period: sample_interval.short_term * SECONDS_IN_MINUTE,
+            long_trade_period: sample_interval.long_term * SECONDS_IN_MINUTE,
+            trade_period: trade_interval * SECONDS_IN_MINUTE,
             max_price_size: max_price_size * TOKEN_LIST_SIZE as u32,
             dex_router_api_key: dex_router_api_key.to_owned(),
             dex_router_url: dex_router_url.to_owned(),
         };
-        let interval = prediction_interval * SECONDS_IN_MINUTE;
 
         let state = Self::initialize_state(
             config.clone(),
@@ -98,7 +100,6 @@ impl DerivativeTrader {
             save_prices,
             risk_reward,
             dry_run,
-            interval,
             cross_effective_duration_secs,
             non_trading_period_secs,
         )
@@ -119,7 +120,6 @@ impl DerivativeTrader {
         save_prices: bool,
         risk_reward: f64,
         dry_run: bool,
-        prediction_interval: usize,
         cross_effective_duration_secs: i64,
         non_trading_period_secs: i64,
     ) -> DerivativeTraderState {
@@ -138,7 +138,6 @@ impl DerivativeTrader {
             save_prices,
             risk_reward,
             dry_run,
-            prediction_interval,
             cross_effective_duration_secs,
             non_trading_period_secs,
         )
@@ -173,7 +172,6 @@ impl DerivativeTrader {
         save_prices: bool,
         risk_reward: f64,
         dry_run: bool,
-        prediction_interval: usize,
         cross_effective_duration_secs: i64,
         non_trading_period_secs: i64,
     ) -> Vec<FundManager> {
@@ -218,7 +216,7 @@ impl DerivativeTrader {
                     open_positions_map.get(&fund_name).cloned(),
                     market_data,
                     strategy,
-                    prediction_interval,
+                    config.trade_period,
                     trading_amount,
                     initial_amount,
                     risk_reward,
@@ -270,6 +268,7 @@ impl DerivativeTrader {
             config.trader_name.to_owned(),
             config.short_trade_period,
             config.long_trade_period,
+            config.trade_period,
             config.max_price_size as usize,
             cross_effective_duration_secs,
         )
