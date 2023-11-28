@@ -227,6 +227,11 @@ impl FundManager {
             }
         }
 
+        if self.state.amount < self.config.trading_amount {
+            log::warn!("No enough fund left: {}", self.config.trading_amount);
+            return Ok(());
+        }
+
         match action {
             TradeAction::BuyOpen(_) => {
                 if price_ratio.abs() > MAX_PRICE_CHANGE {
