@@ -1,7 +1,7 @@
 // main.rs
 
 use config::EnvConfig;
-use db::{create_unique_index, TransactionLog};
+use debot_db::{create_unique_index, TransactionLog};
 use debot_market_analyzer::PricePoint;
 use error_manager::ErrorManager;
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
@@ -16,7 +16,6 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 mod config;
-mod db;
 mod error_manager;
 mod trade;
 
@@ -54,10 +53,11 @@ async fn main() -> std::io::Result<()> {
 
     // Set up the transaction log
     let last_position_counter =
-        TransactionLog::get_last_transaction_id(&db, db::CounterType::Position).await;
+        TransactionLog::get_last_transaction_id(&db, debot_db::CounterType::Position).await;
     let last_price_counter =
-        TransactionLog::get_last_transaction_id(&db, db::CounterType::Price).await;
-    let last_pnl_counter = TransactionLog::get_last_transaction_id(&db, db::CounterType::Pnl).await;
+        TransactionLog::get_last_transaction_id(&db, debot_db::CounterType::Price).await;
+    let last_pnl_counter =
+        TransactionLog::get_last_transaction_id(&db, debot_db::CounterType::Pnl).await;
 
     let transaction_log = Arc::new(TransactionLog::new(
         config.log_limit,

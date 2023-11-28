@@ -1,5 +1,6 @@
 // derivative_trader.rs
 
+use debot_db::TransactionLog;
 use debot_market_analyzer::MarketData;
 use debot_market_analyzer::PricePoint;
 use debot_position_manager::TradePosition;
@@ -11,7 +12,6 @@ use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::db::TransactionLog;
 use crate::trade::fund_config::TOKEN_LIST_SIZE;
 
 use super::fund_config;

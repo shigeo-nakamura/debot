@@ -1,7 +1,5 @@
 // fund_manager.rs
 
-use crate::db::CounterType;
-
 use super::DBHandler;
 use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
 use debot_position_manager::{ReasonForClose, TradePosition};
@@ -475,7 +473,7 @@ impl FundManager {
                     .db_handler
                     .lock()
                     .await
-                    .increment_counter(CounterType::Position),
+                    .increment_counter(debot_db::CounterType::Position),
             );
 
             let position_cloned = position.clone();

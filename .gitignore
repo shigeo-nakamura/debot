@@ -4,3 +4,4 @@ debug/
 target/
 aws-kms.txt
 encrypted-private-key.txt
+scripts/myenv/

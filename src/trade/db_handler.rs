@@ -1,14 +1,12 @@
 // db_operations.rs
 
-use crate::db::{CounterType, PnlLog, PriceLog, TransactionLog};
-
+use debot_db::{CounterType, PnlLog, PriceLog, TransactionLog};
 use debot_market_analyzer::PricePoint;
 use debot_position_manager::TradePosition;
 use debot_utils::DateTimeUtils;
 use shared_mongodb::ClientHolder;
 use std::{collections::HashMap, sync::Arc, time::SystemTime};
 use tokio::sync::Mutex;
-
 pub struct DBHandler {
     client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
@@ -80,6 +78,11 @@ impl DBHandler {
     }
 
     pub fn increment_counter(&self, counter_type: CounterType) -> Option<u32> {
+        let counter_type = match counter_type {
+            CounterType::Position => debot_db::CounterType::Position,
+            CounterType::Price => debot_db::CounterType::Price,
+            CounterType::Pnl => debot_db::CounterType::Pnl,
+        };
         Some(self.transaction_log.increment_counter(counter_type))
     }
 
