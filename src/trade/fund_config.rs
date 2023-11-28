@@ -10,14 +10,14 @@ pub fn get(dex_name: &str) -> Vec<(String, TradingStrategy, f64, f64)> {
             (
                 MUFEX_TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::TrendFollow,
-                5000.0, // initial amount(in USDC)
-                200.0,  // amount(in USDC) per trading
+                2500.0, // initial amount(in USDC)
+                100.0,  // amount(in USDC) per trading
             ),
             (
                 MUFEX_TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::MeanReversion,
-                5000.0, // initial amount(in USDC)
-                200.0,  // amount(in USDC) per trading
+                2500.0, // initial amount(in USDC)
+                100.0,  // amount(in USDC) per trading
             ),
         ]
     } else {
