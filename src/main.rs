@@ -1,14 +1,14 @@
 // main.rs
 
 use config::EnvConfig;
-use db::create_unique_index;
+use db::{create_unique_index, TransactionLog};
 use debot_market_analyzer::PricePoint;
 use error_manager::ErrorManager;
 use mongodb::options::{ClientOptions, Tls, TlsOptions};
 use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
-use trade::{trader_config, DerivativeTrader, TransactionLog};
+use trade::{trader_config, DerivativeTrader};
 
 use crate::trade::DBHandler;
 use std::collections::HashMap;

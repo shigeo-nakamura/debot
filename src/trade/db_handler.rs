@@ -1,9 +1,6 @@
 // db_operations.rs
 
-use crate::{
-    db::CounterType,
-    trade::{PnlLog, TransactionLog},
-};
+use crate::db::{CounterType, PnlLog, PriceLog, TransactionLog};
 
 use debot_market_analyzer::PricePoint;
 use debot_position_manager::TradePosition;
@@ -11,8 +8,6 @@ use debot_utils::DateTimeUtils;
 use shared_mongodb::ClientHolder;
 use std::{collections::HashMap, sync::Arc, time::SystemTime};
 use tokio::sync::Mutex;
-
-use super::transaction_log::PriceLog;
 
 pub struct DBHandler {
     client_holder: Arc<Mutex<ClientHolder>>,

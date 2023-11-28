@@ -11,12 +11,12 @@ use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use crate::db::TransactionLog;
 use crate::trade::fund_config::TOKEN_LIST_SIZE;
 
 use super::fund_config;
 use super::DBHandler;
 use super::FundManager;
-use super::TransactionLog;
 
 #[derive(Clone)]
 pub struct SampleInterval {
