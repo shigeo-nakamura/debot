@@ -18,7 +18,6 @@ pub struct EnvConfig {
     pub dex_router_api_key: String,
     pub dex_router_url: String,
     pub interval_msec: u64,
-    pub cross_effective_duration_secs: i64,
     pub non_trading_period_secs: i64,
 }
 
@@ -102,8 +101,6 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
 
-    let cross_effective_duration_secs = get_env_var("CROSS_EFFECTIVE_DURATION_SECS", "60")?;
-
     let non_trading_period_secs = get_env_var("NON_TRADING_PERIOD_SECS", "60")?;
 
     let env_config = EnvConfig {
@@ -119,7 +116,6 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         dex_router_api_key,
         dex_router_url,
         interval_msec,
-        cross_effective_duration_secs,
         non_trading_period_secs,
     };
 

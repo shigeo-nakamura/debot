@@ -37,3 +37,7 @@ dex-client = "*"
 version = "2.2.1"
 default-features = false
 features = ["async-std-runtime"]
+
+[[bin]]
+name = "debot"
+path = "src/main.rs"

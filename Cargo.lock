@@ -644,9 +644,9 @@ dependencies = [
 
 [[package]]
 name = "debot-market-analyzer"
-version = "0.5.36"
+version = "0.5.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cde16ec7dac8ab78d9714c34936632c6d41e59d59252081096be136ffb7e38ab"
+checksum = "23d3e42495be812388d11ff39906adad7b07b234cad944c72263847d6377de5d"
 dependencies = [
  "chrono",
  "debot-utils",
@@ -657,9 +657,9 @@ dependencies = [
 
 [[package]]
 name = "debot-position-manager"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acfa76a7560c16880995684d55c3f8c5e56cb4a9f8225066affcca1883bedafb"
+checksum = "6bf6cd6695a0aab2a354e15088e344c8bdae0e713b0b4d8042c3f6792dd1ed0f"
 dependencies = [
  "chrono",
  "debot-utils",
@@ -810,12 +810,12 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "errno"
-version = "0.3.7"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f258a7194e7f7c2a7837a8913aeab7fd8c383457034fa20ce4dd3dcb813e8eb8"
+checksum = "a258e46cdc063eb8519c00b9fc845fc47bcfca4130e2f08e88665ceda8474245"
 dependencies = [
  "libc",
- "windows-sys 0.48.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

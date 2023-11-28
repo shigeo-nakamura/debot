@@ -73,7 +73,6 @@ impl DerivativeTrader {
         save_prices: bool,
         dex_router_api_key: &str,
         dex_router_url: &str,
-        cross_effective_duration_secs: i64,
         non_trading_period_secs: i64,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
@@ -100,7 +99,6 @@ impl DerivativeTrader {
             save_prices,
             risk_reward,
             dry_run,
-            cross_effective_duration_secs,
             non_trading_period_secs,
         )
         .await;
@@ -120,7 +118,6 @@ impl DerivativeTrader {
         save_prices: bool,
         risk_reward: f64,
         dry_run: bool,
-        cross_effective_duration_secs: i64,
         non_trading_period_secs: i64,
     ) -> DerivativeTraderState {
         let dex_client = Self::create_dex_clinet(dex_router_api_key, dex_router_url)
@@ -138,7 +135,6 @@ impl DerivativeTrader {
             save_prices,
             risk_reward,
             dry_run,
-            cross_effective_duration_secs,
             non_trading_period_secs,
         )
         .await;
@@ -172,7 +168,6 @@ impl DerivativeTrader {
         save_prices: bool,
         risk_reward: f64,
         dry_run: bool,
-        cross_effective_duration_secs: i64,
         non_trading_period_secs: i64,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name);
@@ -188,11 +183,13 @@ impl DerivativeTrader {
             .map(|(token_name, strategy, initial_amount, trading_amount)| {
                 let fund_name = format!(
                     "{:?}-{}-{}-{}",
-                    strategy, token_name, config.short_trade_period, config.long_trade_period
+                    strategy,
+                    token_name,
+                    config.short_trade_period / 60,
+                    config.long_trade_period / 60
                 );
 
-                let mut market_data =
-                    Self::create_market_data(config.clone(), cross_effective_duration_secs);
+                let mut market_data = Self::create_market_data(config.clone());
 
                 if load_prices {
                     Self::restore_market_data(
@@ -216,7 +213,6 @@ impl DerivativeTrader {
                     open_positions_map.get(&fund_name).cloned(),
                     market_data,
                     strategy,
-                    config.trade_period,
                     trading_amount,
                     initial_amount,
                     risk_reward,
@@ -260,17 +256,13 @@ impl DerivativeTrader {
         }
     }
 
-    fn create_market_data(
-        config: DerivativeTraderConfig,
-        cross_effective_duration_secs: i64,
-    ) -> MarketData {
+    fn create_market_data(config: DerivativeTraderConfig) -> MarketData {
         MarketData::new(
             config.trader_name.to_owned(),
             config.short_trade_period,
             config.long_trade_period,
             config.trade_period,
             config.max_price_size as usize,
-            cross_effective_duration_secs,
         )
     }
 
