@@ -39,15 +39,6 @@ version = "2.2.1"
 default-features = false
 features = ["async-std-runtime"]
 
-[workspace]
-members = [
-    "debot-market-analyzer",
-    "debot-position-manager",
-    "debot-utils",
-    "debot-db",
-    "dex-client",
-]
-
 [[bin]]
 name = "debot"
 path = "src/main.rs"

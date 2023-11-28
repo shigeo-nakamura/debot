@@ -622,11 +622,11 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "ctor",
- "debot-db 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "debot-market-analyzer 0.5.42 (registry+https://github.com/rust-lang/crates.io-index)",
- "debot-position-manager 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "debot-utils 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "dex-client 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "debot-db",
+ "debot-market-analyzer",
+ "debot-position-manager",
+ "debot-utils",
+ "dex-client",
  "env_logger",
  "futures",
  "hex-literal",
@@ -646,33 +646,14 @@ dependencies = [
 [[package]]
 name = "debot-db"
 version = "0.1.4"
-dependencies = [
- "async-trait",
- "bson",
- "debot-market-analyzer 0.5.42 (registry+https://github.com/rust-lang/crates.io-index)",
- "debot-position-manager 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "debot-utils 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "env_logger",
- "futures",
- "log",
- "mongodb",
- "serde",
- "serde_json",
- "shared_mongodb",
- "tokio",
-]
-
-[[package]]
-name = "debot-db"
-version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bc35728d4baada58bf7a3f5e68af2d82823980cb10b9cb924674ef3d3dc6d5e"
 dependencies = [
  "async-trait",
  "bson",
- "debot-market-analyzer 0.5.42 (registry+https://github.com/rust-lang/crates.io-index)",
- "debot-position-manager 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "debot-utils 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "debot-market-analyzer",
+ "debot-position-manager",
+ "debot-utils",
  "env_logger",
  "futures",
  "log",
@@ -681,17 +662,6 @@ dependencies = [
  "serde_json",
  "shared_mongodb",
  "tokio",
-]
-
-[[package]]
-name = "debot-market-analyzer"
-version = "0.5.42"
-dependencies = [
- "chrono",
- "debot-utils 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "lazy_static",
- "log",
- "serde",
 ]
 
 [[package]]
@@ -701,18 +671,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f56ce8fb113ba8668d570ab337cf7f6cf6170e67be67e71d5815d5e4da245368"
 dependencies = [
  "chrono",
- "debot-utils 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "debot-utils",
  "lazy_static",
- "log",
- "serde",
-]
-
-[[package]]
-name = "debot-position-manager"
-version = "0.4.1"
-dependencies = [
- "chrono",
- "debot-utils 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "log",
  "serde",
 ]
@@ -724,20 +684,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bf6cd6695a0aab2a354e15088e344c8bdae0e713b0b4d8042c3f6792dd1ed0f"
 dependencies = [
  "chrono",
- "debot-utils 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "debot-utils",
  "log",
  "serde",
-]
-
-[[package]]
-name = "debot-utils"
-version = "0.1.5"
-dependencies = [
- "base64 0.13.1",
- "chrono",
- "openssl",
- "rusoto_core",
- "rusoto_kms",
 ]
 
 [[package]]
@@ -784,18 +733,6 @@ dependencies = [
  "quote",
  "rustc_version 0.4.0",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "dex-client"
-version = "0.3.9"
-dependencies = [
- "chrono",
- "log",
- "reqwest",
- "serde",
- "serde_json",
- "sha2 0.10.8",
 ]
 
 [[package]]
