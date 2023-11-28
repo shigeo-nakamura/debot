@@ -2,6 +2,7 @@
 # will have compiled files and executables
 debug/
 target/
+Cargo.lock
 aws-kms.txt
 encrypted-private-key.txt
 scripts/myenv/
