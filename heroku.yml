@@ -1,0 +1,4 @@
+build:
+  scripts:
+    - git submodule update --init --recursive
+    - cargo build --release
