@@ -228,7 +228,7 @@ impl FundManager {
         }
 
         if self.state.amount < self.config.trading_amount {
-            log::warn!("No enough fund left: {}", self.config.trading_amount);
+            log::warn!("No enough fund left: {}", self.state.amount);
             return Ok(());
         }
 
