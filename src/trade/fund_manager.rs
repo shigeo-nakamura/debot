@@ -169,21 +169,21 @@ impl FundManager {
 
         let action = data.is_open_signaled(self.config.strategy);
 
-        let mut predicted_price = match action {
+        let (target_price, confidence) = match action.clone() {
             TradeAction::None => {
                 return Ok(());
             }
-            TradeAction::BuyOpen(price) => price,
+            TradeAction::BuyOpen(detail) => (detail.target_price(), detail.confidence()),
             TradeAction::BuyClose => {
                 return Ok(());
             }
-            TradeAction::SellOpen(price) => price,
+            TradeAction::SellOpen(detail) => (detail.target_price(), detail.confidence()),
             TradeAction::SellClose => {
                 return Ok(());
             }
         };
 
-        let price_ratio = (predicted_price - current_price) / current_price;
+        let price_ratio = (target_price - current_price) / current_price;
 
         const GREEN: &str = "\x1b[0;32m";
         const RED: &str = "\x1b[0;31m";
@@ -207,7 +207,7 @@ impl FundManager {
             token_name,
             RESET,
             current_price,
-            predicted_price,
+            target_price,
         );
         if color == GREY {
             log::debug!("{}", log_message);
@@ -232,21 +232,25 @@ impl FundManager {
             return Ok(());
         }
 
-        match action {
+        let predicted_price = match action {
             TradeAction::BuyOpen(_) => {
                 if price_ratio.abs() > MAX_PRICE_CHANGE {
-                    predicted_price = current_price * (1.0 + MAX_PRICE_CHANGE);
+                    current_price * (1.0 + MAX_PRICE_CHANGE)
+                } else {
+                    target_price
                 }
             }
             TradeAction::SellOpen(_) => {
                 if price_ratio.abs() > MAX_PRICE_CHANGE {
-                    predicted_price = current_price * (1.0 - MAX_PRICE_CHANGE);
+                    current_price * (1.0 - MAX_PRICE_CHANGE)
+                } else {
+                    target_price
                 }
             }
             _ => {
                 return Ok(());
             }
-        }
+        };
 
         self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
 
@@ -255,7 +259,7 @@ impl FundManager {
             TradeChance {
                 token_name: self.config.token_name.clone(),
                 predicted_price: Some(predicted_price),
-                amount: self.config.trading_amount,
+                amount: self.config.trading_amount * confidence,
                 atr: Some(atr),
                 action,
                 position_index: None,
