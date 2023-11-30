@@ -73,7 +73,7 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
     let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
     let log_limit = get_env_var("LOG_LIMIT", "10000")?;
-    let dry_run = get_bool_env_var("DRY_RUN", false);
+    let dry_run = get_bool_env_var("DRY_RUN", true);
     let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "4")?;
 
     let risk_reward = get_env_var("RISK_REWARD", "1.5")?;

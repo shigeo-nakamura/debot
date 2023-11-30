@@ -4,23 +4,30 @@ use debot_db::{CounterType, PnlLog, PriceLog, TransactionLog};
 use debot_market_analyzer::PricePoint;
 use debot_position_manager::TradePosition;
 use debot_utils::DateTimeUtils;
-use shared_mongodb::ClientHolder;
 use std::{collections::HashMap, sync::Arc, time::SystemTime};
-use tokio::sync::Mutex;
 pub struct DBHandler {
-    client_holder: Arc<Mutex<ClientHolder>>,
     transaction_log: Arc<TransactionLog>,
 }
 
 impl DBHandler {
-    pub fn new(
-        client_holder: Arc<Mutex<ClientHolder>>,
-        transaction_log: Arc<TransactionLog>,
+    pub async fn new(
+        position_counter: u32,
+        price_counter: u32,
+        balance_counter: u32,
+        mongodb_uri: &str,
+        db_name: &str,
     ) -> Self {
-        Self {
-            client_holder,
-            transaction_log,
-        }
+        let transaction_log = Arc::new(
+            TransactionLog::new(
+                position_counter,
+                price_counter,
+                balance_counter,
+                mongodb_uri,
+                db_name,
+            )
+            .await,
+        );
+        Self { transaction_log }
     }
 }
 
@@ -28,7 +35,7 @@ impl DBHandler {
     pub async fn log_pnl(&self, pnl: f64) {
         log::info!("log_pnl: {:6.6}", pnl);
 
-        if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
+        if let Some(db) = self.transaction_log.get_db().await {
             let mut item = PnlLog::default();
             item.id = self.increment_counter(CounterType::Pnl);
             item.date = DateTimeUtils::get_current_date_string();
@@ -47,7 +54,7 @@ impl DBHandler {
     ) {
         log::info!("log_app_state: {:?}", last_execution_time);
 
-        if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
+        if let Some(db) = self.transaction_log.get_db().await {
             if let Err(e) =
                 TransactionLog::update_app_state(&db, last_execution_time, last_equity).await
             {
@@ -57,7 +64,7 @@ impl DBHandler {
     }
 
     pub async fn log_position(&self, position: &TradePosition) {
-        if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
+        if let Some(db) = self.transaction_log.get_db().await {
             if let Err(e) = TransactionLog::update_transaction(&db, position).await {
                 log::error!("log_position: {:?}", e);
             }
@@ -65,7 +72,7 @@ impl DBHandler {
     }
 
     pub async fn log_price(&self, name: &str, token_name: &str, price_point: PricePoint) {
-        if let Some(db) = self.transaction_log.get_db(&self.client_holder).await {
+        if let Some(db) = self.transaction_log.get_db().await {
             let mut item = PriceLog::default();
             item.id = self.increment_counter(CounterType::Price);
             item.name = name.to_owned();
@@ -86,12 +93,26 @@ impl DBHandler {
         Some(self.transaction_log.increment_counter(counter_type))
     }
 
-    pub async fn get_open_positions_map(
-        transaction_log: Arc<TransactionLog>,
-        client_holder: Arc<Mutex<ClientHolder>>,
-    ) -> HashMap<String, Vec<TradePosition>> {
+    pub async fn get_app_state(&self) -> (Option<SystemTime>, Option<f64>) {
+        if let Some(db) = self.transaction_log.get_db().await {
+            let app_state = TransactionLog::get_app_state(&db).await;
+            (app_state.last_execution_time, app_state.last_equity)
+        } else {
+            (None, None)
+        }
+    }
+
+    pub async fn get_price_market_data(&self) -> HashMap<String, HashMap<String, Vec<PricePoint>>> {
+        if let Some(db) = self.transaction_log.get_db().await {
+            TransactionLog::get_price_market_data(&db).await
+        } else {
+            HashMap::new()
+        }
+    }
+
+    pub async fn get_open_positions_map(&self) -> HashMap<String, Vec<TradePosition>> {
         let mut open_positions_map = HashMap::new();
-        if let Some(db) = transaction_log.get_db(&client_holder).await {
+        if let Some(db) = self.transaction_log.get_db().await {
             let open_positions_vec = TransactionLog::get_all_open_positions(&db).await;
 
             // Populate the open_positions_map

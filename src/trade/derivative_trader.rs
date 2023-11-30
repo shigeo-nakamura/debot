@@ -1,12 +1,10 @@
 // derivative_trader.rs
 
-use debot_db::TransactionLog;
 use debot_market_analyzer::MarketData;
 use debot_market_analyzer::PricePoint;
 use debot_position_manager::TradePosition;
 use dex_client::DexClient;
 use futures::future::join_all;
-use shared_mongodb::ClientHolder;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
@@ -65,8 +63,7 @@ impl DerivativeTrader {
         sample_interval: SampleInterval,
         max_price_size: u32,
         risk_reward: f64,
-        db_client: Arc<Mutex<ClientHolder>>,
-        transaction_log: Arc<TransactionLog>,
+        db_handler: Arc<Mutex<DBHandler>>,
         open_positions_map: HashMap<String, Vec<TradePosition>>,
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
@@ -89,8 +86,7 @@ impl DerivativeTrader {
 
         let state = Self::initialize_state(
             config.clone(),
-            db_client,
-            transaction_log,
+            db_handler,
             dex_router_api_key,
             dex_router_url,
             open_positions_map,
@@ -108,8 +104,7 @@ impl DerivativeTrader {
 
     async fn initialize_state(
         config: DerivativeTraderConfig,
-        db_client: Arc<Mutex<ClientHolder>>,
-        transaction_log: Arc<TransactionLog>,
+        db_handler: Arc<Mutex<DBHandler>>,
         dex_router_api_key: &str,
         dex_router_url: &str,
         open_positions_map: HashMap<String, Vec<TradePosition>>,
@@ -126,9 +121,8 @@ impl DerivativeTrader {
 
         let fund_managers = Self::create_fund_managers(
             &config,
-            &db_client,
+            db_handler.clone(),
             &dex_client,
-            &transaction_log,
             &open_positions_map,
             &price_market_data,
             load_prices,
@@ -140,10 +134,7 @@ impl DerivativeTrader {
         .await;
 
         let mut state = DerivativeTraderState {
-            db_handler: Arc::new(Mutex::new(DBHandler::new(
-                db_client.clone(),
-                transaction_log.clone(),
-            ))),
+            db_handler,
             dex_client,
             fund_manager_map: HashMap::new(),
         };
@@ -159,9 +150,8 @@ impl DerivativeTrader {
 
     async fn create_fund_managers(
         config: &DerivativeTraderConfig,
-        db_client: &Arc<Mutex<ClientHolder>>,
+        db_handler: Arc<Mutex<DBHandler>>,
         dex_client: &DexClient,
-        transaction_log: &Arc<TransactionLog>,
         open_positions_map: &HashMap<String, Vec<TradePosition>>,
         price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
@@ -171,11 +161,6 @@ impl DerivativeTrader {
         non_trading_period_secs: i64,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name);
-        let db_handler = Arc::new(Mutex::new(DBHandler::new(
-            db_client.clone(),
-            transaction_log.clone(),
-        )));
-
         let mut token_name_indices = HashMap::new();
 
         fund_manager_configurations

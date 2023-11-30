@@ -1,11 +1,8 @@
 // main.rs
 
 use config::EnvConfig;
-use debot_db::{create_unique_index, TransactionLog};
 use debot_market_analyzer::PricePoint;
 use error_manager::ErrorManager;
-use mongodb::options::{ClientOptions, Tls, TlsOptions};
-use shared_mongodb::ClientHolder;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use trade::{trader_config, DerivativeTrader};
@@ -25,6 +22,7 @@ extern crate lazy_static;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    // Init logging
     env_logger::init();
 
     // Load the configs
@@ -32,77 +30,38 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Invalid configuration");
 
-    // Set up the DB client holder
-    let mut client_options = match ClientOptions::parse(&config.mongodb_uri).await {
-        Ok(client_options) => client_options,
-        Err(e) => {
-            panic!("{:?}", e);
-        }
-    };
-    let tls_options = TlsOptions::builder().build();
-    client_options.tls = Some(Tls::Enabled(tls_options));
-    let client_holder = Arc::new(Mutex::new(ClientHolder::new(client_options)));
-
-    let db_name = &config.db_name;
-    let db = shared_mongodb::database::get(&client_holder, &db_name)
-        .await
-        .unwrap();
-    create_unique_index(&db)
-        .await
-        .expect("Error creating unique index");
-
-    // Set up the transaction log
-    let last_position_counter =
-        TransactionLog::get_last_transaction_id(&db, debot_db::CounterType::Position).await;
-    let last_price_counter =
-        TransactionLog::get_last_transaction_id(&db, debot_db::CounterType::Price).await;
-    let last_pnl_counter =
-        TransactionLog::get_last_transaction_id(&db, debot_db::CounterType::Pnl).await;
-
-    let transaction_log = Arc::new(TransactionLog::new(
-        config.log_limit,
-        config.max_price_size,
-        config.log_limit,
-        last_position_counter,
-        last_price_counter,
-        last_pnl_counter,
-        &db_name,
+    // Set up the DB handler
+    let db_handler = Arc::new(Mutex::new(
+        DBHandler::new(
+            config.log_limit,
+            config.max_price_size,
+            config.log_limit,
+            &config.mongodb_uri,
+            &config.db_name,
+        )
+        .await,
     ));
 
-    // Read the last App state
-    let app_state = TransactionLog::get_app_state(&db).await;
+    // Read the last App state, and the market data from thd DB
+    let (last_execution_time, last_equity) = db_handler.lock().await.get_app_state().await;
+    let price_market_data = db_handler.lock().await.get_price_market_data().await;
 
-    // Read the price market_data
-    let price_market_data = TransactionLog::get_price_market_data(&db).await;
+    // Initialize a trader instance
+    let mut trader_instance = prepare_trader_instance(&config, db_handler, price_market_data).await;
 
-    // Initialize a vector to hold trader instances
-    let mut trader_instance = prepare_trader_instance(
-        &config,
-        client_holder.clone(),
-        transaction_log.clone(),
-        price_market_data,
-    )
-    .await;
-
-    main_loop(
-        &mut trader_instance,
-        app_state.last_execution_time,
-        app_state.last_equity,
-    )
-    .await
+    // Start main loop
+    main_loop(&mut trader_instance, last_execution_time, last_equity).await
 }
 
 async fn prepare_trader_instance(
     config: &EnvConfig,
-    client_holder: Arc<Mutex<ClientHolder>>,
-    transaction_log: Arc<TransactionLog>,
+    db_handler: Arc<Mutex<DBHandler>>,
     price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
 ) -> (DerivativeTrader, &EnvConfig, ErrorManager) {
     let (prediction_interval, interval, dex_name) = trader_config::get();
 
     // Read open positions from the DB
-    let open_positions_map =
-        DBHandler::get_open_positions_map(transaction_log.clone(), client_holder.clone()).await;
+    let open_positions_map = db_handler.lock().await.get_open_positions_map().await;
 
     // Create an error manager
     let error_manager = ErrorManager::new();
@@ -114,8 +73,7 @@ async fn prepare_trader_instance(
         interval,
         config.max_price_size,
         config.risk_reward,
-        client_holder.clone(),
-        transaction_log,
+        db_handler,
         open_positions_map,
         price_market_data.clone(),
         config.load_prices,
