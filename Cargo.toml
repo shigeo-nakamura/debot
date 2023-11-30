@@ -28,7 +28,7 @@ chrono-tz = "0.8.2"
 ctor = "0.1"
 shared_mongodb = "0.1.7"
 
-debot-market-analyzer = "1.0.5"
+debot-market-analyzer = "1.0.6"
 debot-position-manager = "1.0.0"
 debot-utils = "1.0.0"
 debot-db = "1.0.0"
