@@ -112,7 +112,6 @@ impl FundManager {
     }
 
     pub async fn get_token_price(&mut self) -> Option<f64> {
-        let data = &mut self.state.market_data;
         let token_name = &self.config.token_name;
 
         // Get the token price
@@ -146,23 +145,22 @@ impl FundManager {
 
         log::debug!("{}: {:?}", token_name, price);
 
-        // Update the market data and predict next prices
-        let price_point = data.add_price(price, None);
+        price
+    }
 
+    pub async fn find_chances(&mut self, price: f64) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let data = &mut self.state.market_data;
+        let price_point = data.add_price(Some(price), None);
         // Save the price in the DB
         if self.config.index == 0 && self.config.save_prices {
             self.state
                 .db_handler
                 .lock()
                 .await
-                .log_price(data.name(), token_name, price_point)
+                .log_price(data.name(), &self.config.token_name, price_point)
                 .await;
         }
 
-        price
-    }
-
-    pub async fn find_chances(&mut self, price: f64) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.find_open_chances(price)
             .await
             .map_err(|_| "Failed to find open chances".to_owned())?;
