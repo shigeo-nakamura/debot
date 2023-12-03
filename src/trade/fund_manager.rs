@@ -107,7 +107,11 @@ impl FundManager {
         &self.config.fund_name
     }
 
-    pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+    pub fn token_name(&self) -> &str {
+        &self.config.token_name
+    }
+
+    pub async fn get_token_price(&mut self) -> Option<f64> {
         let data = &mut self.state.market_data;
         let token_name = &self.config.token_name;
 
@@ -115,18 +119,28 @@ impl FundManager {
         let res = self
             .state
             .dex_client
-            .get_ticker(&self.config.dex_name, &self.config.token_name)
-            .await
-            .map_err(|e| format!("Failed to get the price of {}. {:?}", token_name, e))?;
+            .get_ticker(&self.config.dex_name, token_name)
+            .await;
+
+        let res = match res {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("Failed to get price of {}: {:?}", token_name, e);
+                return None;
+            }
+        };
 
         let price = match res.price {
             Some(price) => match price.parse::<f64>() {
                 Ok(price) => Some(price),
-                Err(e) => return Err(Box::new(e)),
+                Err(e) => {
+                    log::error!("{:?}", e);
+                    return None;
+                }
             },
             None => {
                 log::warn!("Price is unknown");
-                return Ok(());
+                return None;
             }
         };
 
@@ -145,11 +159,10 @@ impl FundManager {
                 .await;
         }
 
-        if price.is_none() {
-            return Ok(());
-        }
-        let price = price.unwrap();
+        price
+    }
 
+    pub async fn find_chances(&mut self, price: f64) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.find_open_chances(price)
             .await
             .map_err(|_| "Failed to find open chances".to_owned())?;

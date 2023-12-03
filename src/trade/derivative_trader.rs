@@ -5,7 +5,9 @@ use debot_market_analyzer::PricePoint;
 use debot_position_manager::TradePosition;
 use dex_client::DexClient;
 use futures::future::join_all;
+use futures::FutureExt;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -252,16 +254,60 @@ impl DerivativeTrader {
     }
 
     pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let futures: Vec<_> = self
+        let mut token_set = HashSet::new();
+        let price_futures: Vec<_> = self
             .state
             .fund_manager_map
             .values_mut()
-            .map(|fund_manager| fund_manager.find_chances())
+            .filter_map(|fund_manager| {
+                let token_name = fund_manager.token_name().to_owned();
+                if token_set.contains(&token_name) {
+                    None
+                } else {
+                    token_set.insert(token_name.to_owned());
+                    let get_price = fund_manager.get_token_price();
+                    Some(
+                        async move {
+                            match get_price.await {
+                                Some(price) => Ok((token_name, Some(price))),
+                                None => Ok((token_name, None)),
+                            }
+                        }
+                        .boxed(),
+                    )
+                }
+            })
             .collect();
 
-        let results: Vec<Result<_, _>> = join_all(futures).await;
+        let price_results = join_all(price_futures).await;
 
-        for result in results {
+        let mut prices: HashMap<String, Option<f64>> = HashMap::new();
+        for result in price_results {
+            match result {
+                Ok((token_name, price)) => {
+                    prices.insert(token_name.to_owned(), price);
+                }
+                Err(err) => return Err(err),
+            }
+        }
+
+        let find_futures: Vec<_> = self
+            .state
+            .fund_manager_map
+            .values_mut()
+            .filter_map(|fund_manager| {
+                let token_name = fund_manager.token_name();
+                if let Some(price) = prices.get(token_name).and_then(|p| *p) {
+                    Some(fund_manager.find_chances(price))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let find_results = join_all(find_futures).await;
+
+        for result in find_results {
             match result {
                 Ok(()) => (),
                 Err(err) => return Err(err),
