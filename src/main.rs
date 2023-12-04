@@ -81,6 +81,7 @@ async fn prepare_trader_instance(
         &config.dex_router_api_key,
         &config.dex_router_url,
         config.non_trading_period_secs,
+        config.position_size_ratio,
     )
     .await;
 

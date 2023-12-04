@@ -73,6 +73,7 @@ impl DerivativeTrader {
         dex_router_api_key: &str,
         dex_router_url: &str,
         non_trading_period_secs: i64,
+        positino_size_ratio: f64,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let config = DerivativeTraderConfig {
@@ -98,6 +99,7 @@ impl DerivativeTrader {
             risk_reward,
             dry_run,
             non_trading_period_secs,
+            positino_size_ratio,
         )
         .await;
 
@@ -116,6 +118,7 @@ impl DerivativeTrader {
         risk_reward: f64,
         dry_run: bool,
         non_trading_period_secs: i64,
+        positino_size_ratio: f64,
     ) -> DerivativeTraderState {
         let dex_client = Self::create_dex_clinet(dex_router_api_key, dex_router_url)
             .await
@@ -132,6 +135,7 @@ impl DerivativeTrader {
             risk_reward,
             dry_run,
             non_trading_period_secs,
+            positino_size_ratio,
         )
         .await;
 
@@ -161,13 +165,14 @@ impl DerivativeTrader {
         risk_reward: f64,
         dry_run: bool,
         non_trading_period_secs: i64,
+        positino_size_ratio: f64,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name);
         let mut token_name_indices = HashMap::new();
 
         fund_manager_configurations
             .into_iter()
-            .map(|(token_name, strategy, initial_amount, trading_amount)| {
+            .map(|(token_name, strategy, initial_amount)| {
                 let fund_name = format!(
                     "{:?}-{}-{}-{}",
                     strategy,
@@ -200,7 +205,7 @@ impl DerivativeTrader {
                     open_positions_map.get(&fund_name).cloned(),
                     market_data,
                     strategy,
-                    trading_amount,
+                    initial_amount * positino_size_ratio,
                     initial_amount,
                     risk_reward,
                     db_handler.clone(),

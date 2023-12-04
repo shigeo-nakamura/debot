@@ -19,6 +19,7 @@ pub struct EnvConfig {
     pub dex_router_url: String,
     pub interval_msec: u64,
     pub non_trading_period_secs: i64,
+    pub position_size_ratio: f64,
 }
 
 #[derive(Debug)]
@@ -103,6 +104,8 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let non_trading_period_secs = get_env_var("NON_TRADING_PERIOD_SECS", "60")?;
 
+    let position_size_ratio = get_env_var("POSITION_SIZE_RATIO", "0.02")?;
+
     let env_config = EnvConfig {
         mongodb_uri,
         db_name,
@@ -117,6 +120,7 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         dex_router_url,
         interval_msec,
         non_trading_period_secs,
+        position_size_ratio,
     };
 
     Ok(env_config)
