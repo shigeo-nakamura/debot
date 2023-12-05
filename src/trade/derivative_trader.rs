@@ -258,6 +258,30 @@ impl DerivativeTrader {
     }
 
     pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        // Check newly filled orders
+        for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
+            let filled_orders = self
+                .state
+                .dex_client
+                .get_filled_orders(&self.config.dex_name, fund_manager.token_name())
+                .await?;
+
+            for order in filled_orders.orders {
+                if fund_manager
+                    .position_filled(
+                        order.order_id.clone(),
+                        order.filled_value.clone(),
+                        order.filled_size.clone(),
+                        order.filled_fee.clone(),
+                    )
+                    .await
+                {
+                    break;
+                }
+            }
+        }
+
+        // Get token prices
         let mut token_set = HashSet::new();
         let price_futures: Vec<_> = self
             .state
@@ -295,6 +319,7 @@ impl DerivativeTrader {
             }
         }
 
+        // Find trade chanes
         let find_futures: Vec<_> = self
             .state
             .fund_manager_map
@@ -341,9 +366,9 @@ impl DerivativeTrader {
         true
     }
 
-    pub async fn liquidate(&mut self, reason: &str) {
+    pub async fn liquidate(&mut self) {
         for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
-            fund_manager.liquidate(reason).await;
+            fund_manager.liquidate().await;
         }
     }
 

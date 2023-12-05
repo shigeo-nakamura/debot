@@ -208,7 +208,7 @@ async fn handle_trader_activities(
     // Check if the error duration has passed
     if error_manager.has_error_duration_passed(error_duration) {
         log::error!("Error duration exceeded the limit");
-        trader.liquidate("Error continued").await;
+        trader.liquidate().await;
         loop {}
     }
 
@@ -293,6 +293,10 @@ mod tests {
                 .await;
             log::info!("{:?}", response);
             assert!(response.is_ok());
+
+            let response = client.get_filled_orders(&dex_name, symbol).await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
         }
     }
 
@@ -305,6 +309,10 @@ mod tests {
             let response = client
                 .create_order(dex_name, symbol, "0.001", "SELL", Some(price.to_string()))
                 .await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+
+            let response = client.get_filled_orders(&dex_name, symbol).await;
             log::info!("{:?}", response);
             assert!(response.is_ok());
         }

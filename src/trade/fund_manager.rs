@@ -2,7 +2,7 @@
 
 use super::DBHandler;
 use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
-use debot_position_manager::{ReasonForClose, TradePosition};
+use debot_position_manager::{ReasonForClose, State, TradePosition};
 use dex_client::DexClient;
 use std::error::Error;
 use std::f64;
@@ -356,21 +356,31 @@ impl FundManager {
             side
         );
 
-        let mut amount_in = if chance.action.is_open() {
-            trade_amount * current_price
+        if self.config.dry_run {
+            // Prepare a new/updated position
+            let order_id = "dummy".to_string();
+            self.prepare_position(
+                &order_id,
+                chance.action,
+                reason_for_close,
+                &chance.token_name,
+                chance.predicted_price,
+                chance.atr,
+                chance.position_index,
+            )
+            .await;
+
+            let filled_value = trade_amount * current_price;
+            let fee = filled_value * 0.001;
+
+            self.position_filled(
+                Some(order_id),
+                Some(filled_value.to_string()),
+                Some(size),
+                Some(fee.to_string()),
+            )
+            .await;
         } else {
-            trade_amount
-        };
-
-        let mut amount_out = if chance.action.is_open() {
-            trade_amount
-        } else {
-            amount_in * current_price
-        };
-
-        let mut fee = 0.0;
-
-        if !self.config.dry_run {
             // Execute the transaction
             let res: Result<dex_client::CreateOrderResponse, dex_client::DexError> = self
                 .state
@@ -383,126 +393,74 @@ impl FundManager {
                     Some(current_price.to_string()),
                 )
                 .await;
-            if let Err(e) = res {
-                log::error!("create_order failed({}, {}): {:?}", size, side, e);
-                return Err(());
-            }
-
-            let res = res.unwrap();
-            let executed_price = res.price;
-            let executed_size = res.size;
-            if executed_price.is_some() && executed_size.is_some() {
-                let executed_price = executed_price.unwrap();
-                let executed_size = executed_size.unwrap();
-                match executed_size.parse::<f64>() {
-                    Ok(size) => match executed_price.parse::<f64>() {
-                        Ok(price) => {
-                            if chance.action.is_open() {
-                                amount_in = price * size;
-                                amount_out = size;
-                            } else {
-                                amount_in = size;
-                                amount_out = price * size;
-                            }
+            match res {
+                Ok(res) => {
+                    let order_id = res.ordier_id;
+                    match order_id {
+                        Some(id) => {
+                            // Prepare a new/updated position
+                            self.prepare_position(
+                                &id,
+                                chance.action,
+                                reason_for_close,
+                                &chance.token_name,
+                                chance.predicted_price,
+                                chance.atr,
+                                chance.position_index,
+                            )
+                            .await;
                         }
-                        Err(e) => {
-                            log::error!("Failed to get the price executed: {:?}", e);
-                            return Ok(());
+                        None => {
+                            log::error!("order id is unknown");
+                            return Err(());
                         }
-                    },
-                    Err(e) => {
-                        log::error!("Failed to get the size executed: {:?}", e);
-                        return Ok(());
                     }
                 }
-                fee = res.fee.unwrap_or_default().parse::<f64>().unwrap_or(0.0);
-            } else {
-                log::warn!("The order was not filled({}, {})", size, side);
-                return Ok(());
+                Err(e) => {
+                    log::error!("create_order failed({}, {}): {:?}", size, side, e);
+                    return Err(());
+                }
             }
         }
-
-        self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
-
-        // Update the position
-        self.update_position(
-            chance.action,
-            reason_for_close,
-            &chance.token_name,
-            amount_in,
-            amount_out,
-            fee,
-            chance.atr,
-            chance.predicted_price,
-            chance.position_index,
-        )
-        .await;
 
         Ok(())
     }
 
-    pub async fn update_position(
+    async fn prepare_position(
         &mut self,
+        order_id: &str,
         trade_action: TradeAction,
         reason_for_close: Option<ReasonForClose>,
         token_name: &str,
-        amount_in: f64,
-        amount_out: f64,
-        fee: f64,
-        atr: Option<f64>,
         predicted_price: Option<f64>,
+        atr: Option<f64>,
         position_index: Option<usize>,
     ) {
-        log::debug!(
-            "update_position: amount_in = {:6.6}, amount_out = {:6.6}",
-            amount_in,
-            amount_out
-        );
-
-        let prev_amount = self.state.amount;
+        let is_long_position = trade_action.is_buy();
 
         if trade_action.is_open() {
-            self.state.amount -= amount_in;
-
-            let average_price = amount_in / amount_out;
-
-            let take_profit_price = predicted_price.unwrap();
-            let distance = (take_profit_price - average_price).abs() / self.config.risk_reward;
-            let cut_loss_price = if trade_action.is_buy() {
-                average_price - distance
-            } else {
-                average_price + distance
-            };
-
-            // create a new position
-            let mut position = TradePosition::new(
-                token_name,
-                &self.config.fund_name,
-                average_price,
-                trade_action.is_buy(),
-                take_profit_price,
-                cut_loss_price,
-                amount_out,
-                amount_in,
-                fee,
-                atr,
-                predicted_price,
-            );
-            position.set_id(
-                self.state
-                    .db_handler
-                    .lock()
-                    .await
-                    .increment_counter(debot_db::CounterType::Position),
-            );
-
-            let position_cloned = position.clone();
-            self.state
+            // create a new pending position
+            let id = self
+                .state
                 .db_handler
                 .lock()
                 .await
-                .log_position(&position_cloned)
-                .await;
+                .increment_counter(debot_db::CounterType::Position);
+            if id.is_none() {
+                log::error!("Failed to increamd the position ID");
+                return;
+            }
+
+            let position = TradePosition::new(
+                id.unwrap(),
+                order_id,
+                token_name,
+                &self.config.fund_name,
+                is_long_position,
+                predicted_price.unwrap(),
+                atr,
+            );
+
             self.state.open_positions.push(position);
         } else {
             let position_index = position_index.unwrap();
@@ -512,7 +470,111 @@ impl FundManager {
                 return;
             }
             let position = position.unwrap();
+            position.close(&reason_for_close.unwrap().to_string());
+        }
+    }
 
+    pub async fn position_filled(
+        &mut self,
+        order_id: Option<String>,
+        filled_value: Option<String>,
+        filled_size: Option<String>,
+        fee: Option<String>,
+    ) -> bool {
+        log::debug!(
+            "fill_position: order_id = {:?}, value = {:?}, size = {:?}, fee = {:?}",
+            order_id,
+            filled_value,
+            filled_size,
+            fee
+        );
+
+        if order_id.is_none() || filled_value.is_none() || filled_size.is_none() || fee.is_none() {
+            log::error!("filled orcer is wrong");
+            return false;
+        }
+
+        let order_id = order_id.unwrap();
+        let filled_value = filled_value.unwrap();
+        let filled_size = filled_size.unwrap();
+        let fee = fee.unwrap();
+
+        let position_with_index = self
+            .state
+            .open_positions
+            .iter_mut()
+            .enumerate()
+            .find(|(_index, pos)| pos.order_id() == order_id);
+
+        let (position_index, position) = match position_with_index {
+            Some((index, pos)) => (index, pos),
+            None => {
+                log::debug!("Position not found for {}", order_id);
+                return false;
+            }
+        };
+
+        let amount_in;
+        let amount_out;
+
+        match filled_size.parse::<f64>() {
+            Ok(size) => match filled_value.parse::<f64>() {
+                Ok(value) => {
+                    let price = value / size;
+                    if position.is_long_position() {
+                        amount_in = price * size;
+                        amount_out = size;
+                    } else {
+                        amount_in = size;
+                        amount_out = price * size;
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to get the price executed: {:?}", e);
+                    return false;
+                }
+            },
+            Err(e) => {
+                log::error!("Failed to get the size executed: {:?}", e);
+                return false;
+            }
+        }
+
+        let fee = fee.parse::<f64>().unwrap_or(0.0);
+
+        let prev_amount = self.state.amount;
+
+        let position_cloned = position.clone();
+
+        let is_open = match position.state() {
+            State::OpenPending => true,
+            State::ClosePending(_) => false,
+            _ => {
+                log::warn!("Invalid state: {}", position.state());
+                return false;
+            }
+        };
+
+        if is_open {
+            self.state.amount -= amount_in;
+            let average_price = amount_in / amount_out;
+            let take_profit_price = position.predicted_price();
+            let distance = (take_profit_price - average_price).abs() / self.config.risk_reward;
+            let cut_loss_price = if position.is_long_position() {
+                average_price - distance
+            } else {
+                average_price + distance
+            };
+
+            position.open(
+                average_price,
+                amount_out,
+                amount_in,
+                fee,
+                take_profit_price,
+                cut_loss_price,
+            );
+        } else {
             if position.is_long_position() {
                 self.state.amount += amount_out;
             } else {
@@ -520,30 +582,29 @@ impl FundManager {
             }
 
             let close_price = amount_out / amount_in;
-            position.del(
-                Some(close_price),
-                fee,
-                &reason_for_close.unwrap().to_string(),
-            );
 
-            let position_cloned = position.clone();
+            position.delete(Some(close_price), fee, false);
+
             let amount = position.amount();
-            self.state
-                .db_handler
-                .lock()
-                .await
-                .log_position(&position_cloned)
-                .await;
-
-            if amount != 0.0 {
-                log::error!(
+            if amount == 0.0 {
+                self.state.open_positions.remove(position_index);
+            } else {
+                log::info!(
                     "Position is partially closed. The remaing amount = {}",
                     amount
                 );
             }
-
-            self.state.open_positions.remove(position_index);
         }
+
+        self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
+
+        // Save the position in the DB
+        self.state
+            .db_handler
+            .lock()
+            .await
+            .log_position(&position_cloned)
+            .await;
 
         log::info!(
             "{} Amount has changed from {} to {}",
@@ -551,9 +612,11 @@ impl FundManager {
             prev_amount,
             self.state.amount
         );
+
+        return true;
     }
 
-    pub async fn liquidate(&mut self, reason: &str) {
+    pub async fn liquidate(&mut self) {
         let res = self
             .state
             .dex_client
@@ -561,7 +624,7 @@ impl FundManager {
             .await;
 
         for position in self.state.open_positions.iter_mut() {
-            position.del(None, 0.0, reason);
+            position.delete(None, 0.0, true);
             self.state
                 .db_handler
                 .lock()
