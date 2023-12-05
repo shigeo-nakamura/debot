@@ -136,8 +136,7 @@ impl DerivativeTrader {
             dry_run,
             non_trading_period_secs,
             positino_size_ratio,
-        )
-        .await;
+        );
 
         let mut state = DerivativeTraderState {
             db_handler,
@@ -154,7 +153,7 @@ impl DerivativeTrader {
         state
     }
 
-    async fn create_fund_managers(
+    fn create_fund_managers(
         config: &DerivativeTraderConfig,
         db_handler: Arc<Mutex<DBHandler>>,
         dex_client: &DexClient,
