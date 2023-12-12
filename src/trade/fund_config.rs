@@ -1,21 +1,31 @@
 use debot_market_analyzer::TradingStrategy;
 
-pub const TOKEN_LIST_SIZE: usize = 1;
+pub const TOKEN_LIST_SIZE: usize = 3;
 
-pub const MUFEX_TOKEN_LIST: [&str; TOKEN_LIST_SIZE] = ["BTC-USDT"];
+pub const MUFEX_TOKEN_LIST: [&str; TOKEN_LIST_SIZE] = ["BTC-USDT", "ETH-USDT", "SOL-USDT"];
 
 pub fn get(dex_name: &str) -> Vec<(String, TradingStrategy, f64)> {
     if dex_name == "mufex" {
         vec![
             (
-                MUFEX_TOKEN_LIST[0].to_owned(), // BTC
+                MUFEX_TOKEN_LIST[1].to_owned(), // ETH
                 TradingStrategy::TrendFollow,
-                2500.0, // initial amount(in USDC)
+                2500.0, // initial amount(in USD)
             ),
             (
-                MUFEX_TOKEN_LIST[0].to_owned(), // BTC
+                MUFEX_TOKEN_LIST[1].to_owned(), // ETH
                 TradingStrategy::MeanReversion,
-                2500.0, // initial amount(in USDC)
+                2500.0, // initial amount(in USD)
+            ),
+            (
+                MUFEX_TOKEN_LIST[2].to_owned(), // SOL
+                TradingStrategy::TrendFollow,
+                2500.0, // initial amount(in USD)
+            ),
+            (
+                MUFEX_TOKEN_LIST[2].to_owned(), // SOL
+                TradingStrategy::MeanReversion,
+                2500.0, // initial amount(in USD)
             ),
         ]
     } else {
