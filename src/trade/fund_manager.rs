@@ -475,7 +475,7 @@ impl FundManager {
                 return;
             }
             let position = position.unwrap();
-            position.close(&reason_for_close.unwrap().to_string());
+            position.close(order_id, &reason_for_close.unwrap().to_string());
         }
     }
 
@@ -495,7 +495,7 @@ impl FundManager {
         );
 
         if order_id.is_none() || filled_value.is_none() || filled_size.is_none() || fee.is_none() {
-            log::error!("filled orcer is wrong");
+            log::error!("filled order is wrong");
             return false;
         }
 
@@ -514,7 +514,7 @@ impl FundManager {
         let (position_index, position) = match position_with_index {
             Some((index, pos)) => (index, pos),
             None => {
-                log::debug!("Filled position not found for {}", order_id);
+                log::info!("Filled position not found for {}", order_id);
                 return false;
             }
         };
