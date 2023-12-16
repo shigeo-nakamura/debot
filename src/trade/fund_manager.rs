@@ -26,6 +26,7 @@ pub struct FundManagerState {
     dex_client: DexClient,
     market_data: MarketData,
     last_trade_time: Option<i64>,
+    dry_run_counter: usize,
 }
 
 pub struct FundManagerConfig {
@@ -86,6 +87,7 @@ impl FundManager {
         };
 
         let mut amount = initial_amount;
+        let dry_run_counter = open_positions.len();
         for position in open_positions.clone() {
             amount -= position.amount_in_anchor_token();
         }
@@ -98,6 +100,7 @@ impl FundManager {
             dex_client,
             market_data,
             last_trade_time: None,
+            dry_run_counter,
         };
 
         Self { config, state }
@@ -143,7 +146,7 @@ impl FundManager {
             }
         };
 
-        log::debug!("{}: {:?}", token_name, price);
+        log::trace!("{}: {:?}", token_name, price);
 
         price
     }
@@ -350,15 +353,17 @@ impl FundManager {
         };
 
         log::debug!(
-            "Execute: symbol = {}, size = {}, side = {}",
+            "Execute: symbol = {}, size = {}, side = {}, reason = {:?}",
             symbol,
             size,
-            side
+            side,
+            reason_for_close
         );
 
         if self.config.dry_run {
             // Prepare a new/updated position
-            let order_id = "dummy".to_string();
+            self.state.dry_run_counter += 1;
+            let order_id = self.state.dry_run_counter.to_string();
             self.prepare_position(
                 &order_id,
                 chance.action,
@@ -411,7 +416,7 @@ impl FundManager {
                             .await;
                         }
                         None => {
-                            log::error!("order id is unknown");
+                            log::error!("order id({:?}) is unknown", order_id);
                             return Err(());
                         }
                     }
@@ -509,7 +514,7 @@ impl FundManager {
         let (position_index, position) = match position_with_index {
             Some((index, pos)) => (index, pos),
             None => {
-                log::debug!("Position not found for {}", order_id);
+                log::debug!("Filled position not found for {}", order_id);
                 return false;
             }
         };
@@ -550,7 +555,7 @@ impl FundManager {
             State::OpenPending => true,
             State::ClosePending(_) => false,
             _ => {
-                log::warn!("Invalid state: {}", position.state());
+                log::warn!("Filled position has an invalid state: {}", position.state());
                 return false;
             }
         };
