@@ -584,7 +584,7 @@ impl FundManager {
 
             let close_price = amount_out / amount_in;
 
-            position.delete(Some(close_price), fee, false);
+            position.delete(Some(close_price), fee, false, None);
             position_cloned = position.clone();
 
             let amount = position.amount();
@@ -618,7 +618,7 @@ impl FundManager {
         return true;
     }
 
-    pub async fn liquidate(&mut self) {
+    pub async fn liquidate(&mut self, reason: Option<String>) {
         let res = self
             .state
             .dex_client
@@ -626,7 +626,7 @@ impl FundManager {
             .await;
 
         for position in self.state.open_positions.iter_mut() {
-            position.delete(None, 0.0, true);
+            position.delete(None, 0.0, true, reason.clone());
             self.state
                 .db_handler
                 .lock()

@@ -20,6 +20,7 @@ pub struct EnvConfig {
     pub interval_msec: u64,
     pub non_trading_period_secs: i64,
     pub position_size_ratio: f64,
+    pub liquidate_when_exit: bool,
 }
 
 #[derive(Debug)]
@@ -106,6 +107,8 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let position_size_ratio = get_env_var("POSITION_SIZE_RATIO", "0.02")?;
 
+    let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
+
     let env_config = EnvConfig {
         mongodb_uri,
         db_name,
@@ -121,6 +124,7 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         interval_msec,
         non_trading_period_secs,
         position_size_ratio,
+        liquidate_when_exit,
     };
 
     Ok(env_config)

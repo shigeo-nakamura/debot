@@ -192,7 +192,9 @@ async fn main_loop(
         }
 
         if exit {
-            // trader.liquidate("reboot").await;
+            if config.liquidate_when_exit {
+                trader.liquidate("reboot").await;
+            }
             return Ok(());
         }
     }
@@ -208,7 +210,7 @@ async fn handle_trader_activities(
     // Check if the error duration has passed
     if error_manager.has_error_duration_passed(error_duration) {
         log::error!("Error duration exceeded the limit");
-        trader.liquidate().await;
+        trader.liquidate("Continous Errors").await;
         loop {}
     }
 
