@@ -544,7 +544,7 @@ impl FundManager {
 
         let prev_amount = self.state.amount;
 
-        let position_cloned = position.clone();
+        let position_cloned;
 
         let is_open = match position.state() {
             State::OpenPending => true,
@@ -574,6 +574,7 @@ impl FundManager {
                 take_profit_price,
                 cut_loss_price,
             );
+            position_cloned = position.clone();
         } else {
             if position.is_long_position() {
                 self.state.amount += amount_out;
@@ -584,6 +585,7 @@ impl FundManager {
             let close_price = amount_out / amount_in;
 
             position.delete(Some(close_price), fee, false);
+            position_cloned = position.clone();
 
             let amount = position.amount();
             if amount == 0.0 {
