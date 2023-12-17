@@ -40,7 +40,6 @@ struct DerivativeTraderConfig {
     short_trade_period: usize,
     long_trade_period: usize,
     trade_period: usize,
-
     max_price_size: u32,
     dex_router_api_key: String,
     dex_router_url: String,
