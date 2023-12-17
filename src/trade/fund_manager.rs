@@ -521,12 +521,20 @@ impl FundManager {
 
         let amount_in;
         let amount_out;
+        let is_open_trande = match position.state() {
+            State::OpenPending => true,
+            State::ClosePending(_) => false,
+            _ => {
+                log::error!("Wrong position state: {:?}", position.state());
+                return false;
+            }
+        };
 
         match filled_size.parse::<f64>() {
             Ok(size) => match filled_value.parse::<f64>() {
                 Ok(value) => {
                     let price = value / size;
-                    if position.is_long_position() {
+                    if is_open_trande {
                         amount_in = price * size;
                         amount_out = size;
                     } else {
