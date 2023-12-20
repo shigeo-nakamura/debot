@@ -416,7 +416,7 @@ impl FundManager {
                             .await;
                         }
                         None => {
-                            log::error!("order id({:?}) is unknown", order_id);
+                            log::error!("order id is unknown");
                             return Err(());
                         }
                     }
@@ -452,7 +452,7 @@ impl FundManager {
                 .await
                 .increment_counter(debot_db::CounterType::Position);
             if id.is_none() {
-                log::error!("Failed to increamd the position ID");
+                log::error!("Failed to increment the position ID");
                 return;
             }
 
@@ -525,7 +525,10 @@ impl FundManager {
             State::OpenPending => true,
             State::ClosePending(_) => false,
             _ => {
-                log::error!("Wrong position state: {:?}", position.state());
+                log::info!(
+                    "This position is already filled(expected), state: {:?}",
+                    position.state()
+                );
                 return false;
             }
         };
