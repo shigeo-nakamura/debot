@@ -34,7 +34,7 @@ async fn main() -> std::io::Result<()> {
     let db_handler = Arc::new(Mutex::new(
         DBHandler::new(
             config.log_limit,
-            config.max_price_size,
+            config.max_price_size * trade::TOKEN_LIST_SIZE as u32,
             config.log_limit,
             &config.mongodb_uri,
             &config.db_name,
