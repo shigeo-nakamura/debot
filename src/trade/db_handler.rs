@@ -51,12 +51,18 @@ impl DBHandler {
         &self,
         last_execution_time: Option<SystemTime>,
         last_equity: Option<f64>,
+        circuit_break: bool,
     ) {
         log::info!("log_app_state: {:?}", last_execution_time);
 
         if let Some(db) = self.transaction_log.get_db().await {
-            if let Err(e) =
-                TransactionLog::update_app_state(&db, last_execution_time, last_equity).await
+            if let Err(e) = TransactionLog::update_app_state(
+                &db,
+                last_execution_time,
+                last_equity,
+                circuit_break,
+            )
+            .await
             {
                 log::warn!("log_app_state: {:?}", e);
             }
@@ -93,12 +99,16 @@ impl DBHandler {
         Some(self.transaction_log.increment_counter(counter_type))
     }
 
-    pub async fn get_app_state(&self) -> (Option<SystemTime>, Option<f64>) {
+    pub async fn get_app_state(&self) -> (Option<SystemTime>, Option<f64>, bool) {
         if let Some(db) = self.transaction_log.get_db().await {
             let app_state = TransactionLog::get_app_state(&db).await;
-            (app_state.last_execution_time, app_state.last_equity)
+            (
+                app_state.last_execution_time,
+                app_state.last_equity,
+                app_state.curcuit_break,
+            )
         } else {
-            (None, None)
+            (None, None, true)
         }
     }
 

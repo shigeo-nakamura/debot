@@ -43,7 +43,12 @@ async fn main() -> std::io::Result<()> {
     ));
 
     // Read the last App state, and the market data from thd DB
-    let (last_execution_time, last_equity) = db_handler.lock().await.get_app_state().await;
+    let (last_execution_time, last_equity, curcuit_break) =
+        db_handler.lock().await.get_app_state().await;
+    if curcuit_break {
+        loop {}
+    }
+
     let price_market_data = db_handler.lock().await.get_price_market_data().await;
 
     // Initialize a trader instance
@@ -136,7 +141,7 @@ async fn main_loop(
                 .db_handler()
                 .lock()
                 .await
-                .log_app_state(last_execution_time, last_equity)
+                .log_app_state(last_execution_time, last_equity, false)
                 .await;
         }
 
@@ -161,7 +166,9 @@ async fn main_loop(
         }
 
         if exit {
-            //trader.liquidate("reboot").await;
+            if config.liquidate_when_exit {
+                trader.liquidate("reboot").await;
+            }
             return Ok(());
         }
 
@@ -211,6 +218,12 @@ async fn handle_trader_activities(
     if error_manager.has_error_duration_passed(error_duration) {
         log::error!("Error duration exceeded the limit");
         trader.liquidate("Continous Errors").await;
+        trader
+            .db_handler()
+            .lock()
+            .await
+            .log_app_state(None, None, false)
+            .await;
         loop {}
     }
 
