@@ -352,7 +352,7 @@ impl FundManager {
             "SELL"
         };
 
-        log::debug!(
+        log::info!(
             "Execute: symbol = {}, size = {}, side = {}, reason = {:?}",
             symbol,
             size,
@@ -404,6 +404,7 @@ impl FundManager {
                     match order_id {
                         Some(id) => {
                             // Prepare a new/updated position
+                            log::info!("new order id = {}", id);
                             self.prepare_position(
                                 &id,
                                 chance.action,
@@ -422,7 +423,13 @@ impl FundManager {
                     }
                 }
                 Err(e) => {
-                    log::error!("create_order failed({}, {}): {:?}", size, side, e);
+                    log::error!(
+                        "create_order failed({}, {}, {}): {:?}",
+                        symbol,
+                        size,
+                        side,
+                        e
+                    );
                     return Err(());
                 }
             }
