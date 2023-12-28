@@ -400,7 +400,7 @@ impl FundManager {
                 .await;
             match res {
                 Ok(res) => {
-                    let order_id = res.ordier_id;
+                    let order_id = res.order_id;
                     match order_id {
                         Some(id) => {
                             // Prepare a new/updated position
@@ -521,7 +521,7 @@ impl FundManager {
         let (position_index, position) = match position_with_index {
             Some((index, pos)) => (index, pos),
             None => {
-                log::info!("Filled position not found for {}", order_id);
+                log::debug!("Filled position not found for {}", order_id);
                 return false;
             }
         };
