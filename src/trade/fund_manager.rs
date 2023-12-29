@@ -287,7 +287,7 @@ impl FundManager {
     async fn find_close_chances(&mut self, current_price: f64) -> Result<(), ()> {
         let cloned_open_positions = self.state.open_positions.clone();
 
-        for position in cloned_open_positions {
+        for (position_index, position) in cloned_open_positions.iter().enumerate() {
             let action = self
                 .state
                 .market_data
@@ -323,7 +323,7 @@ impl FundManager {
                         } else {
                             TradeAction::BuyClose
                         },
-                        position_index: Some(0),
+                        position_index: Some(position_index),
                     },
                     reason_for_close,
                 )
@@ -351,9 +351,15 @@ impl FundManager {
         } else {
             "SELL"
         };
+        let is_open = if chance.action.is_open() {
+            "Open"
+        } else {
+            "Close"
+        };
 
         log::info!(
-            "Execute: symbol = {}, size = {}, side = {}, reason = {:?}",
+            "Execute: {}, symbol = {}, size = {}, side = {}, reason = {:?}",
+            is_open,
             symbol,
             size,
             side,
@@ -373,7 +379,7 @@ impl FundManager {
                 chance.atr,
                 chance.position_index,
             )
-            .await;
+            .await?;
 
             let filled_value = trade_amount * current_price;
             let fee = filled_value * 0.001;
@@ -390,13 +396,7 @@ impl FundManager {
             let res: Result<dex_client::CreateOrderResponse, dex_client::DexError> = self
                 .state
                 .dex_client
-                .create_order(
-                    &self.config.dex_name,
-                    symbol,
-                    &size,
-                    side,
-                    Some(current_price.to_string()),
-                )
+                .create_order(&self.config.dex_name, symbol, &size, side, None)
                 .await;
             match res {
                 Ok(res) => {
@@ -414,7 +414,7 @@ impl FundManager {
                                 chance.atr,
                                 chance.position_index,
                             )
-                            .await;
+                            .await?;
                         }
                         None => {
                             log::error!("order id is unknown");
@@ -447,7 +447,7 @@ impl FundManager {
         predicted_price: Option<f64>,
         atr: Option<f64>,
         position_index: Option<usize>,
-    ) {
+    ) -> Result<(), ()> {
         let is_long_position = trade_action.is_buy();
 
         if trade_action.is_open() {
@@ -460,7 +460,7 @@ impl FundManager {
                 .increment_counter(debot_db::CounterType::Position);
             if id.is_none() {
                 log::error!("Failed to increment the position ID");
-                return;
+                return Err(());
             }
 
             let position = TradePosition::new(
@@ -479,11 +479,13 @@ impl FundManager {
             let position = self.state.open_positions.get_mut(position_index);
             if position.is_none() {
                 log::warn!("The position not found: index = {}", position_index);
-                return;
+                return Err(());
             }
             let position = position.unwrap();
             position.close(order_id, &reason_for_close.unwrap().to_string());
         }
+
+        return Ok(());
     }
 
     pub async fn position_filled(
@@ -532,7 +534,7 @@ impl FundManager {
             State::OpenPending => true,
             State::ClosePending(_) => false,
             _ => {
-                log::info!(
+                log::debug!(
                     "This position is already filled(expected), state: {:?}",
                     position.state()
                 );
@@ -564,9 +566,7 @@ impl FundManager {
         }
 
         let fee = fee.parse::<f64>().unwrap_or(0.0);
-
         let prev_amount = self.state.amount;
-
         let position_cloned;
 
         let is_open = match position.state() {
