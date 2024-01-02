@@ -46,6 +46,7 @@ async fn main() -> std::io::Result<()> {
     let (last_execution_time, last_equity, curcuit_break) =
         db_handler.lock().await.get_app_state().await;
     if curcuit_break {
+        log::warn!("curcuit break!");
         loop {}
     }
 
@@ -87,6 +88,7 @@ async fn prepare_trader_instance(
         &config.dex_router_url,
         config.non_trading_period_secs,
         config.position_size_ratio,
+        config.max_dd_ratio,
     )
     .await;
 
@@ -118,22 +120,17 @@ async fn main_loop(
             // Update the last_execution_time to now
             last_execution_time = Some(now);
 
-            // Get and log yesterday's PNL
-            if let Ok(res) = trader.dex_client().get_balance(trader.dex_name()).await {
-                if let Some(balance) = res.balance {
-                    if let Ok(balance) = balance.parse::<f64>() {
-                        let pnl = match last_equity {
-                            Some(prev_balance) => balance - prev_balance,
-                            None => 0.0,
-                        };
-                        trader.db_handler().lock().await.log_pnl(pnl).await;
-                        last_equity = Some(balance);
-                    } else {
-                        log::error!("Failed to get PNL");
-                    }
+            // Get and log yesterday's PNL;
+            match trader.get_balance().await {
+                Ok(balance) => {
+                    let pnl = match last_equity {
+                        Some(prev_balance) => balance - prev_balance,
+                        None => 0.0,
+                    };
+                    trader.db_handler().lock().await.log_pnl(pnl).await;
+                    last_equity = Some(balance);
                 }
-            } else {
-                log::error!("Failed to get PNL");
+                Err(_) => log::error!("Failed to get PNL"),
             }
 
             // Log the new last_execution_time and equity
@@ -143,6 +140,28 @@ async fn main_loop(
                 .await
                 .log_app_state(last_execution_time, last_equity, false)
                 .await;
+        }
+
+        // check DD
+        match trader.is_max_dd_occurred().await {
+            Ok(is_dd) => {
+                if is_dd {
+                    log::error!("Draw down!");
+                    trader.liquidate("Draw down").await;
+                    trader
+                        .db_handler()
+                        .lock()
+                        .await
+                        .log_app_state(None, None, true)
+                        .await;
+                    log::info!("returned due to Draw down!");
+                    return Ok(());
+                }
+            }
+            Err(_) => {
+                error_manager.save_first_error_time();
+                let _ = trader.reset_dex_client().await;
+            }
         }
 
         // Create a non-mutable borrow for the function

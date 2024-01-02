@@ -41,6 +41,8 @@ struct DerivativeTraderConfig {
     max_price_size: u32,
     dex_router_api_key: String,
     dex_router_url: String,
+    initial_balance: f64,
+    max_dd_ratio: f64,
 }
 
 struct DerivativeTraderState {
@@ -71,9 +73,10 @@ impl DerivativeTrader {
         dex_router_url: &str,
         non_trading_period_secs: i64,
         positino_size_ratio: f64,
+        max_dd_ratio: f64,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
-        let config = DerivativeTraderConfig {
+        let mut config = DerivativeTraderConfig {
             trader_name: dex_name.to_owned(),
             dex_name: dex_name.to_owned(),
             short_trade_period: sample_interval.short_term * SECONDS_IN_MINUTE,
@@ -82,10 +85,12 @@ impl DerivativeTrader {
             max_price_size: max_price_size,
             dex_router_api_key: dex_router_api_key.to_owned(),
             dex_router_url: dex_router_url.to_owned(),
+            initial_balance: 0.0,
+            max_dd_ratio,
         };
 
         let state = Self::initialize_state(
-            config.clone(),
+            &mut config,
             db_handler,
             dex_router_api_key,
             dex_router_url,
@@ -100,11 +105,16 @@ impl DerivativeTrader {
         )
         .await;
 
-        Self { config, state }
+        let mut this = Self { config, state };
+
+        let balance = this.get_balance().await.unwrap();
+        this.config.initial_balance = balance;
+
+        this
     }
 
     async fn initialize_state(
-        config: DerivativeTraderConfig,
+        config: &mut DerivativeTraderConfig,
         db_handler: Arc<Mutex<DBHandler>>,
         dex_router_api_key: &str,
         dex_router_url: &str,
@@ -122,7 +132,7 @@ impl DerivativeTrader {
             .expect("Failed to initialize DexClient");
 
         let fund_managers = Self::create_fund_managers(
-            &config,
+            config,
             db_handler.clone(),
             &dex_client,
             &open_positions_map,
@@ -151,7 +161,7 @@ impl DerivativeTrader {
     }
 
     fn create_fund_managers(
-        config: &DerivativeTraderConfig,
+        config: &mut DerivativeTraderConfig,
         db_handler: Arc<Mutex<DBHandler>>,
         dex_client: &DexClient,
         open_positions_map: &HashMap<String, Vec<TradePosition>>,
@@ -252,6 +262,15 @@ impl DerivativeTrader {
             config.trade_period,
             config.max_price_size as usize,
         )
+    }
+
+    pub async fn is_max_dd_occurred(&self) -> Result<bool, ()> {
+        let balance = match self.get_balance().await {
+            Ok(v) => v,
+            Err(_) => return Err(()),
+        };
+        let lost = self.config.initial_balance - balance;
+        return Ok(lost > 0.0 && (lost / self.config.initial_balance > self.config.max_dd_ratio));
     }
 
     pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -373,11 +392,20 @@ impl DerivativeTrader {
         &self.state.db_handler
     }
 
-    pub fn dex_client(&self) -> &DexClient {
-        &self.state.dex_client
-    }
-
-    pub fn dex_name(&self) -> &str {
-        &self.config.dex_name
+    pub async fn get_balance(&self) -> Result<f64, ()> {
+        if let Ok(res) = self
+            .state
+            .dex_client
+            .get_balance(&self.config.dex_name)
+            .await
+        {
+            if let Some(balance) = res.balance {
+                if let Ok(balance) = balance.parse::<f64>() {
+                    return Ok(balance);
+                }
+            }
+        }
+        log::error!("failed to get the balance");
+        return Err(());
     }
 }

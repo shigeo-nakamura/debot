@@ -288,6 +288,9 @@ impl FundManager {
         let cloned_open_positions = self.state.open_positions.clone();
 
         for (position_index, position) in cloned_open_positions.iter().enumerate() {
+            if *position.state() != State::Open {
+                continue;
+            }
             let action = self
                 .state
                 .market_data

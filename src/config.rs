@@ -21,6 +21,7 @@ pub struct EnvConfig {
     pub non_trading_period_secs: i64,
     pub position_size_ratio: f64,
     pub liquidate_when_exit: bool,
+    pub max_dd_ratio: f64,
 }
 
 #[derive(Debug)]
@@ -109,6 +110,8 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
 
+    let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.03")?;
+
     let env_config = EnvConfig {
         mongodb_uri,
         db_name,
@@ -125,6 +128,7 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         non_trading_period_secs,
         position_size_ratio,
         liquidate_when_exit,
+        max_dd_ratio,
     };
 
     Ok(env_config)
