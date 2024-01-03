@@ -393,7 +393,7 @@ impl FundManager {
                 Some(size),
                 Some(fee.to_string()),
             )
-            .await;
+            .await?;
         } else {
             // Execute the transaction
             let res: Result<dex_client::CreateOrderResponse, dex_client::DexError> = self
@@ -485,7 +485,7 @@ impl FundManager {
                 return Err(());
             }
             let position = position.unwrap();
-            position.close(order_id, &reason_for_close.unwrap().to_string());
+            position.close(order_id, &reason_for_close.unwrap().to_string())?;
         }
 
         return Ok(());
@@ -497,7 +497,7 @@ impl FundManager {
         filled_value: Option<String>,
         filled_size: Option<String>,
         fee: Option<String>,
-    ) -> bool {
+    ) -> Result<bool, ()> {
         log::debug!(
             "fill_position: order_id = {:?}, value = {:?}, size = {:?}, fee = {:?}",
             order_id,
@@ -508,7 +508,7 @@ impl FundManager {
 
         if order_id.is_none() || filled_value.is_none() || filled_size.is_none() || fee.is_none() {
             log::error!("filled order is wrong");
-            return false;
+            return Err(());
         }
 
         let order_id = order_id.unwrap();
@@ -527,7 +527,7 @@ impl FundManager {
             Some((index, pos)) => (index, pos),
             None => {
                 log::debug!("Filled position not found for {}", order_id);
-                return false;
+                return Ok(false);
             }
         };
 
@@ -538,10 +538,10 @@ impl FundManager {
             State::ClosePending(_) => false,
             _ => {
                 log::debug!(
-                    "This position is already filled(expected), state: {:?}",
+                    "This position is already filled, state: {:?}",
                     position.state()
                 );
-                return false;
+                return Ok(false);
             }
         };
 
@@ -559,12 +559,12 @@ impl FundManager {
                 }
                 Err(e) => {
                     log::error!("Failed to get the price executed: {:?}", e);
-                    return false;
+                    return Err(());
                 }
             },
             Err(e) => {
                 log::error!("Failed to get the size executed: {:?}", e);
-                return false;
+                return Err(());
             }
         }
 
@@ -577,7 +577,7 @@ impl FundManager {
             State::ClosePending(_) => false,
             _ => {
                 log::warn!("Filled position has an invalid state: {}", position.state());
-                return false;
+                return Err(());
             }
         };
 
@@ -599,7 +599,7 @@ impl FundManager {
                 fee,
                 take_profit_price,
                 cut_loss_price,
-            );
+            )?;
             position_cloned = position.clone();
         } else {
             if position.is_long_position() {
@@ -641,7 +641,7 @@ impl FundManager {
             self.state.amount
         );
 
-        return true;
+        return Ok(true);
     }
 
     pub async fn liquidate(&mut self, reason: Option<String>) {

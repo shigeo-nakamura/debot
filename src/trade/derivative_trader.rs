@@ -9,6 +9,8 @@ use futures::FutureExt;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::error::Error;
+use std::io;
+use std::io::ErrorKind;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -291,6 +293,7 @@ impl DerivativeTrader {
                         order.filled_fee.clone(),
                     )
                     .await
+                    .map_err(|_| Box::new(io::Error::new(ErrorKind::Other, "An error occurred")))?
                 {
                     break;
                 }
