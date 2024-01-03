@@ -56,7 +56,7 @@ async fn main() -> std::io::Result<()> {
     let mut trader_instance = prepare_trader_instance(&config, db_handler, price_market_data).await;
 
     // Start main loop
-    main_loop(&mut trader_instance, last_execution_time, last_equity).await
+    main_loop(&mut trader_instance, last_execution_time, last_equity, None).await
 }
 
 async fn prepare_trader_instance(
@@ -99,6 +99,7 @@ async fn main_loop(
     trader_instance: &mut (DerivativeTrader, &EnvConfig, ErrorManager),
     mut last_execution_time: Option<SystemTime>,
     mut last_equity: Option<f64>,
+    mut last_dd_check_time: Option<SystemTime>,
 ) -> std::io::Result<()> {
     log::info!("main_loop() starts");
 
@@ -143,24 +144,32 @@ async fn main_loop(
         }
 
         // check DD
-        match trader.is_max_dd_occurred().await {
-            Ok(is_dd) => {
-                if is_dd {
-                    log::error!("Draw down!");
-                    trader.liquidate("Draw down").await;
-                    trader
-                        .db_handler()
-                        .lock()
-                        .await
-                        .log_app_state(None, None, true)
-                        .await;
-                    log::info!("returned due to Draw down!");
-                    return Ok(());
+        let now = SystemTime::now();
+        if last_dd_check_time.map_or(true, |last_time| {
+            now.duration_since(last_time)
+                .map_or(false, |duration| duration.as_secs() >= 3600) // 1 hour
+        }) {
+            last_dd_check_time = Some(now);
+
+            match trader.is_max_dd_occurred().await {
+                Ok(is_dd) => {
+                    if is_dd {
+                        log::error!("Draw down!");
+                        trader.liquidate("Draw down").await;
+                        trader
+                            .db_handler()
+                            .lock()
+                            .await
+                            .log_app_state(None, None, true)
+                            .await;
+                        log::info!("returned due to Draw down!");
+                        return Ok(());
+                    }
                 }
-            }
-            Err(_) => {
-                error_manager.save_first_error_time();
-                let _ = trader.reset_dex_client().await;
+                Err(_) => {
+                    error_manager.save_first_error_time();
+                    let _ = trader.reset_dex_client().await;
+                }
             }
         }
 
