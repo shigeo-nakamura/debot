@@ -4,9 +4,10 @@ use super::DBHandler;
 use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
 use debot_position_manager::{ReasonForClose, State, TradePosition};
 use dex_client::DexClient;
+use lazy_static::lazy_static;
 use std::error::Error;
-use std::f64;
 use std::sync::Arc;
+use std::{env, f64};
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Default)]
@@ -49,6 +50,11 @@ pub struct FundManager {
 
 const MIN_PRICE_CHANGE: f64 = 0.005; // 0.5%
 const MAX_PRICE_CHANGE: f64 = 0.015; // 1.5%
+
+lazy_static! {
+    static ref TAKE_PROFIT_RATIO: Option<f64> =
+        env::var("TAKE_PROFIT_RATIO").map_or_else(|_| None, |v| v.parse::<f64>().ok());
+}
 
 impl FundManager {
     pub fn new(
@@ -246,24 +252,33 @@ impl FundManager {
             return Ok(());
         }
 
-        let predicted_price = match action {
-            TradeAction::BuyOpen(_) => {
-                if price_ratio.abs() > MAX_PRICE_CHANGE {
-                    current_price * (1.0 + MAX_PRICE_CHANGE)
-                } else {
-                    target_price
+        let predicted_price = match *TAKE_PROFIT_RATIO {
+            Some(v) => match action {
+                TradeAction::BuyOpen(_) => current_price * (1.0 + v),
+                TradeAction::SellOpen(_) => current_price * (1.0 - v),
+                _ => {
+                    return Ok(());
                 }
-            }
-            TradeAction::SellOpen(_) => {
-                if price_ratio.abs() > MAX_PRICE_CHANGE {
-                    current_price * (1.0 - MAX_PRICE_CHANGE)
-                } else {
-                    target_price
+            },
+            None => match action {
+                TradeAction::BuyOpen(_) => {
+                    if price_ratio.abs() > MAX_PRICE_CHANGE {
+                        current_price * (1.0 + MAX_PRICE_CHANGE)
+                    } else {
+                        target_price
+                    }
                 }
-            }
-            _ => {
-                return Ok(());
-            }
+                TradeAction::SellOpen(_) => {
+                    if price_ratio.abs() > MAX_PRICE_CHANGE {
+                        current_price * (1.0 - MAX_PRICE_CHANGE)
+                    } else {
+                        target_price
+                    }
+                }
+                _ => {
+                    return Ok(());
+                }
+            },
         };
 
         self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
@@ -452,6 +467,7 @@ impl FundManager {
         position_index: Option<usize>,
     ) -> Result<(), ()> {
         let is_long_position = trade_action.is_buy();
+        let position_cloned;
 
         if trade_action.is_open() {
             // create a new pending position
@@ -476,6 +492,7 @@ impl FundManager {
                 atr,
             );
 
+            position_cloned = position.clone();
             self.state.open_positions.push(position);
         } else {
             let position_index = position_index.unwrap();
@@ -486,7 +503,16 @@ impl FundManager {
             }
             let position = position.unwrap();
             position.close(order_id, &reason_for_close.unwrap().to_string())?;
+            position_cloned = position.clone();
         }
+
+        // Save the position in the DB
+        self.state
+            .db_handler
+            .lock()
+            .await
+            .log_position(&position_cloned)
+            .await;
 
         return Ok(());
     }
@@ -498,7 +524,7 @@ impl FundManager {
         filled_size: Option<String>,
         fee: Option<String>,
     ) -> Result<bool, ()> {
-        log::debug!(
+        log::info!(
             "fill_position: order_id = {:?}, value = {:?}, size = {:?}, fee = {:?}",
             order_id,
             filled_value,
@@ -572,16 +598,7 @@ impl FundManager {
         let prev_amount = self.state.amount;
         let position_cloned;
 
-        let is_open = match position.state() {
-            State::OpenPending => true,
-            State::ClosePending(_) => false,
-            _ => {
-                log::warn!("Filled position has an invalid state: {}", position.state());
-                return Err(());
-            }
-        };
-
-        if is_open {
+        if is_open_trande {
             self.state.amount -= amount_in;
             let average_price = amount_in / amount_out;
             let take_profit_price = position.predicted_price();

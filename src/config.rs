@@ -110,7 +110,7 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
 
-    let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.03")?;
+    let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.05")?;
 
     let env_config = EnvConfig {
         mongodb_uri,

@@ -250,7 +250,7 @@ async fn handle_trader_activities(
             .db_handler()
             .lock()
             .await
-            .log_app_state(None, None, false)
+            .log_app_state(None, None, true)
             .await;
         loop {}
     }

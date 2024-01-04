@@ -272,7 +272,19 @@ impl DerivativeTrader {
             Err(_) => return Err(()),
         };
         let lost = self.config.initial_balance - balance;
-        return Ok(lost > 0.0 && (lost / self.config.initial_balance > self.config.max_dd_ratio));
+        if lost > 0.0 {
+            let dd_ratio = lost / self.config.initial_balance;
+            log::info!(
+                "lost = {}, initial_balance = {}, dd_ratio = {}",
+                lost,
+                self.config.initial_balance,
+                dd_ratio
+            );
+            if dd_ratio > self.config.max_dd_ratio {
+                return Ok(true);
+            }
+        }
+        return Ok(false);
     }
 
     pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
