@@ -414,9 +414,9 @@ impl DerivativeTrader {
             .get_balance(&self.config.dex_name)
             .await
         {
-            if let Some(balance) = res.balance {
-                if let Ok(balance) = balance.parse::<f64>() {
-                    return Ok(balance);
+            if let Some(equity) = res.equity {
+                if let Ok(equity) = equity.parse::<f64>() {
+                    return Ok(equity);
                 }
             }
         }
