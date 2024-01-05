@@ -301,8 +301,7 @@ mod tests {
     }
 
     lazy_static! {
-        static ref DEX_TEST_CONFIG: Vec<(&'static str, &'static str)> =
-            vec![("apex", "BTC-USDC"), ("mufex", "BTC-USDT")];
+        static ref DEX_TEST_CONFIG: Vec<(&'static str, &'static str)> = vec![("apex", "BTC-USDC")];
     }
 
     #[tokio::test]
@@ -364,9 +363,6 @@ mod tests {
     #[tokio::test]
     async fn test_close_all_positions() {
         for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
-            if *dex_name == "mufex" {
-                continue; // Not supported
-            }
             let client = init_client().await;
             let response = client.close_all_positions(dex_name, None).await;
             log::info!("{:?}", response);

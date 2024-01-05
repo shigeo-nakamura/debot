@@ -542,6 +542,16 @@ impl FundManager {
         let filled_size = filled_size.unwrap();
         let fee = fee.unwrap();
 
+        let _ = self
+            .state
+            .dex_client
+            .clear_filled_order(&self.config.dex_name, &self.config.token_name, &order_id)
+            .await
+            .map_err(|e| {
+                log::error!("{:?}", e);
+                return Err::<bool, ()>(());
+            });
+
         let position_with_index = self
             .state
             .open_positions
@@ -618,6 +628,8 @@ impl FundManager {
                 cut_loss_price,
             )?;
             position_cloned = position.clone();
+
+            self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
         } else {
             if position.is_long_position() {
                 self.state.amount += amount_out;
@@ -640,8 +652,6 @@ impl FundManager {
                 );
             }
         }
-
-        self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
 
         // Save the position in the DB
         self.state
