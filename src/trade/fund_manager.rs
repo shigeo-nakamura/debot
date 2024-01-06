@@ -524,14 +524,6 @@ impl FundManager {
         filled_size: Option<String>,
         fee: Option<String>,
     ) -> Result<bool, ()> {
-        log::info!(
-            "fill_position: order_id = {:?}, value = {:?}, size = {:?}, fee = {:?}",
-            order_id,
-            filled_value,
-            filled_size,
-            fee
-        );
-
         if order_id.is_none() || filled_value.is_none() || filled_size.is_none() || fee.is_none() {
             log::error!("filled order is wrong");
             return Err(());
@@ -562,7 +554,11 @@ impl FundManager {
         let (position_index, position) = match position_with_index {
             Some((index, pos)) => (index, pos),
             None => {
-                log::debug!("Filled position not found for {}", order_id);
+                log::debug!(
+                    "Filled position not found for {} in {}",
+                    order_id,
+                    self.config.fund_name
+                );
                 return Ok(false);
             }
         };
@@ -573,7 +569,7 @@ impl FundManager {
             State::OpenPending => true,
             State::ClosePending(_) => false,
             _ => {
-                log::debug!(
+                log::warn!(
                     "This position is already filled, state: {:?}",
                     position.state()
                 );
@@ -603,6 +599,15 @@ impl FundManager {
                 return Err(());
             }
         }
+
+        log::info!(
+            "fill_position: token_name = {}, order_id = {:?}, value = {:?}, size = {:?}, fee = {:?}",
+            self.config.token_name,
+            order_id,
+            filled_value,
+            filled_size,
+            fee
+        );
 
         let fee = fee.parse::<f64>().unwrap_or(0.0);
         let prev_amount = self.state.amount;
