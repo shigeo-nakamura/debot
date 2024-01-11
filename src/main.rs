@@ -89,6 +89,7 @@ async fn prepare_trader_instance(
         config.non_trading_period_secs,
         config.position_size_ratio,
         config.max_dd_ratio,
+        config.order_effective_duration_secs,
     )
     .await;
 

@@ -22,6 +22,7 @@ pub struct EnvConfig {
     pub position_size_ratio: f64,
     pub liquidate_when_exit: bool,
     pub max_dd_ratio: f64,
+    pub order_effective_duration_secs: i64,
 }
 
 #[derive(Debug)]
@@ -101,16 +102,12 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let dex_router_api_key = String::from_utf8(dex_router_api_key).unwrap();
 
     let dex_router_url = env::var("DEX_ROUTER_URL").expect("DEX_ROUTER_URL must be set");
-
     let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
-
     let non_trading_period_secs = get_env_var("NON_TRADING_PERIOD_SECS", "60")?;
-
     let position_size_ratio = get_env_var("POSITION_SIZE_RATIO", "0.02")?;
-
     let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
-
     let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1")?;
+    let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_PERIOD_SECS", "60")?;
 
     let env_config = EnvConfig {
         mongodb_uri,
@@ -129,6 +126,7 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         position_size_ratio,
         liquidate_when_exit,
         max_dd_ratio,
+        order_effective_duration_secs,
     };
 
     Ok(env_config)

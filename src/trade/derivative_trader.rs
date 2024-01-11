@@ -45,6 +45,7 @@ struct DerivativeTraderConfig {
     dex_router_url: String,
     initial_balance: f64,
     max_dd_ratio: f64,
+    order_effective_duration_secs: i64,
 }
 
 struct DerivativeTraderState {
@@ -76,6 +77,7 @@ impl DerivativeTrader {
         non_trading_period_secs: i64,
         positino_size_ratio: f64,
         max_dd_ratio: f64,
+        order_effective_duration_secs: i64,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let mut config = DerivativeTraderConfig {
@@ -89,6 +91,7 @@ impl DerivativeTrader {
             dex_router_url: dex_router_url.to_owned(),
             initial_balance: 0.0,
             max_dd_ratio,
+            order_effective_duration_secs,
         };
 
         let state = Self::initialize_state(
@@ -221,6 +224,7 @@ impl DerivativeTrader {
                     dry_run,
                     save_prices,
                     non_trading_period_secs,
+                    config.order_effective_duration_secs,
                 )
             })
             .collect()

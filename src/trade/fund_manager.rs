@@ -41,6 +41,7 @@ pub struct FundManagerConfig {
     dry_run: bool,
     save_prices: bool,
     non_trading_period_secs: i64,
+    order_effective_duration_secs: i64,
 }
 
 pub struct FundManager {
@@ -73,6 +74,7 @@ impl FundManager {
         dry_run: bool,
         save_prices: bool,
         non_trading_period_secs: i64,
+        order_effective_duration_secs: i64,
     ) -> Self {
         let config = FundManagerConfig {
             fund_name: fund_name.to_owned(),
@@ -85,6 +87,7 @@ impl FundManager {
             dry_run,
             save_prices,
             non_trading_period_secs,
+            order_effective_duration_secs,
         };
 
         let open_positions = match open_positions {
@@ -485,6 +488,7 @@ impl FundManager {
             let position = TradePosition::new(
                 id.unwrap(),
                 order_id,
+                self.config.order_effective_duration_secs,
                 token_name,
                 &self.config.fund_name,
                 is_long_position,
@@ -566,8 +570,8 @@ impl FundManager {
         let amount_in;
         let amount_out;
         let is_open_trande = match position.state() {
-            State::OpenPending => true,
-            State::ClosePending(_) => false,
+            State::Opening => true,
+            State::Closing(_) => false,
             _ => {
                 log::warn!(
                     "This position is already filled, state: {:?}",
