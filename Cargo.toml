@@ -1,6 +1,6 @@
 [package]
 name = "debot"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -28,9 +28,9 @@ chrono-tz = "0.8.2"
 ctor = "0.1"
 
 debot-market-analyzer = "1.0.*"
-debot-position-manager = "1.1.*"
+debot-position-manager = "1.2.*"
 debot-utils = "1.0.*"
-debot-db = "1.1.*"
+debot-db = "1.2.*"
 dex-client = "1.1.*"
 
 [[bin]]
