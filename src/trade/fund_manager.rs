@@ -42,6 +42,7 @@ pub struct FundManagerConfig {
     save_prices: bool,
     non_trading_period_secs: i64,
     order_effective_duration_secs: i64,
+    use_market_order: bool,
 }
 
 pub struct FundManager {
@@ -75,6 +76,7 @@ impl FundManager {
         save_prices: bool,
         non_trading_period_secs: i64,
         order_effective_duration_secs: i64,
+        use_market_order: bool,
     ) -> Self {
         let config = FundManagerConfig {
             fund_name: fund_name.to_owned(),
@@ -88,6 +90,7 @@ impl FundManager {
             save_prices,
             non_trading_period_secs,
             order_effective_duration_secs,
+            use_market_order,
         };
 
         let open_positions = match open_positions {
@@ -173,6 +176,10 @@ impl FundManager {
                 .await;
         }
 
+        self.find_expired_orders()
+            .await
+            .map_err(|_| "Failed to find expired orders".to_owned())?;
+
         self.find_open_chances(price)
             .await
             .map_err(|_| "Failed to find open chances".to_owned())?;
@@ -182,6 +189,29 @@ impl FundManager {
             .map_err(|_| "Failed to find close chances".to_owned())?;
 
         self.check_positions(price);
+
+        Ok(())
+    }
+
+    async fn find_expired_orders(&mut self) -> Result<(), ()> {
+        let mut new_open_positions = vec![];
+
+        for position in self.state.open_positions.iter_mut() {
+            if position.should_cancel_order() {
+                position.cancel();
+                // Save the position in the DB
+                self.state
+                    .db_handler
+                    .lock()
+                    .await
+                    .log_position(position)
+                    .await;
+            } else {
+                new_open_positions.push(position.clone());
+            }
+        }
+
+        self.state.open_positions = new_open_positions;
 
         Ok(())
     }
@@ -414,10 +444,15 @@ impl FundManager {
             .await?;
         } else {
             // Execute the transaction
+            let price = if self.config.use_market_order {
+                None
+            } else {
+                Some(current_price.to_string())
+            };
             let res: Result<dex_client::CreateOrderResponse, dex_client::DexError> = self
                 .state
                 .dex_client
-                .create_order(&self.config.dex_name, symbol, &size, side, None)
+                .create_order(&self.config.dex_name, symbol, &size, side, price)
                 .await;
             match res {
                 Ok(res) => {

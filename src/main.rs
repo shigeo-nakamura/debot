@@ -90,6 +90,7 @@ async fn prepare_trader_instance(
         config.position_size_ratio,
         config.max_dd_ratio,
         config.order_effective_duration_secs,
+        config.use_market_order,
     )
     .await;
 
@@ -380,6 +381,16 @@ mod tests {
                 .await;
             log::info!("{:?}", response);
             assert!(response.is_ok());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cancel_order() {
+        for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_client().await;
+            let response = client.canel_order(dex_name, "1234").await;
+            log::info!("{:?}", response);
+            assert!(response.is_err());
         }
     }
 }

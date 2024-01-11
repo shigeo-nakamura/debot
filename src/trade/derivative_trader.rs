@@ -45,7 +45,6 @@ struct DerivativeTraderConfig {
     dex_router_url: String,
     initial_balance: f64,
     max_dd_ratio: f64,
-    order_effective_duration_secs: i64,
 }
 
 struct DerivativeTraderState {
@@ -78,6 +77,7 @@ impl DerivativeTrader {
         positino_size_ratio: f64,
         max_dd_ratio: f64,
         order_effective_duration_secs: i64,
+        use_market_order: bool,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let mut config = DerivativeTraderConfig {
@@ -91,7 +91,6 @@ impl DerivativeTrader {
             dex_router_url: dex_router_url.to_owned(),
             initial_balance: 0.0,
             max_dd_ratio,
-            order_effective_duration_secs,
         };
 
         let state = Self::initialize_state(
@@ -107,6 +106,8 @@ impl DerivativeTrader {
             dry_run,
             non_trading_period_secs,
             positino_size_ratio,
+            order_effective_duration_secs,
+            use_market_order,
         )
         .await;
 
@@ -131,6 +132,8 @@ impl DerivativeTrader {
         dry_run: bool,
         non_trading_period_secs: i64,
         positino_size_ratio: f64,
+        order_effective_duration_secs: i64,
+        use_market_order: bool,
     ) -> DerivativeTraderState {
         let dex_client = Self::create_dex_clinet(dex_router_api_key, dex_router_url)
             .await
@@ -148,6 +151,8 @@ impl DerivativeTrader {
             dry_run,
             non_trading_period_secs,
             positino_size_ratio,
+            order_effective_duration_secs,
+            use_market_order,
         );
 
         let mut state = DerivativeTraderState {
@@ -177,6 +182,8 @@ impl DerivativeTrader {
         dry_run: bool,
         non_trading_period_secs: i64,
         positino_size_ratio: f64,
+        order_effective_duration_secs: i64,
+        use_market_order: bool,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name);
         let mut token_name_indices = HashMap::new();
@@ -224,7 +231,8 @@ impl DerivativeTrader {
                     dry_run,
                     save_prices,
                     non_trading_period_secs,
-                    config.order_effective_duration_secs,
+                    order_effective_duration_secs,
+                    use_market_order,
                 )
             })
             .collect()

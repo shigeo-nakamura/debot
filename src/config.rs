@@ -23,6 +23,7 @@ pub struct EnvConfig {
     pub liquidate_when_exit: bool,
     pub max_dd_ratio: f64,
     pub order_effective_duration_secs: i64,
+    pub use_market_order: bool,
 }
 
 #[derive(Debug)]
@@ -108,6 +109,7 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
     let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1")?;
     let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_PERIOD_SECS", "60")?;
+    let use_market_order = get_bool_env_var("USE_MARKET_ORDER", true);
 
     let env_config = EnvConfig {
         mongodb_uri,
@@ -127,6 +129,7 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         liquidate_when_exit,
         max_dd_ratio,
         order_effective_duration_secs,
+        use_market_order,
     };
 
     Ok(env_config)
