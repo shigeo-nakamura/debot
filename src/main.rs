@@ -388,7 +388,7 @@ mod tests {
     async fn test_cancel_order() {
         for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
             let client = init_client().await;
-            let response = client.canel_order(dex_name, "1234").await;
+            let response = client.cancel_order(dex_name, "1234").await;
             log::info!("{:?}", response);
             assert!(response.is_err());
         }

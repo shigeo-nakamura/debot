@@ -1,7 +1,7 @@
 // fund_manager.rs
 
 use super::DBHandler;
-use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
+use debot_market_analyzer::{MarketCondition, MarketData, TradeAction, TradingStrategy};
 use debot_position_manager::{ReasonForClose, State, TradePosition};
 use dex_client::DexClient;
 use lazy_static::lazy_static;
@@ -22,6 +22,7 @@ struct TradeChance {
 
 pub struct FundManagerState {
     amount: f64,
+    balance: f64,
     open_positions: Vec<TradePosition>,
     db_handler: Arc<Mutex<DBHandler>>,
     dex_client: DexClient,
@@ -107,6 +108,7 @@ impl FundManager {
 
         let state = FundManagerState {
             amount,
+            balance: 0.0,
             open_positions,
             db_handler,
             dex_client,
@@ -176,9 +178,9 @@ impl FundManager {
                 .await;
         }
 
-        self.find_expired_orders()
-            .await
-            .map_err(|_| "Failed to find expired orders".to_owned())?;
+        if self.config.strategy != TradingStrategy::RangeGrid {
+            self.find_expired_orders().await;
+        }
 
         self.find_open_chances(price)
             .await
@@ -193,27 +195,19 @@ impl FundManager {
         Ok(())
     }
 
-    async fn find_expired_orders(&mut self) -> Result<(), ()> {
-        let mut new_open_positions = vec![];
+    async fn find_expired_orders(&mut self) {
+        let positions_to_cancel: Vec<TradePosition> = self
+            .state
+            .open_positions
+            .iter()
+            .filter(|p| p.should_cancel_order())
+            .map(|p| p.clone())
+            .collect();
 
-        for position in self.state.open_positions.iter_mut() {
-            if position.should_cancel_order() {
-                position.cancel();
-                // Save the position in the DB
-                self.state
-                    .db_handler
-                    .lock()
-                    .await
-                    .log_position(position)
-                    .await;
-            } else {
-                new_open_positions.push(position.clone());
-            }
+        // Cancel the existing orders
+        for position in &positions_to_cancel {
+            self.cancel_order(position.order_id()).await;
         }
-
-        self.state.open_positions = new_open_positions;
-
-        Ok(())
     }
 
     async fn find_open_chances(&mut self, current_price: f64) -> Result<(), ()> {
@@ -235,7 +229,7 @@ impl FundManager {
 
         for action in actions {
             let is_buy;
-            let (target_price, confidence) = match action.clone() {
+            let (mut target_price, confidence) = match action.clone() {
                 TradeAction::BuyOpen(detail) => {
                     is_buy = true;
                     (detail.target_price(), detail.confidence())
@@ -247,88 +241,112 @@ impl FundManager {
                 _ => continue,
             };
 
-            let price_ratio = (target_price - current_price) / current_price;
+            if self.config.strategy == TradingStrategy::RangeGrid {
+                if self.state.market_data.assess_market_condition() != MarketCondition::RangeBound {
+                    continue;
+                }
 
-            const GREEN: &str = "\x1b[0;32m";
-            const RED: &str = "\x1b[0;31m";
-            const GREY: &str = "\x1b[0;90m";
-            const RESET: &str = "\x1b[0m";
-            const BLUE: &str = "\x1b[0;34m";
-
-            let color = match price_ratio {
-                x if x > 0.0 => GREEN,
-                x if x < 0.0 => RED,
-                _ => GREY,
-            };
-
-            let log_message = format!(
-                "{}{:>7.3}%{}, {:<30} {}{:<6}{} {:<6.5}(--> {:<6.5})",
-                color,
-                price_ratio * 100.0,
-                RESET,
-                self.config.fund_name,
-                BLUE,
-                token_name,
-                RESET,
-                current_price,
-                target_price,
-            );
-            if color == GREY {
-                log::debug!("{}", log_message);
-            } else {
-                log::info!("{}", log_message);
-            }
-
-            if price_ratio.abs() < MIN_PRICE_CHANGE {
-                return Ok(());
-            }
-
-            let atr = data.atr();
-
-            if let Some(last_time) = self.state.last_trade_time {
-                if chrono::Utc::now().timestamp() - last_time <= self.config.non_trading_period_secs
-                {
+                if self.state.balance.abs() > self.state.amount {
+                    log::warn!("No enough fund left: balance = {}", self.state.balance);
                     return Ok(());
                 }
-            }
 
-            if self.state.amount < self.config.trading_amount {
-                log::warn!("No enough fund left: {}", self.state.amount);
-                return Ok(());
-            }
+                // Ignore duplicated actions and collect the orders to cancel
+                let positions_to_cancel: Vec<TradePosition> = self
+                    .state
+                    .open_positions
+                    .iter()
+                    .filter(|p| *p.state() == State::Opening && p.ordered_price() == target_price)
+                    .filter(|p| p.is_long_position() != is_buy)
+                    .map(|p| p.clone())
+                    .collect();
 
-            let predicted_price = match *TAKE_PROFIT_RATIO {
-                Some(v) => {
-                    if is_buy {
-                        current_price * (1.0 + v)
-                    } else {
-                        current_price * (1.0 - v)
+                // Cancel the existing orders
+                for position in &positions_to_cancel {
+                    self.cancel_order(position.order_id()).await;
+                }
+            } else {
+                let price_ratio = (target_price - current_price) / current_price;
+
+                const GREEN: &str = "\x1b[0;32m";
+                const RED: &str = "\x1b[0;31m";
+                const GREY: &str = "\x1b[0;90m";
+                const RESET: &str = "\x1b[0m";
+                const BLUE: &str = "\x1b[0;34m";
+
+                let color = match price_ratio {
+                    x if x > 0.0 => GREEN,
+                    x if x < 0.0 => RED,
+                    _ => GREY,
+                };
+
+                let log_message = format!(
+                    "{}{:>7.3}%{}, {:<30} {}{:<6}{} {:<6.5}(--> {:<6.5})",
+                    color,
+                    price_ratio * 100.0,
+                    RESET,
+                    self.config.fund_name,
+                    BLUE,
+                    token_name,
+                    RESET,
+                    current_price,
+                    target_price,
+                );
+                if color == GREY {
+                    log::debug!("{}", log_message);
+                } else {
+                    log::info!("{}", log_message);
+                }
+
+                if price_ratio.abs() < MIN_PRICE_CHANGE {
+                    return Ok(());
+                }
+
+                if let Some(last_time) = self.state.last_trade_time {
+                    if chrono::Utc::now().timestamp() - last_time
+                        <= self.config.non_trading_period_secs
+                    {
+                        return Ok(());
                     }
                 }
-                None => {
-                    if is_buy {
-                        if price_ratio.abs() > MAX_PRICE_CHANGE {
-                            current_price * (1.0 + MAX_PRICE_CHANGE)
+
+                if self.state.amount < self.config.trading_amount {
+                    log::warn!("No enough fund left: {}", self.state.amount);
+                    return Ok(());
+                }
+
+                target_price = match *TAKE_PROFIT_RATIO {
+                    Some(v) => {
+                        if is_buy {
+                            current_price * (1.0 + v)
                         } else {
-                            target_price
-                        }
-                    } else {
-                        if price_ratio.abs() > MAX_PRICE_CHANGE {
-                            current_price * (1.0 - MAX_PRICE_CHANGE)
-                        } else {
-                            target_price
+                            current_price * (1.0 - v)
                         }
                     }
-                }
-            };
-
+                    None => {
+                        if is_buy {
+                            if price_ratio.abs() > MAX_PRICE_CHANGE {
+                                current_price * (1.0 + MAX_PRICE_CHANGE)
+                            } else {
+                                target_price
+                            }
+                        } else {
+                            if price_ratio.abs() > MAX_PRICE_CHANGE {
+                                current_price * (1.0 - MAX_PRICE_CHANGE)
+                            } else {
+                                target_price
+                            }
+                        }
+                    }
+                };
+            }
             self.execute_chances(
                 current_price,
                 TradeChance {
                     token_name: self.config.token_name.clone(),
-                    predicted_price: Some(predicted_price),
+                    predicted_price: Some(target_price),
                     amount: self.config.trading_amount * confidence,
-                    atr: Some(atr),
+                    atr: Some(data.atr()),
                     action: action.clone(),
                     position_index: None,
                 },
@@ -337,6 +355,29 @@ impl FundManager {
             .await?;
 
             self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
+        }
+
+        if self.config.strategy == TradingStrategy::RangeGrid {
+            // cancel the orders that are out of ranges
+            let mut positions_to_cancel: Vec<TradePosition> = Vec::new();
+            let (min_price, max_price) = FundManager::find_min_max_trade_prices(&actions);
+            for position in &self.state.open_positions {
+                if let Some(min) = min_price {
+                    if position.ordered_price() < min {
+                        positions_to_cancel.push(position.clone());
+                        continue;
+                    }
+                }
+                if let Some(max) = max_price {
+                    if max < position.ordered_price() {
+                        positions_to_cancel.push(position.clone());
+                    }
+                }
+            }
+
+            for position in &positions_to_cancel {
+                self.cancel_order(position.order_id()).await;
+            }
         }
 
         Ok(())
@@ -445,16 +486,23 @@ impl FundManager {
             reason_for_close
         );
 
+        let order_price = if self.config.strategy == TradingStrategy::RangeGrid {
+            chance.predicted_price
+        } else {
+            Some(current_price)
+        };
+
         if self.config.dry_run {
             // Prepare a new/updated position
             self.state.dry_run_counter += 1;
             let order_id = self.state.dry_run_counter.to_string();
             self.prepare_position(
                 &order_id,
+                order_price,
                 chance.action,
+                chance.predicted_price,
                 reason_for_close,
                 &chance.token_name,
-                chance.predicted_price,
                 chance.atr,
                 chance.position_index,
             )
@@ -475,7 +523,7 @@ impl FundManager {
             let price = if self.config.use_market_order {
                 None
             } else {
-                Some(current_price.to_string())
+                Some(order_price.unwrap().to_string())
             };
             let res: Result<dex_client::CreateOrderResponse, dex_client::DexError> = self
                 .state
@@ -491,10 +539,11 @@ impl FundManager {
                             log::info!("new order id = {}", id);
                             self.prepare_position(
                                 &id,
+                                order_price,
                                 chance.action,
+                                chance.predicted_price,
                                 reason_for_close,
                                 &chance.token_name,
-                                chance.predicted_price,
                                 chance.atr,
                                 chance.position_index,
                             )
@@ -525,10 +574,11 @@ impl FundManager {
     async fn prepare_position(
         &mut self,
         order_id: &str,
+        ordered_price: Option<f64>,
         trade_action: TradeAction,
+        predicted_price: Option<f64>,
         reason_for_close: Option<ReasonForClose>,
         token_name: &str,
-        predicted_price: Option<f64>,
         atr: Option<f64>,
         position_index: Option<usize>,
     ) -> Result<(), ()> {
@@ -551,6 +601,7 @@ impl FundManager {
             let position = TradePosition::new(
                 id.unwrap(),
                 order_id,
+                ordered_price.unwrap(),
                 self.config.order_effective_duration_secs,
                 token_name,
                 &self.config.fund_name,
@@ -680,58 +731,67 @@ impl FundManager {
         let prev_amount = self.state.amount;
         let position_cloned;
 
-        if is_open_trande {
-            self.state.amount -= amount_in;
-            let average_price = amount_in / amount_out;
-            let take_profit_price = position.predicted_price();
-            let distance = (take_profit_price - average_price).abs() / self.config.risk_reward;
-            let cut_loss_price = if position.is_long_position() {
-                average_price - distance
-            } else {
-                average_price + distance
-            };
-
-            position.open(
-                average_price,
-                amount_out,
-                amount_in,
-                fee,
-                take_profit_price,
-                cut_loss_price,
-            )?;
-            position_cloned = position.clone();
-
-            self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
-        } else {
+        if self.config.strategy == TradingStrategy::RangeGrid {
             if position.is_long_position() {
-                self.state.amount += amount_out;
+                self.state.amount -= amount_in;
             } else {
-                self.state.amount += position.amount_in_anchor_token() * 2.0 - amount_out;
+                self.state.amount += amount_in;
+            }
+            self.state.open_positions.remove(position_index);
+        } else {
+            if is_open_trande {
+                self.state.amount -= amount_in;
+                let average_price = amount_in / amount_out;
+                let take_profit_price = position.predicted_price();
+                let distance = (take_profit_price - average_price).abs() / self.config.risk_reward;
+                let cut_loss_price = if position.is_long_position() {
+                    average_price - distance
+                } else {
+                    average_price + distance
+                };
+
+                position.open(
+                    average_price,
+                    amount_out,
+                    amount_in,
+                    fee,
+                    take_profit_price,
+                    cut_loss_price,
+                )?;
+                position_cloned = position.clone();
+
+                self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
+            } else {
+                if position.is_long_position() {
+                    self.state.amount += amount_out;
+                } else {
+                    self.state.amount += position.amount_in_anchor_token() * 2.0 - amount_out;
+                }
+
+                let close_price = amount_out / amount_in;
+
+                position.delete(Some(close_price), fee, false, None);
+                position_cloned = position.clone();
+
+                let amount = position.amount();
+                if amount == 0.0 {
+                    self.state.open_positions.remove(position_index);
+                } else {
+                    log::info!(
+                        "Position is partially closed. The remaing amount = {}",
+                        amount
+                    );
+                }
             }
 
-            let close_price = amount_out / amount_in;
-
-            position.delete(Some(close_price), fee, false, None);
-            position_cloned = position.clone();
-
-            let amount = position.amount();
-            if amount == 0.0 {
-                self.state.open_positions.remove(position_index);
-            } else {
-                log::info!(
-                    "Position is partially closed. The remaing amount = {}",
-                    amount
-                );
-            }
+            // Save the position in the DB
+            self.state
+                .db_handler
+                .lock()
+                .await
+                .log_position(&position_cloned)
+                .await;
         }
-
-        // Save the position in the DB
-        self.state
-            .db_handler
-            .lock()
-            .await
-            .log_position(&position_cloned)
-            .await;
 
         log::info!(
             "{} Amount has changed from {} to {}",
@@ -741,6 +801,68 @@ impl FundManager {
         );
 
         return Ok(true);
+    }
+
+    async fn cancel_order(&mut self, order_id: &str) {
+        let position = self
+            .state
+            .open_positions
+            .iter_mut()
+            .find(|pos| pos.order_id() == order_id);
+
+        let position = match position {
+            Some(v) => v,
+            None => return,
+        };
+
+        let _ = self
+            .state
+            .dex_client
+            .cancel_order(&self.config.dex_name, position.order_id())
+            .await
+            .map_err(|e| {
+                log::error!("{:?}", e);
+                return Err::<bool, ()>(());
+            });
+
+        if !position.cancel() {
+            log::warn!("Failed to cancel the order id = {}", order_id);
+            return;
+        }
+        // Save the position in the DB
+        self.state
+            .db_handler
+            .lock()
+            .await
+            .log_position(position)
+            .await;
+
+        self.state
+            .open_positions
+            .retain(|pos| pos.order_id() != order_id);
+    }
+
+    fn find_min_max_trade_prices(actions: &[TradeAction]) -> (Option<f64>, Option<f64>) {
+        let mut min_price: Option<f64> = None;
+        let mut max_price: Option<f64> = None;
+
+        for action in actions {
+            if let TradeAction::BuyOpen(detail) | TradeAction::SellOpen(detail) = action {
+                let target_price = detail.target_price();
+
+                min_price = match min_price {
+                    Some(min) => Some(min.min(target_price)),
+                    None => Some(target_price),
+                };
+
+                max_price = match max_price {
+                    Some(max) => Some(max.max(target_price)),
+                    None => Some(target_price),
+                };
+            }
+        }
+
+        (min_price, max_price)
     }
 
     pub async fn liquidate(&mut self, reason: Option<String>) {

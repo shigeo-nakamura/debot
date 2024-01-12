@@ -275,6 +275,8 @@ impl DerivativeTrader {
             config.long_trade_period,
             config.trade_period,
             config.max_price_size as usize,
+            10,    // grid_dize
+            0.001, // gird step 0.1%
         )
     }
 
