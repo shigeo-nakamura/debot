@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::{env, f64};
 use tokio::sync::Mutex;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct TradeChance {
     pub action: TradeAction,
     pub token_name: String,
@@ -217,118 +217,128 @@ impl FundManager {
     }
 
     async fn find_open_chances(&mut self, current_price: f64) -> Result<(), ()> {
-        let token_name = &self.config.token_name;
-        let data = &self.state.market_data;
+        let actions = self
+            .state
+            .market_data
+            .is_open_signaled(self.config.strategy);
 
-        let action = data.is_open_signaled(self.config.strategy);
+        self.handle_open_chances(current_price, &actions).await
+    }
 
-        let (target_price, confidence) = match action.clone() {
-            TradeAction::None => {
+    async fn handle_open_chances(
+        &mut self,
+        current_price: f64,
+        actions: &Vec<TradeAction>,
+    ) -> Result<(), ()> {
+        let token_name = self.config.token_name.to_owned();
+        let data = self.state.market_data.to_owned();
+
+        for action in actions {
+            let is_buy;
+            let (target_price, confidence) = match action.clone() {
+                TradeAction::BuyOpen(detail) => {
+                    is_buy = true;
+                    (detail.target_price(), detail.confidence())
+                }
+                TradeAction::SellOpen(detail) => {
+                    is_buy = false;
+                    (detail.target_price(), detail.confidence())
+                }
+                _ => continue,
+            };
+
+            let price_ratio = (target_price - current_price) / current_price;
+
+            const GREEN: &str = "\x1b[0;32m";
+            const RED: &str = "\x1b[0;31m";
+            const GREY: &str = "\x1b[0;90m";
+            const RESET: &str = "\x1b[0m";
+            const BLUE: &str = "\x1b[0;34m";
+
+            let color = match price_ratio {
+                x if x > 0.0 => GREEN,
+                x if x < 0.0 => RED,
+                _ => GREY,
+            };
+
+            let log_message = format!(
+                "{}{:>7.3}%{}, {:<30} {}{:<6}{} {:<6.5}(--> {:<6.5})",
+                color,
+                price_ratio * 100.0,
+                RESET,
+                self.config.fund_name,
+                BLUE,
+                token_name,
+                RESET,
+                current_price,
+                target_price,
+            );
+            if color == GREY {
+                log::debug!("{}", log_message);
+            } else {
+                log::info!("{}", log_message);
+            }
+
+            if price_ratio.abs() < MIN_PRICE_CHANGE {
                 return Ok(());
             }
-            TradeAction::BuyOpen(detail) => (detail.target_price(), detail.confidence()),
-            TradeAction::BuyClose => {
-                return Ok(());
-            }
-            TradeAction::SellOpen(detail) => (detail.target_price(), detail.confidence()),
-            TradeAction::SellClose => {
-                return Ok(());
-            }
-        };
 
-        let price_ratio = (target_price - current_price) / current_price;
+            let atr = data.atr();
 
-        const GREEN: &str = "\x1b[0;32m";
-        const RED: &str = "\x1b[0;31m";
-        const GREY: &str = "\x1b[0;90m";
-        const RESET: &str = "\x1b[0m";
-        const BLUE: &str = "\x1b[0;34m";
-
-        let color = match price_ratio {
-            x if x > 0.0 => GREEN,
-            x if x < 0.0 => RED,
-            _ => GREY,
-        };
-
-        let log_message = format!(
-            "{}{:>7.3}%{}, {:<30} {}{:<6}{} {:<6.5}(--> {:<6.5})",
-            color,
-            price_ratio * 100.0,
-            RESET,
-            self.config.fund_name,
-            BLUE,
-            token_name,
-            RESET,
-            current_price,
-            target_price,
-        );
-        if color == GREY {
-            log::debug!("{}", log_message);
-        } else {
-            log::info!("{}", log_message);
-        }
-
-        if price_ratio.abs() < MIN_PRICE_CHANGE {
-            return Ok(());
-        }
-
-        let atr = data.atr();
-
-        if let Some(last_time) = self.state.last_trade_time {
-            if chrono::Utc::now().timestamp() - last_time <= self.config.non_trading_period_secs {
-                return Ok(());
-            }
-        }
-
-        if self.state.amount < self.config.trading_amount {
-            log::warn!("No enough fund left: {}", self.state.amount);
-            return Ok(());
-        }
-
-        let predicted_price = match *TAKE_PROFIT_RATIO {
-            Some(v) => match action {
-                TradeAction::BuyOpen(_) => current_price * (1.0 + v),
-                TradeAction::SellOpen(_) => current_price * (1.0 - v),
-                _ => {
+            if let Some(last_time) = self.state.last_trade_time {
+                if chrono::Utc::now().timestamp() - last_time <= self.config.non_trading_period_secs
+                {
                     return Ok(());
                 }
-            },
-            None => match action {
-                TradeAction::BuyOpen(_) => {
-                    if price_ratio.abs() > MAX_PRICE_CHANGE {
-                        current_price * (1.0 + MAX_PRICE_CHANGE)
+            }
+
+            if self.state.amount < self.config.trading_amount {
+                log::warn!("No enough fund left: {}", self.state.amount);
+                return Ok(());
+            }
+
+            let predicted_price = match *TAKE_PROFIT_RATIO {
+                Some(v) => {
+                    if is_buy {
+                        current_price * (1.0 + v)
                     } else {
-                        target_price
+                        current_price * (1.0 - v)
                     }
                 }
-                TradeAction::SellOpen(_) => {
-                    if price_ratio.abs() > MAX_PRICE_CHANGE {
-                        current_price * (1.0 - MAX_PRICE_CHANGE)
+                None => {
+                    if is_buy {
+                        if price_ratio.abs() > MAX_PRICE_CHANGE {
+                            current_price * (1.0 + MAX_PRICE_CHANGE)
+                        } else {
+                            target_price
+                        }
                     } else {
-                        target_price
+                        if price_ratio.abs() > MAX_PRICE_CHANGE {
+                            current_price * (1.0 - MAX_PRICE_CHANGE)
+                        } else {
+                            target_price
+                        }
                     }
                 }
-                _ => {
-                    return Ok(());
-                }
-            },
-        };
+            };
 
-        self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
+            self.execute_chances(
+                current_price,
+                TradeChance {
+                    token_name: self.config.token_name.clone(),
+                    predicted_price: Some(predicted_price),
+                    amount: self.config.trading_amount * confidence,
+                    atr: Some(atr),
+                    action: action.clone(),
+                    position_index: None,
+                },
+                None,
+            )
+            .await?;
 
-        self.execute_chances(
-            current_price,
-            TradeChance {
-                token_name: self.config.token_name.clone(),
-                predicted_price: Some(predicted_price),
-                amount: self.config.trading_amount * confidence,
-                atr: Some(atr),
-                action,
-                position_index: None,
-            },
-            None,
-        )
-        .await?;
+            self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
+        }
+
         Ok(())
     }
 
@@ -339,10 +349,27 @@ impl FundManager {
             if *position.state() != State::Open {
                 continue;
             }
-            let action = self
+            let actions = self
                 .state
                 .market_data
                 .is_close_signaled(self.config.strategy);
+
+            let _ = self
+                .handle_close_chances(current_price, position_index, position, &actions)
+                .await;
+        }
+
+        Ok(())
+    }
+
+    async fn handle_close_chances(
+        &mut self,
+        current_price: f64,
+        position_index: usize,
+        position: &TradePosition,
+        actions: &Vec<TradeAction>,
+    ) -> Result<(), ()> {
+        for action in actions {
             let reason_for_close = match action {
                 TradeAction::BuyClose => {
                     if !position.is_long_position() {
@@ -381,6 +408,7 @@ impl FundManager {
                 .await?;
             }
         }
+
         Ok(())
     }
 
