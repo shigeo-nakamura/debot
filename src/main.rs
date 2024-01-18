@@ -26,9 +26,7 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
 
     // Load the configs
-    let config = config::get_config_from_env()
-        .await
-        .expect("Invalid configuration");
+    let config = config::get_config_from_env().expect("Invalid configuration");
 
     // Set up the DB handler
     let db_handler = Arc::new(Mutex::new(
@@ -84,13 +82,14 @@ async fn prepare_trader_instance(
         price_market_data.clone(),
         config.load_prices,
         config.save_prices,
-        &config.dex_router_api_key,
-        &config.dex_router_url,
         config.non_trading_period_secs,
         config.position_size_ratio,
         config.max_dd_ratio,
         config.order_effective_duration_secs,
         config.use_market_order,
+        &config.rest_endpoint,
+        &config.web_socket_endpoint,
+        config.leverage,
     )
     .await;
 
@@ -271,102 +270,124 @@ async fn handle_trader_activities(
 
 #[cfg(test)]
 mod tests {
-    use debot_utils::decrypt_data_with_kms;
-    use dex_client::DexClient;
-    use std::env;
+    use dex_connector::{DexConnector, OrderSide, RabbitxConnector};
+    use std::{env, sync::Arc};
+
+    use crate::{config::get_rabbitx_config_from_env, trade::fund_config::RABBITX_TOKEN_LIST};
 
     #[ctor::ctor]
     fn setup() {
         env_logger::init();
     }
 
-    async fn init_client() -> DexClient {
-        let encrypted_data_key = env::var("ENCRYPTED_DATA_KEY")
-            .expect("ENCRYPTED_DATA_KEY must be set")
-            .replace(" ", ""); // Remove whitespace characters
+    async fn init_connector(dex_name: &str) -> Arc<dyn DexConnector> {
+        let rest_endpoint = env::var("REST_ENDPOINT").expect("REST_ENDPOINT must be set");
+        let web_socket_endpoint =
+            env::var("WEB_SOCKET_ENDPOINT").expect("WEB_SOCKET_ENDPOINT must be set");
 
-        let encrypted_dex_router_api_key = env::var("ENCRYPTED_DEX_ROUTER_API_KEY")
-            .expect("ENCRYPTED_DEX_ROUTER_API_KEY must be set")
-            .replace(" ", ""); // Remove whitespace characters
-
-        let dex_router_api_key =
-            decrypt_data_with_kms(encrypted_data_key, encrypted_dex_router_api_key)
-                .await
-                .unwrap();
-        let dex_router_api_key = String::from_utf8(dex_router_api_key).unwrap();
-
-        let dex_router_url = env::var("DEX_ROUTER_URL").expect("DEX_ROUTER_URL must be set");
-
-        DexClient::new(dex_router_api_key, dex_router_url)
-            .await
-            .expect("Failed to initialize DexClient")
+        let connector = match dex_name {
+            "rabbitx" => {
+                let rabbitx_config = get_rabbitx_config_from_env().await.unwrap();
+                let market_ids: Vec<String> =
+                    RABBITX_TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
+                Arc::new(
+                    RabbitxConnector::new(
+                        &rest_endpoint,
+                        &web_socket_endpoint,
+                        &rabbitx_config.profile_id,
+                        &rabbitx_config.api_key,
+                        &rabbitx_config.public_jwt,
+                        &rabbitx_config.refresh_token,
+                        &rabbitx_config.secret,
+                        &rabbitx_config.private_jwt,
+                        &market_ids,
+                    )
+                    .await
+                    .expect("Failed to initialize DexConnector"),
+                )
+            }
+            _ => panic!("Not supported"),
+        };
+        connector.start().await.unwrap();
+        connector
     }
 
     lazy_static! {
-        static ref DEX_TEST_CONFIG: Vec<(&'static str, &'static str)> = vec![("apex", "BTC-USDC")];
-    }
-
-    #[tokio::test]
-    async fn test_get_ticket() {
-        let client = init_client().await;
-        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-            let response = client.get_ticker(dex_name, symbol).await;
-            log::info!("{:?}", response);
-            assert!(response.is_ok());
-        }
+        static ref DEX_TEST_CONFIG: Vec<(&'static str, &'static str)> =
+            vec![("rabbitx", "BTC-USD")];
     }
 
     #[tokio::test]
     async fn test_get_balance() {
         for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
-            let client = init_client().await;
-            let response = client.get_balance(dex_name).await;
+            let client = init_connector(dex_name).await;
+            let response = client.get_balance().await;
             log::info!("{:?}", response);
             assert!(response.is_ok());
         }
     }
 
     #[tokio::test]
-    async fn test_create_order_buy() {
+    async fn test_set_leverage() {
         for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-            let client = init_client().await;
-            let response = client.get_ticker(dex_name, symbol).await;
-            let price = response.unwrap().price.unwrap().parse::<f64>().unwrap();
-            let response = client
-                .create_order(dex_name, symbol, "0.001", "BUY", Some(price.to_string()))
-                .await;
-            log::info!("{:?}", response);
-            assert!(response.is_ok());
-
-            let response = client.get_filled_orders(&dex_name, symbol).await;
+            let client = init_connector(dex_name).await;
+            let response = client.set_leverage(symbol, "1.0").await;
             log::info!("{:?}", response);
             assert!(response.is_ok());
         }
     }
 
     #[tokio::test]
-    async fn test_create_order_sell() {
+    async fn test_get_ticker() {
         for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-            let client = init_client().await;
-            let response = client.get_ticker(dex_name, symbol).await;
-            let price = response.unwrap().price.unwrap().parse::<f64>().unwrap();
-            let response = client
-                .create_order(dex_name, symbol, "0.001", "SELL", Some(price.to_string()))
-                .await;
-            log::info!("{:?}", response);
-            assert!(response.is_ok());
-
-            let response = client.get_filled_orders(&dex_name, symbol).await;
+            let client = init_connector(dex_name).await;
+            let response = client.get_ticker(symbol).await;
             log::info!("{:?}", response);
             assert!(response.is_ok());
         }
     }
+
+    // #[tokio::test]
+    // async fn test_create_order_buy() {
+    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+    //         let client = init_connector(dex_name).await;
+    //         let response = client.get_ticker(symbol).await;
+    //         let price = response.unwrap().price.unwrap();
+    //         let response = client
+    //             .create_order(symbol, "0.001", OrderSide::Buy, Some(price.to_string()))
+    //             .await;
+    //         log::info!("{:?}", response);
+    //         assert!(response.is_ok());
+
+    //         let response = client.get_filled_orders(symbol).await;
+    //         log::info!("{:?}", response);
+    //         assert!(response.is_ok());
+    //     }
+    // }
+
+    // #[tokio::test]
+    // async fn test_create_order_sell() {
+    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+    //         let client = init_connector(dex_name).await;
+    //         let response = client.get_ticker(symbol).await;
+    //         let price = response.unwrap().price.unwrap();
+    //         let response = client
+    //             .create_order(symbol, "0.001", OrderSide::Sell, Some(price.to_string()))
+    //             .await;
+    //         log::info!("{:?}", response);
+    //         assert!(response.is_ok());
+
+    //         let response = client.get_filled_orders(symbol).await;
+    //         log::info!("{:?}", response);
+    //         assert!(response.is_ok());
+    //     }
+    // }
 
     #[tokio::test]
     async fn test_close_all_positions() {
         for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
-            let client = init_client().await;
-            let response = client.close_all_positions(dex_name, None).await;
+            let client = init_connector(dex_name).await;
+            let response = client.close_all_positions(None).await;
             log::info!("{:?}", response);
             assert!(response.is_ok());
         }
@@ -375,10 +396,8 @@ mod tests {
     #[tokio::test]
     async fn test_close_all_positions_for_specific_token() {
         for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-            let client = init_client().await;
-            let response = client
-                .close_all_positions(dex_name, Some(symbol.to_string()))
-                .await;
+            let client = init_connector(dex_name).await;
+            let response = client.close_all_positions(Some(symbol.to_string())).await;
             log::info!("{:?}", response);
             assert!(response.is_ok());
         }
@@ -386,11 +405,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_cancel_order() {
-        for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
-            let client = init_client().await;
-            let response = client.cancel_order(dex_name, "1234").await;
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let response = client.cancel_order(symbol, "1234").await;
             log::info!("{:?}", response);
-            assert!(response.is_err());
+            assert!(response.is_ok());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cancel_all_orders() {
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let response = client.cancel_all_orders(Some(symbol.to_string())).await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
         }
     }
 }

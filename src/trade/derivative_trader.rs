@@ -3,7 +3,9 @@
 use debot_market_analyzer::MarketData;
 use debot_market_analyzer::PricePoint;
 use debot_position_manager::TradePosition;
-use dex_client::DexClient;
+use dex_connector::DexConnector;
+use dex_connector::DexError;
+use dex_connector::RabbitxConnector;
 use futures::future::join_all;
 use futures::FutureExt;
 use std::collections::HashMap;
@@ -14,7 +16,10 @@ use std::io::ErrorKind;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use crate::config::get_rabbitx_config_from_env;
+
 use super::fund_config;
+use super::fund_config::RABBITX_TOKEN_LIST;
 use super::DBHandler;
 use super::FundManager;
 
@@ -41,15 +46,15 @@ struct DerivativeTraderConfig {
     long_trade_period: usize,
     trade_period: usize,
     max_price_size: u32,
-    dex_router_api_key: String,
-    dex_router_url: String,
     initial_balance: f64,
     max_dd_ratio: f64,
+    rest_endpoint: String,
+    web_socket_endpoint: String,
 }
 
 struct DerivativeTraderState {
     db_handler: Arc<Mutex<DBHandler>>,
-    dex_client: DexClient,
+    dex_connector: Arc<dyn DexConnector>,
     fund_manager_map: HashMap<String, FundManager>,
 }
 
@@ -71,13 +76,14 @@ impl DerivativeTrader {
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
         save_prices: bool,
-        dex_router_api_key: &str,
-        dex_router_url: &str,
         non_trading_period_secs: i64,
         positino_size_ratio: f64,
         max_dd_ratio: f64,
         order_effective_duration_secs: i64,
         use_market_order: bool,
+        rest_endpoint: &str,
+        web_socket_endpoint: &str,
+        leverage: f64,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let mut config = DerivativeTraderConfig {
@@ -87,17 +93,15 @@ impl DerivativeTrader {
             long_trade_period: sample_interval.long_term * SECONDS_IN_MINUTE,
             trade_period: trade_interval * SECONDS_IN_MINUTE,
             max_price_size: max_price_size,
-            dex_router_api_key: dex_router_api_key.to_owned(),
-            dex_router_url: dex_router_url.to_owned(),
             initial_balance: 0.0,
             max_dd_ratio,
+            rest_endpoint: rest_endpoint.to_owned(),
+            web_socket_endpoint: web_socket_endpoint.to_owned(),
         };
 
         let state = Self::initialize_state(
             &mut config,
             db_handler,
-            dex_router_api_key,
-            dex_router_url,
             open_positions_map,
             price_market_data,
             load_prices,
@@ -108,6 +112,7 @@ impl DerivativeTrader {
             positino_size_ratio,
             order_effective_duration_secs,
             use_market_order,
+            leverage,
         )
         .await;
 
@@ -122,8 +127,6 @@ impl DerivativeTrader {
     async fn initialize_state(
         config: &mut DerivativeTraderConfig,
         db_handler: Arc<Mutex<DBHandler>>,
-        dex_router_api_key: &str,
-        dex_router_url: &str,
         open_positions_map: HashMap<String, Vec<TradePosition>>,
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
@@ -134,15 +137,16 @@ impl DerivativeTrader {
         positino_size_ratio: f64,
         order_effective_duration_secs: i64,
         use_market_order: bool,
+        leverage: f64,
     ) -> DerivativeTraderState {
-        let dex_client = Self::create_dex_clinet(dex_router_api_key, dex_router_url)
+        let dex_connector = Self::create_dex_connector(config)
             .await
-            .expect("Failed to initialize DexClient");
+            .expect("Failed to initialize DexConnector");
 
         let fund_managers = Self::create_fund_managers(
             config,
             db_handler.clone(),
-            &dex_client,
+            dex_connector.clone(),
             &open_positions_map,
             &price_market_data,
             load_prices,
@@ -157,11 +161,12 @@ impl DerivativeTrader {
 
         let mut state = DerivativeTraderState {
             db_handler,
-            dex_client,
+            dex_connector,
             fund_manager_map: HashMap::new(),
         };
 
         for fund_manager in fund_managers {
+            fund_manager.initialize(leverage).await;
             state
                 .fund_manager_map
                 .insert(fund_manager.fund_name().to_owned(), fund_manager);
@@ -173,7 +178,7 @@ impl DerivativeTrader {
     fn create_fund_managers(
         config: &mut DerivativeTraderConfig,
         db_handler: Arc<Mutex<DBHandler>>,
-        dex_client: &DexClient,
+        dex_connector: Arc<dyn DexConnector>,
         open_positions_map: &HashMap<String, Vec<TradePosition>>,
         price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
@@ -217,7 +222,6 @@ impl DerivativeTrader {
 
                 FundManager::new(
                     &fund_name,
-                    &config.dex_name,
                     index,
                     &token_name,
                     open_positions_map.get(&fund_name).cloned(),
@@ -227,7 +231,7 @@ impl DerivativeTrader {
                     initial_amount,
                     risk_reward,
                     db_handler.clone(),
-                    dex_client.clone(),
+                    dex_connector.clone(),
                     dry_run,
                     save_prices,
                     non_trading_period_secs,
@@ -238,19 +242,39 @@ impl DerivativeTrader {
             .collect()
     }
 
-    async fn create_dex_clinet(
-        dex_router_api_key: &str,
-        dex_router_url: &str,
-    ) -> Option<DexClient> {
-        let dex_client =
-            DexClient::new(dex_router_api_key.to_owned(), dex_router_url.to_owned()).await;
-        match dex_client {
-            Ok(client) => Some(client),
-            Err(e) => {
-                log::error!("Failed to create a dex_client: {:?}", e);
-                None
+    async fn create_dex_connector(
+        config: &DerivativeTraderConfig,
+    ) -> Result<Arc<dyn DexConnector>, DexError> {
+        let dex_connector = match config.dex_name.as_str() {
+            "rabbitx" => {
+                let rabbitx_config = match get_rabbitx_config_from_env().await {
+                    Ok(v) => v,
+                    Err(_) => {
+                        return Err(DexError::Other("Some env vars are missing".to_string()));
+                    }
+                };
+
+                let market_ids: Vec<String> =
+                    RABBITX_TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
+                let connector = RabbitxConnector::new(
+                    &config.rest_endpoint,
+                    &config.web_socket_endpoint,
+                    &rabbitx_config.profile_id,
+                    &rabbitx_config.api_key,
+                    &rabbitx_config.public_jwt,
+                    &rabbitx_config.refresh_token,
+                    &rabbitx_config.secret,
+                    &rabbitx_config.private_jwt,
+                    &market_ids,
+                )
+                .await?;
+                connector.start().await?;
+                connector
             }
-        }
+            _ => return Err(DexError::Other("Unsupported dex".to_owned())),
+        };
+
+        Ok(Arc::new(dex_connector))
     }
 
     fn restore_market_data(
@@ -306,8 +330,8 @@ impl DerivativeTrader {
         for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
             let filled_orders = self
                 .state
-                .dex_client
-                .get_filled_orders(&self.config.dex_name, fund_manager.token_name())
+                .dex_connector
+                .get_filled_orders(fund_manager.token_name())
                 .await?;
 
             for order in filled_orders.orders {
@@ -393,20 +417,24 @@ impl DerivativeTrader {
 
     pub async fn reset_dex_client(&mut self) -> bool {
         log::info!("reset dex_client");
-        let dex_client =
-            Self::create_dex_clinet(&self.config.dex_router_api_key, &self.config.dex_router_url)
-                .await;
-        if dex_client.is_none() {
-            return false;
+
+        if self.state.dex_connector.stop().await.is_err() {
+            log::error!("Failed to stop the dex_connector");
         }
 
-        let dex_client = dex_client.unwrap();
+        self.state.dex_connector = match Self::create_dex_connector(&self.config).await {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("{:?}", e);
+                return false;
+            }
+        };
 
         for fund_manager in self.state.fund_manager_map.iter_mut() {
-            fund_manager.1.reset_dex_client(dex_client.clone());
+            fund_manager
+                .1
+                .reset_dex_client(self.state.dex_connector.clone());
         }
-
-        self.state.dex_client = dex_client;
 
         true
     }
@@ -422,17 +450,8 @@ impl DerivativeTrader {
     }
 
     pub async fn get_balance(&self) -> Result<f64, ()> {
-        if let Ok(res) = self
-            .state
-            .dex_client
-            .get_balance(&self.config.dex_name)
-            .await
-        {
-            if let Some(equity) = res.equity {
-                if let Ok(equity) = equity.parse::<f64>() {
-                    return Ok(equity);
-                }
-            }
+        if let Ok(res) = self.state.dex_connector.get_balance().await {
+            return Ok(res.equity);
         }
         log::error!("failed to get the balance");
         return Err(());

@@ -2,7 +2,7 @@
 
 pub mod db_handler;
 pub mod derivative_trader;
-mod fund_config;
+pub mod fund_config;
 pub mod fund_manager;
 pub mod trader_config;
 

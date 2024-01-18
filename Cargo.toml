@@ -31,7 +31,8 @@ debot-market-analyzer = "1.0.*"
 debot-position-manager = "1.2.*"
 debot-utils = "1.0.*"
 debot-db = "1.2.*"
-dex-client = "1.1.*"
+#dex-connector = { path = "../dex-connector" }
+dex-connector = "0.0.*"
 
 [[bin]]
 name = "debot"

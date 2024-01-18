@@ -1,8 +1,17 @@
+use debot_utils::decrypt_data_with_kms;
 use std::env;
 use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
 
-use debot_utils::decrypt_data_with_kms;
+#[derive(Debug)]
+pub struct RabbitxConfig {
+    pub profile_id: String,
+    pub api_key: String,
+    pub public_jwt: String,
+    pub refresh_token: String,
+    pub secret: String,
+    pub private_jwt: String,
+}
 
 #[derive(Debug)]
 pub struct EnvConfig {
@@ -15,8 +24,6 @@ pub struct EnvConfig {
     pub max_error_duration: u64,
     pub save_prices: bool,
     pub load_prices: bool,
-    pub dex_router_api_key: String,
-    pub dex_router_url: String,
     pub interval_msec: u64,
     pub non_trading_period_secs: i64,
     pub position_size_ratio: f64,
@@ -24,12 +31,16 @@ pub struct EnvConfig {
     pub max_dd_ratio: f64,
     pub order_effective_duration_secs: i64,
     pub use_market_order: bool,
+    pub rest_endpoint: String,
+    pub web_socket_endpoint: String,
+    pub leverage: f64,
 }
 
 #[derive(Debug)]
 pub enum ConfigError {
     ParseIntError(ParseIntError),
     ParseFloatError(ParseFloatError),
+    OtherError(String),
 }
 
 impl fmt::Display for ConfigError {
@@ -37,6 +48,7 @@ impl fmt::Display for ConfigError {
         match self {
             ConfigError::ParseIntError(e) => write!(f, "Parse int error: {}", e),
             ConfigError::ParseFloatError(e) => write!(f, "Parse float error: {}", e),
+            ConfigError::OtherError(s) => write!(f, "Other error: {}", s),
         }
     }
 }
@@ -74,7 +86,7 @@ fn get_bool_env_var(var: &str, default: bool) -> bool {
     }
 }
 
-pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
+pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
     let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
     let log_limit = get_env_var("LOG_LIMIT", "10000")?;
@@ -88,21 +100,6 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let max_price_size = max_price_size_hours * 60 * 60;
 
-    let encrypted_data_key = env::var("ENCRYPTED_DATA_KEY")
-        .expect("ENCRYPTED_DATA_KEY must be set")
-        .replace(" ", ""); // Remove whitespace characters
-
-    let encrypted_dex_router_api_key = env::var("ENCRYPTED_DEX_ROUTER_API_KEY")
-        .expect("ENCRYPTED_DEX_ROUTER_API_KEY must be set")
-        .replace(" ", ""); // Remove whitespace characters
-
-    let dex_router_api_key =
-        decrypt_data_with_kms(encrypted_data_key, encrypted_dex_router_api_key)
-            .await
-            .unwrap();
-    let dex_router_api_key = String::from_utf8(dex_router_api_key).unwrap();
-
-    let dex_router_url = env::var("DEX_ROUTER_URL").expect("DEX_ROUTER_URL must be set");
     let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
     let non_trading_period_secs = get_env_var("NON_TRADING_PERIOD_SECS", "60")?;
     let position_size_ratio = get_env_var("POSITION_SIZE_RATIO", "0.02")?;
@@ -110,6 +107,12 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1")?;
     let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_PERIOD_SECS", "60")?;
     let use_market_order = get_bool_env_var("USE_MARKET_ORDER", true);
+
+    let rest_endpoint = env::var("REST_ENDPOINT").expect("REST_ENDPOINT must be set");
+    let web_socket_endpoint =
+        env::var("WEB_SOCKET_ENDPOINT").expect("WEB_SOCKET_ENDPOINT must be set");
+
+    let leverage = get_env_var("LEVERAGE", "5.0")?;
 
     let env_config = EnvConfig {
         mongodb_uri,
@@ -121,8 +124,6 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         max_error_duration,
         save_prices,
         load_prices,
-        dex_router_api_key,
-        dex_router_url,
         interval_msec,
         non_trading_period_secs,
         position_size_ratio,
@@ -130,7 +131,43 @@ pub async fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         max_dd_ratio,
         order_effective_duration_secs,
         use_market_order,
+        rest_endpoint,
+        web_socket_endpoint,
+        leverage,
     };
 
     Ok(env_config)
+}
+
+pub async fn get_rabbitx_config_from_env() -> Result<RabbitxConfig, ConfigError> {
+    let profile_id = env::var("RABBITX_PROFILE_ID").expect("RABBITX_PROFILE_ID must be set");
+    let api_key = env::var("RABBITX_API_KEY").expect("RABBITX_API_KEY must be set");
+    let public_jwt = env::var("RABBITX_PUBLIC_JWT").expect("RABBITX_PUBLIC_JWT must be set");
+    let refresh_token =
+        env::var("RABBITX_REFRESH_TOKEN").expect("RABBITX_REFRESH_TOKEN must be set");
+    let secret = env::var("RABBITX_SECRET").expect("RABBITX_SECRET must be set");
+    let private_jwt = env::var("RABBITX_PRIVATE_JWT").expect("RABBITX_PRIVATE_JWT must be set");
+
+    let encrypted_data_key = env::var("ENCRYPTED_DATA_KEY")
+        .expect("ENCRYPTED_DATA_KEY must be set")
+        .replace(" ", ""); // Remove whitespace characters
+
+    let secret_vec = decrypt_data_with_kms(&encrypted_data_key, secret, true)
+        .await
+        .map_err(|_| ConfigError::OtherError("decrypt secret".to_owned()))?;
+    let secret = String::from_utf8(secret_vec).unwrap();
+
+    let private_jwt_vec = decrypt_data_with_kms(&encrypted_data_key, private_jwt, false)
+        .await
+        .map_err(|_| ConfigError::OtherError("decrypt private_jwt".to_owned()))?;
+    let private_jwt = String::from_utf8(private_jwt_vec).unwrap();
+
+    Ok(RabbitxConfig {
+        profile_id,
+        api_key,
+        public_jwt,
+        refresh_token,
+        secret,
+        private_jwt,
+    })
 }
