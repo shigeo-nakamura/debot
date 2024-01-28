@@ -137,26 +137,20 @@ impl FundManager {
         &self.config.token_name
     }
 
-    pub async fn get_token_price(&mut self) -> Option<f64> {
+    pub async fn get_token_price(&mut self) -> Result<f64, Box<dyn Error + Send + Sync>> {
         let token_name = &self.config.token_name;
 
         // Get the token price
         let dex_connector = self.state.dex_connector.clone();
 
         // Get the token price
-        let res = dex_connector.get_ticker(token_name).await;
-
-        let res = match res {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!("Failed to get price of {}: {:?}", token_name, e);
-                return None;
-            }
-        };
-
+        let res = dex_connector
+            .get_ticker(token_name)
+            .await
+            .map_err(|e| format!("Failed to get price of {}: {:?}", token_name, e).to_owned())?;
         log::trace!("{}: {:?}", token_name, res.price);
 
-        Some(res.price)
+        Ok(res.price)
     }
 
     pub async fn find_chances(&mut self, price: f64) -> Result<(), Box<dyn Error + Send + Sync>> {

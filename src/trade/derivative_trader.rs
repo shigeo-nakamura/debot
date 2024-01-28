@@ -364,13 +364,8 @@ impl DerivativeTrader {
                     token_set.insert(token_name.to_owned());
                     let get_price = fund_manager.get_token_price();
                     Some(
-                        async move {
-                            match get_price.await {
-                                Some(price) => Ok((token_name, Some(price))),
-                                None => Ok((token_name, None)),
-                            }
-                        }
-                        .boxed(),
+                        async move { get_price.await.map(|price| (token_name, Some(price))) }
+                            .boxed(),
                     )
                 }
             })
@@ -380,12 +375,8 @@ impl DerivativeTrader {
 
         let mut prices: HashMap<String, Option<f64>> = HashMap::new();
         for result in price_results {
-            match result {
-                Ok((token_name, price)) => {
-                    prices.insert(token_name.to_owned(), price);
-                }
-                Err(err) => return Err(err),
-            }
+            let (token_name, price) = result?;
+            prices.insert(token_name.to_owned(), price);
         }
 
         // Find trade chanes
@@ -406,9 +397,8 @@ impl DerivativeTrader {
         let find_results = join_all(find_futures).await;
 
         for result in find_results {
-            match result {
-                Ok(()) => (),
-                Err(err) => return Err(err),
+            if result.is_err() {
+                return result;
             }
         }
 
