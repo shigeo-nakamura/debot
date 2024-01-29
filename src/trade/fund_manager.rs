@@ -379,12 +379,12 @@ impl FundManager {
             if *position.state() != State::Open {
                 continue;
             }
-            let actions = self
+            let action = self
                 .state
                 .market_data
                 .is_close_signaled(self.config.strategy);
 
-            self.handle_close_chances(current_price, position_index, position, &actions)
+            self.handle_close_chances(current_price, position_index, position, &action)
                 .await?;
         }
 
@@ -396,46 +396,44 @@ impl FundManager {
         current_price: f64,
         position_index: usize,
         position: &TradePosition,
-        actions: &Vec<TradeAction>,
+        action: &TradeAction,
     ) -> Result<(), ()> {
-        for action in actions {
-            let reason_for_close = match action {
-                TradeAction::BuyClose => {
-                    if !position.is_long_position() {
-                        Some(ReasonForClose::Other("TredeChanged".to_owned()))
-                    } else {
-                        None
-                    }
+        let reason_for_close = match action {
+            TradeAction::BuyClose => {
+                if !position.is_long_position() {
+                    Some(ReasonForClose::Other("TredeChanged".to_owned()))
+                } else {
+                    None
                 }
-                TradeAction::SellClose => {
-                    if position.is_long_position() {
-                        Some(ReasonForClose::Other("TrendChanged".to_owned()))
-                    } else {
-                        None
-                    }
-                }
-                _ => position.should_close(current_price),
-            };
-
-            if reason_for_close.is_some() {
-                self.execute_chances(
-                    current_price,
-                    TradeChance {
-                        token_name: self.config.token_name.clone(),
-                        predicted_price: None,
-                        amount: position.amount(),
-                        atr: None,
-                        action: if position.is_long_position() {
-                            TradeAction::SellClose
-                        } else {
-                            TradeAction::BuyClose
-                        },
-                        position_index: Some(position_index),
-                    },
-                    reason_for_close,
-                )
-                .await?;
             }
+            TradeAction::SellClose => {
+                if position.is_long_position() {
+                    Some(ReasonForClose::Other("TrendChanged".to_owned()))
+                } else {
+                    None
+                }
+            }
+            _ => position.should_close(current_price),
+        };
+
+        if reason_for_close.is_some() {
+            self.execute_chances(
+                current_price,
+                TradeChance {
+                    token_name: self.config.token_name.clone(),
+                    predicted_price: None,
+                    amount: position.amount(),
+                    atr: None,
+                    action: if position.is_long_position() {
+                        TradeAction::SellClose
+                    } else {
+                        TradeAction::BuyClose
+                    },
+                    position_index: Some(position_index),
+                },
+                reason_for_close,
+            )
+            .await?;
         }
 
         Ok(())
