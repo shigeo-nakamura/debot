@@ -364,6 +364,7 @@ impl FundManager {
             }
 
             for position in &positions_to_cancel {
+                log::info!("out of order position: {:?}", position);
                 self.cancel_order(position.order_id()).await;
             }
         }
@@ -495,11 +496,13 @@ impl FundManager {
             )
             .await?;
 
-            let filled_value = trade_amount * current_price;
-            let fee = filled_value * 0.001;
+            if self.config.strategy != TradingStrategy::RangeGrid {
+                let filled_value = trade_amount * current_price;
+                let fee = filled_value * 0.001;
 
-            self.position_filled(order_id, filled_value, trade_amount, fee)
-                .await?;
+                self.position_filled(order_id, filled_value, trade_amount, fee)
+                    .await?;
+            }
         } else {
             // Execute the transaction
             let price = if self.config.use_market_order {
