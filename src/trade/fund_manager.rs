@@ -765,20 +765,23 @@ impl FundManager {
             None => return,
         };
 
-        if let Err(e) = self
-            .state
-            .dex_connector
-            .cancel_order(position.order_id(), &self.config.token_name)
-            .await
-        {
-            log::error!("{:?}", e);
-            return;
+        if !self.config.dry_run {
+            if let Err(e) = self
+                .state
+                .dex_connector
+                .cancel_order(position.order_id(), &self.config.token_name)
+                .await
+            {
+                log::error!("{:?}", e);
+                return;
+            }
         }
 
         if !position.cancel() {
             log::warn!("Failed to cancel the order id = {}", order_id);
             return;
         }
+
         // Save the position in the DB
         self.state
             .db_handler
