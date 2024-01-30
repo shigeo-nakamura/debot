@@ -90,6 +90,10 @@ async fn prepare_trader_instance(
         &config.rest_endpoint,
         &config.web_socket_endpoint,
         config.leverage,
+        &config.strategy,
+        config.check_market_range,
+        config.grid_size,
+        config.grid_step,
     )
     .await;
 
@@ -318,35 +322,35 @@ mod tests {
             vec![("rabbitx", "BTC-USD")];
     }
 
-    // #[tokio::test]
-    // async fn test_get_balance() {
-    //     for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
-    //         let client = init_connector(dex_name).await;
-    //         let response = client.get_balance().await;
-    //         log::info!("{:?}", response);
-    //         assert!(response.is_ok());
-    //     }
-    // }
+    #[tokio::test]
+    async fn test_get_balance() {
+        for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let response = client.get_balance().await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
+    }
 
-    // #[tokio::test]
-    // async fn test_set_leverage() {
-    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-    //         let client = init_connector(dex_name).await;
-    //         let response = client.set_leverage(symbol, "1.0").await;
-    //         log::info!("{:?}", response);
-    //         assert!(response.is_ok());
-    //     }
-    // }
+    #[tokio::test]
+    async fn test_set_leverage() {
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let response = client.set_leverage(symbol, "1.0").await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
+    }
 
-    // #[tokio::test]
-    // async fn test_get_ticker() {
-    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-    //         let client = init_connector(dex_name).await;
-    //         let response = client.get_ticker(symbol).await;
-    //         log::info!("{:?}", response);
-    //         assert!(response.is_ok());
-    //     }
-    // }
+    #[tokio::test]
+    async fn test_get_ticker() {
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let response = client.get_ticker(symbol).await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
+    }
 
     // #[tokio::test]
     // async fn test_create_limit_order_buy() {
@@ -388,28 +392,25 @@ mod tests {
     //     }
     // }
 
-    #[tokio::test]
-    async fn test_create_market_order_buy() {
-        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-            let client = init_connector(dex_name).await;
-            let response = client
-                .create_order(symbol, "0.001", OrderSide::Buy, None)
-                .await;
-            log::info!("{:?}", response);
-            assert!(response.is_ok());
+    // #[tokio::test]
+    // async fn test_create_market_order_buy() {
+    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+    //         let client = init_connector(dex_name).await;
+    //         let response = client
+    //             .create_order(symbol, "0.001", OrderSide::Buy, None)
+    //             .await;
+    //         log::info!("{:?}", response);
+    //         assert!(response.is_ok());
 
-            sleep(Duration::from_secs(5)).await;
+    //         sleep(Duration::from_secs(5)).await;
 
-            let response = client.get_filled_orders(symbol).await;
-            log::info!("{:?}", response);
-            assert!(response.is_ok());
+    //         let response = client.get_filled_orders(symbol).await;
+    //         log::info!("{:?}", response);
+    //         assert!(response.is_ok());
 
-            client
-                .close_all_positions(Some(symbol.to_string()))
-                .await
-                .unwrap();
-        }
-    }
+    //         client.close_all_positions(Some(symbol.to_string())).await.unwrap();
+    //     }
+    // }
 
     // #[tokio::test]
     // async fn test_create_market_order_sell() {
@@ -431,23 +432,19 @@ mod tests {
     //     }
     // }
 
-    // #[tokio::test]
-    // async fn test_close_all_positions_for_specific_token() {
-    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-    //         let client = init_connector(dex_name).await;
-    //         let response = client.close_all_positions(Some(symbol.to_string())).await;
-    //         log::info!("{:?}", response);
-    //         assert!(response.is_ok());
-    //     }
-    // }
+    #[tokio::test]
+    async fn test_close_all_positions() {
+        for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            client.close_all_positions(None).await.unwrap();
+        }
+    }
 
-    // #[tokio::test]
-    // async fn test_cancel_all_orders() {
-    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-    //         let client = init_connector(dex_name).await;
-    //         let response = client.cancel_all_orders(None).await;
-    //         log::info!("{:?}", response);
-    //         assert!(response.is_ok());
-    //     }
-    // }
+    #[tokio::test]
+    async fn test_cancel_all_orders() {
+        for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            client.cancel_all_orders(None).await.unwrap();
+        }
+    }
 }

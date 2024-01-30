@@ -1,3 +1,4 @@
+use debot_market_analyzer::TradingStrategy;
 use debot_utils::decrypt_data_with_kms;
 use std::env;
 use std::fmt;
@@ -34,6 +35,10 @@ pub struct EnvConfig {
     pub rest_endpoint: String,
     pub web_socket_endpoint: String,
     pub leverage: f64,
+    pub strategy: TradingStrategy,
+    pub check_market_range: bool,
+    pub grid_size: usize,
+    pub grid_step: f64,
 }
 
 #[derive(Debug)]
@@ -114,6 +119,17 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let leverage = get_env_var("LEVERAGE", "5.0")?;
 
+    let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
+        "TrendFollow" => TradingStrategy::TrendFollow,
+        "MeanReversion" => TradingStrategy::MeanReversion,
+        "RangeGrid" => TradingStrategy::RangeGrid,
+        &_ => TradingStrategy::TrendFollow,
+    };
+
+    let check_market_range = get_bool_env_var("CHECK_MARKET_RANGE", false);
+    let grid_size = get_env_var("GRID_SIZE", "20")?;
+    let grid_step = get_env_var("MAX_DD_RATIO", "0.0005")?;
+
     let env_config = EnvConfig {
         mongodb_uri,
         db_name,
@@ -134,6 +150,10 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         rest_endpoint,
         web_socket_endpoint,
         leverage,
+        strategy,
+        check_market_range,
+        grid_size,
+        grid_step,
     };
 
     Ok(env_config)

@@ -6,9 +6,14 @@ pub const RABBITX_TOKEN_LIST: [&str; TOKEN_LIST_SIZE] = [
     "BTC-USD", "ETH-USD", "SOL-USD", "SUI-USD", "APT-USD", "ARB-USD",
 ];
 
-pub fn get(dex_name: &str) -> Vec<(String, TradingStrategy, f64)> {
+pub fn get(dex_name: &str, strategy: &TradingStrategy) -> Vec<(String, f64)> {
     if dex_name == "rabbitx" {
-        vec![
+        let all_funds = vec![
+            (
+                RABBITX_TOKEN_LIST[0].to_owned(), // BTC
+                TradingStrategy::RangeGrid,
+                2500.0, // initial amount(in USD)
+            ),
             (
                 RABBITX_TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::TrendFollow,
@@ -39,7 +44,13 @@ pub fn get(dex_name: &str) -> Vec<(String, TradingStrategy, f64)> {
                 TradingStrategy::TrendFollow,
                 2500.0, // initial amount(in USD)
             ),
-        ]
+        ];
+
+        all_funds
+            .into_iter()
+            .filter(|(_, token_strategy, _)| token_strategy == strategy)
+            .map(|(token, _, amount)| (token, amount))
+            .collect()
     } else {
         panic!("Unsupported dex");
     }

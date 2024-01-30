@@ -2,6 +2,7 @@
 
 use debot_market_analyzer::MarketData;
 use debot_market_analyzer::PricePoint;
+use debot_market_analyzer::TradingStrategy;
 use debot_position_manager::TradePosition;
 use dex_connector::DexConnector;
 use dex_connector::DexError;
@@ -50,6 +51,8 @@ struct DerivativeTraderConfig {
     max_dd_ratio: f64,
     rest_endpoint: String,
     web_socket_endpoint: String,
+    grid_size: usize,
+    grid_step: f64,
 }
 
 struct DerivativeTraderState {
@@ -84,6 +87,10 @@ impl DerivativeTrader {
         rest_endpoint: &str,
         web_socket_endpoint: &str,
         leverage: f64,
+        strategy: &TradingStrategy,
+        check_market_range: bool,
+        grid_size: usize,
+        grid_step: f64,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let mut config = DerivativeTraderConfig {
@@ -97,6 +104,8 @@ impl DerivativeTrader {
             max_dd_ratio,
             rest_endpoint: rest_endpoint.to_owned(),
             web_socket_endpoint: web_socket_endpoint.to_owned(),
+            grid_size,
+            grid_step,
         };
 
         let state = Self::initialize_state(
@@ -113,6 +122,8 @@ impl DerivativeTrader {
             order_effective_duration_secs,
             use_market_order,
             leverage,
+            strategy,
+            check_market_range,
         )
         .await;
 
@@ -138,6 +149,8 @@ impl DerivativeTrader {
         order_effective_duration_secs: i64,
         use_market_order: bool,
         leverage: f64,
+        strategy: &TradingStrategy,
+        check_market_range: bool,
     ) -> DerivativeTraderState {
         let dex_connector = Self::create_dex_connector(config)
             .await
@@ -157,6 +170,8 @@ impl DerivativeTrader {
             positino_size_ratio,
             order_effective_duration_secs,
             use_market_order,
+            strategy,
+            check_market_range,
         );
 
         let mut state = DerivativeTraderState {
@@ -189,13 +204,15 @@ impl DerivativeTrader {
         positino_size_ratio: f64,
         order_effective_duration_secs: i64,
         use_market_order: bool,
+        strategy: &TradingStrategy,
+        check_market_range: bool,
     ) -> Vec<FundManager> {
-        let fund_manager_configurations = fund_config::get(&config.dex_name);
+        let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
 
         fund_manager_configurations
             .into_iter()
-            .map(|(token_name, strategy, initial_amount)| {
+            .map(|(token_name, initial_amount)| {
                 let fund_name = format!(
                     "{:?}-{}-{}-{}",
                     strategy,
@@ -226,7 +243,7 @@ impl DerivativeTrader {
                     &token_name,
                     open_positions_map.get(&fund_name).cloned(),
                     market_data,
-                    strategy,
+                    *strategy,
                     initial_amount * positino_size_ratio,
                     initial_amount,
                     risk_reward,
@@ -237,6 +254,7 @@ impl DerivativeTrader {
                     non_trading_period_secs,
                     order_effective_duration_secs,
                     use_market_order,
+                    check_market_range,
                 )
             })
             .collect()
@@ -299,8 +317,8 @@ impl DerivativeTrader {
             config.long_trade_period,
             config.trade_period,
             config.max_price_size as usize,
-            10,    // grid_dize
-            0.001, // gird step 0.1%
+            config.grid_size,
+            config.grid_step,
         )
     }
 
