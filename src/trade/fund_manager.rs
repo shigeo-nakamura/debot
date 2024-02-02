@@ -52,8 +52,8 @@ pub struct FundManager {
     state: FundManagerState,
 }
 
-const MIN_PRICE_CHANGE: f64 = 0.005; // 0.5%
-const MAX_PRICE_CHANGE: f64 = 0.015; // 1.5%
+const MIN_PRICE_CHANGE: f64 = 0.003; // 0.3%
+const MAX_PRICE_CHANGE: f64 = 0.01; // 1.0%
 
 const PRECISION_MULTIPLIER: f64 = 10000.0;
 
