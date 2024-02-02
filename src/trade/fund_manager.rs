@@ -222,6 +222,11 @@ impl FundManager {
         let data = self.state.market_data.to_owned();
         let mut updated_actions = actions.clone();
 
+        if self.config.check_market_range && !data.is_range_bound().unwrap_or_default() {
+            let _ = self.liquidate(Some(String::from("Out of range bound")));
+            return Ok(());
+        }
+
         if self.config.strategy == TradingStrategy::RangeGrid {
             // Cancel the orders that are out of range
             self.cancel_out_of_range_orders(&actions).await;
@@ -247,11 +252,6 @@ impl FundManager {
             if self.config.strategy == TradingStrategy::RangeGrid {
                 if self.state.balance.abs() > self.state.amount {
                     log::warn!("No enough fund left: balance = {}", self.state.balance);
-                    return Ok(());
-                }
-
-                if self.config.check_market_range && !data.is_range_bound().unwrap_or_default() {
-                    let _ = self.liquidate(Some(String::from("Out of range bound")));
                     return Ok(());
                 }
             } else {
@@ -369,7 +369,7 @@ impl FundManager {
                     );
                 }
             } else {
-                log::debug!("{:<6.4}", current_price);
+                log::trace!("{:<6.4}", current_price);
             }
         }
 
@@ -710,9 +710,9 @@ impl FundManager {
 
             if self.config.strategy == TradingStrategy::RangeGrid {
                 if position.is_long_position() {
-                    self.state.amount -= amount_in;
+                    self.state.balance -= amount_in;
                 } else {
-                    self.state.amount += amount_in;
+                    self.state.balance += amount_in;
                 }
                 self.state.trade_positions.remove(position_index);
             }
@@ -865,6 +865,7 @@ impl FundManager {
         }
 
         for position in &positions_to_cancel {
+            log::debug!("cancel {:<6.4}", position.ordered_price());
             self.cancel_order(position.order_id()).await;
         }
     }
@@ -942,6 +943,8 @@ impl FundManager {
             log::error!("liquidate failed (close): {:?}", e);
             return;
         }
+
+        self.state.trade_positions = vec![];
     }
 
     pub fn check_positions(&self, price: f64) {
