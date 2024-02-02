@@ -251,6 +251,7 @@ impl FundManager {
                 }
 
                 if self.config.check_market_range && !data.is_range_bound().unwrap_or_default() {
+                    let _ = self.liquidate(Some(String::from("Out of range bound")));
                     return Ok(());
                 }
             } else {
