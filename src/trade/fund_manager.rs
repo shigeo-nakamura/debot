@@ -360,6 +360,9 @@ impl FundManager {
                 self.state.trade_positions.reverse();
 
                 for (index, position) in self.state.trade_positions.iter().enumerate() {
+                    if position.state() != State::Opening {
+                        continue;
+                    }
                     let side = if position.is_long_position() {
                         "long"
                     } else {
