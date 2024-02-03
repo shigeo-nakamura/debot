@@ -24,7 +24,6 @@ struct TradeChance {
 
 pub struct FundManagerState {
     amount: f64,
-    balance: f64,
     trade_positions: Vec<TradePosition>,
     db_handler: Arc<Mutex<DBHandler>>,
     dex_connector: Arc<dyn DexConnector>,
@@ -112,7 +111,6 @@ impl FundManager {
 
         let state = FundManagerState {
             amount,
-            balance: 0.0,
             trade_positions: open_positions,
             db_handler,
             dex_connector,
@@ -223,18 +221,20 @@ impl FundManager {
         let data = self.state.market_data.to_owned();
         let mut updated_actions = actions.clone();
 
-        if self.config.check_market_range && !data.is_range_bound().unwrap_or_default() {
-            let _ = self.liquidate(Some(String::from("Out of range bound")));
-            return Ok(());
-        }
-
         if self.config.strategy == TradingStrategy::RangeGrid {
+            if self.config.check_market_range && !data.is_range_bound().unwrap_or_default() {
+                let _ = self.liquidate(Some(String::from("Out of range bound")));
+                return Ok(());
+            }
+
             // Cancel the orders that are out of range
             self.cancel_out_of_range_orders(&actions).await;
 
             // Ignore new duplicated orders
             updated_actions = self.ignore_duplicated_orders(actions);
         }
+
+        let mut order_price = current_price;
 
         for action in updated_actions.clone() {
             let is_buy;
@@ -251,10 +251,8 @@ impl FundManager {
             };
 
             if self.config.strategy == TradingStrategy::RangeGrid {
-                if self.state.balance.abs() > self.state.amount {
-                    log::warn!("No enough fund left: balance = {}", self.state.balance);
-                    return Ok(());
-                }
+                order_price = target_price;
+                target_price = (1.0 + TAKE_PROFIT_RATIO.unwrap()) * order_price;
             } else {
                 let price_ratio = (target_price - current_price) / current_price;
 
@@ -332,7 +330,7 @@ impl FundManager {
             }
 
             self.execute_chances(
-                current_price,
+                order_price,
                 TradeChance {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(target_price),
@@ -447,13 +445,13 @@ impl FundManager {
 
     async fn execute_chances(
         &mut self,
-        current_price: f64,
+        order_price: f64,
         chance: TradeChance,
         reason_for_close: Option<ReasonForClose>,
     ) -> Result<(), ()> {
         let symbol = &self.config.token_name;
         let trade_amount = if chance.action.is_open() {
-            chance.amount / current_price
+            chance.amount / order_price
         } else {
             chance.amount
         };
@@ -467,12 +465,6 @@ impl FundManager {
             "Open"
         } else {
             "Close"
-        };
-
-        let order_price = if self.config.strategy == TradingStrategy::RangeGrid {
-            chance.predicted_price
-        } else {
-            Some(current_price)
         };
 
         log::info!(
@@ -490,7 +482,7 @@ impl FundManager {
             let order_id = self.state.dry_run_counter.to_string();
             self.prepare_position(
                 &order_id,
-                order_price,
+                Some(order_price),
                 chance.action,
                 chance.predicted_price,
                 reason_for_close,
@@ -502,22 +494,22 @@ impl FundManager {
 
             let mut rng = rand::thread_rng();
             if rng.gen::<f64>() < 0.5 {
-                let filled_value = trade_amount * current_price;
+                let filled_value = trade_amount * order_price;
                 let fee = filled_value * 0.001;
                 self.position_filled(order_id, filled_value, trade_amount, fee)
                     .await?;
             }
         } else {
             // Execute the transaction
-            let price = if self.config.use_market_order {
+            let order_price_str = if self.config.use_market_order {
                 None
             } else {
-                Some(order_price.unwrap().to_string())
+                Some(order_price.to_string())
             };
             let res: Result<CreateOrderResponse, DexError> = self
                 .state
                 .dex_connector
-                .create_order(symbol, &size, side.clone(), price)
+                .create_order(symbol, &size, side.clone(), order_price_str)
                 .await;
             match res {
                 Ok(res) => {
@@ -526,7 +518,7 @@ impl FundManager {
                     log::info!("new order id = {}", order_id);
                     self.prepare_position(
                         &order_id,
-                        order_price,
+                        Some(order_price),
                         chance.action,
                         chance.predicted_price,
                         reason_for_close,
@@ -709,15 +701,6 @@ impl FundManager {
             )?;
             position_cloned = position.clone();
             self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
-
-            if self.config.strategy == TradingStrategy::RangeGrid {
-                if position.is_long_position() {
-                    self.state.balance -= amount_in;
-                } else {
-                    self.state.balance += amount_in;
-                }
-                self.state.trade_positions.remove(position_index);
-            }
         } else {
             if position.is_long_position() {
                 self.state.amount += amount_out;
