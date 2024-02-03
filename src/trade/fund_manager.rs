@@ -5,6 +5,7 @@ use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
 use debot_position_manager::{ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
 use lazy_static::lazy_static;
+use rand::Rng;
 use std::collections::HashSet;
 use std::error::Error;
 use std::sync::Arc;
@@ -354,6 +355,7 @@ impl FundManager {
                         (k.ordered_price() * PRECISION_MULTIPLIER).round() as i64;
                     price_as_fixed_point
                 });
+                self.state.trade_positions.reverse();
 
                 for (index, position) in self.state.trade_positions.iter().enumerate() {
                     let side = if position.is_long_position() {
@@ -498,10 +500,10 @@ impl FundManager {
             )
             .await?;
 
-            if self.config.strategy != TradingStrategy::RangeGrid {
+            let mut rng = rand::thread_rng();
+            if rng.gen::<f64>() < 0.5 {
                 let filled_value = trade_amount * current_price;
                 let fee = filled_value * 0.001;
-
                 self.position_filled(order_id, filled_value, trade_amount, fee)
                     .await?;
             }
