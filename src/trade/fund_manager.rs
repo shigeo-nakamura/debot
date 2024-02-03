@@ -252,7 +252,11 @@ impl FundManager {
 
             if self.config.strategy == TradingStrategy::RangeGrid {
                 order_price = target_price;
-                target_price = (1.0 + TAKE_PROFIT_RATIO.unwrap()) * order_price;
+                target_price = if is_buy {
+                    (1.0 + TAKE_PROFIT_RATIO.unwrap()) * order_price
+                } else {
+                    (1.0 - TAKE_PROFIT_RATIO.unwrap()) * order_price
+                };
             } else {
                 let price_ratio = (target_price - current_price) / current_price;
 
