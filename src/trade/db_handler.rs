@@ -139,7 +139,7 @@ impl DBHandler {
         }
     }
 
-    pub async fn get_open_positions_map(&self) -> HashMap<String, Vec<TradePosition>> {
+    pub async fn get_open_positions_map(&self) -> HashMap<String, HashMap<u32, TradePosition>> {
         let mut open_positions_map = HashMap::new();
         if let Some(db) = self.transaction_log.get_db().await {
             let open_positions_vec = TransactionLog::get_all_open_positions(&db).await;
@@ -149,13 +149,13 @@ impl DBHandler {
                 // Ensure a Vec exists for this fund_name, then push the position into it
                 open_positions_map
                     .entry(position.fund_name().to_owned())
-                    .or_insert_with(Vec::new)
-                    .push(position);
+                    .or_insert_with(HashMap::new)
+                    .insert(position.id().unwrap_or_default(), position);
             }
 
             for (fund_name, positions) in &open_positions_map {
                 log::info!("Fund name: {}", fund_name);
-                for position in positions {
+                for (_, position) in positions {
                     log::info!("Token name: {}", position.token_name());
                     log::info!("Position: {:?}", position);
                 }

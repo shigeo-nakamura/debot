@@ -6,7 +6,7 @@ use debot_position_manager::{ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
 use lazy_static::lazy_static;
 use rand::Rng;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::Arc;
 use std::{env, f64};
@@ -19,12 +19,12 @@ struct TradeChance {
     pub predicted_price: Option<f64>,
     pub amount: f64,
     pub atr: Option<f64>,
-    pub position_index: Option<usize>,
+    pub position_id: Option<u32>,
 }
 
 pub struct FundManagerState {
     amount: f64,
-    trade_positions: Vec<TradePosition>,
+    trade_positions: HashMap<u32, TradePosition>,
     db_handler: Arc<Mutex<DBHandler>>,
     dex_connector: Arc<dyn DexConnector>,
     market_data: MarketData,
@@ -67,7 +67,7 @@ impl FundManager {
         fund_name: &str,
         index: usize,
         token_name: &str,
-        open_positions: Option<Vec<TradePosition>>,
+        open_positions: Option<HashMap<u32, TradePosition>>,
         market_data: MarketData,
         strategy: TradingStrategy,
         trading_amount: f64,
@@ -99,12 +99,12 @@ impl FundManager {
 
         let open_positions = match open_positions {
             Some(positions) => positions,
-            None => vec![],
+            None => HashMap::new(),
         };
 
         let mut amount = initial_amount;
         let dry_run_counter = open_positions.len();
-        for position in open_positions.clone() {
+        for (_, position) in open_positions.clone() {
             amount -= position.amount_in_anchor_token();
         }
         log::info!("available amount = {}", amount);
@@ -193,8 +193,8 @@ impl FundManager {
             .state
             .trade_positions
             .iter()
-            .filter(|p| p.should_cancel_order())
-            .map(|p| p.clone())
+            .filter(|(_k, v)| v.should_cancel_order())
+            .map(|(_k, v)| v.clone())
             .collect();
 
         // Cancel the existing orders
@@ -341,7 +341,7 @@ impl FundManager {
                     amount: self.config.trading_amount * confidence,
                     atr: Some(data.atr()),
                     action: action.clone(),
-                    position_index: None,
+                    position_id: None,
                 },
                 None,
             )
@@ -352,14 +352,15 @@ impl FundManager {
 
         if self.config.strategy == TradingStrategy::RangeGrid {
             if updated_actions.len() > 0 {
-                self.state.trade_positions.sort_by_key(|k| {
+                let mut positions_pairs: Vec<(&u32, &TradePosition)> =
+                    self.state.trade_positions.iter().collect();
+                positions_pairs.sort_by_key(|(_, v)| {
                     let price_as_fixed_point =
-                        (k.ordered_price() * PRECISION_MULTIPLIER).round() as i64;
+                        (v.ordered_price() * PRECISION_MULTIPLIER).round() as i64;
                     price_as_fixed_point
                 });
-                self.state.trade_positions.reverse();
 
-                for (index, position) in self.state.trade_positions.iter().enumerate() {
+                for (index, position) in positions_pairs.iter() {
                     if position.state() != State::Opening {
                         continue;
                     }
@@ -386,7 +387,7 @@ impl FundManager {
     async fn find_close_chances(&mut self, current_price: f64) -> Result<(), ()> {
         let cloned_open_positions = self.state.trade_positions.clone();
 
-        for (position_index, position) in cloned_open_positions.iter().enumerate() {
+        for (position_id, position) in cloned_open_positions.iter() {
             if position.state() != State::Open {
                 continue;
             }
@@ -395,7 +396,7 @@ impl FundManager {
                 .market_data
                 .is_close_signaled(self.config.strategy);
 
-            self.handle_close_chances(current_price, position_index, position, &action)
+            self.handle_close_chances(current_price, *position_id, position, &action)
                 .await?;
         }
 
@@ -405,7 +406,7 @@ impl FundManager {
     async fn handle_close_chances(
         &mut self,
         current_price: f64,
-        position_index: usize,
+        position_id: u32,
         position: &TradePosition,
         action: &TradeAction,
     ) -> Result<(), ()> {
@@ -440,7 +441,7 @@ impl FundManager {
                     } else {
                         TradeAction::BuyClose
                     },
-                    position_index: Some(position_index),
+                    position_id: Some(position_id),
                 },
                 reason_for_close,
             )
@@ -495,7 +496,7 @@ impl FundManager {
                 reason_for_close,
                 &chance.token_name,
                 chance.atr,
-                chance.position_index,
+                chance.position_id,
             )
             .await?;
 
@@ -531,7 +532,7 @@ impl FundManager {
                         reason_for_close,
                         &chance.token_name,
                         chance.atr,
-                        chance.position_index,
+                        chance.position_id,
                     )
                     .await?;
                 }
@@ -560,7 +561,7 @@ impl FundManager {
         reason_for_close: Option<ReasonForClose>,
         token_name: &str,
         atr: Option<f64>,
-        position_index: Option<usize>,
+        position_id: Option<u32>,
     ) -> Result<(), ()> {
         let is_long_position = trade_action.is_buy();
         let position_cloned;
@@ -591,12 +592,14 @@ impl FundManager {
             );
 
             position_cloned = position.clone();
-            self.state.trade_positions.push(position);
+            self.state
+                .trade_positions
+                .insert(position.id().unwrap_or_default(), position);
         } else {
-            let position_index = position_index.unwrap();
-            let position = self.state.trade_positions.get_mut(position_index);
+            let position_id = position_id.unwrap();
+            let position = self.state.trade_positions.get_mut(&position_id);
             if position.is_none() {
-                log::warn!("The position not found: index = {}", position_index);
+                log::warn!("The position not found: id = {}", position_id);
                 return Err(());
             }
             let position = position.unwrap();
@@ -613,6 +616,18 @@ impl FundManager {
             .await;
 
         return Ok(());
+    }
+
+    fn find_position_from_order_id(&self, order_id: &str) -> Option<TradePosition> {
+        match self
+            .state
+            .trade_positions
+            .iter()
+            .find(|(_id, position)| position.order_id() == order_id)
+        {
+            Some((_, position)) => Some(position.clone()),
+            None => None,
+        }
     }
 
     pub async fn position_filled(
@@ -633,15 +648,8 @@ impl FundManager {
                 })?;
         }
 
-        let position_with_index = self
-            .state
-            .trade_positions
-            .iter_mut()
-            .enumerate()
-            .find(|(_index, pos)| pos.order_id() == order_id);
-
-        let (position_index, position) = match position_with_index {
-            Some((index, pos)) => (index, pos),
+        let position = match self.find_position_from_order_id(&order_id) {
+            Some(p) => p,
             None => {
                 log::debug!(
                     "Filled position not found for {} in {}",
@@ -652,9 +660,19 @@ impl FundManager {
             }
         };
 
-        let amount_in;
-        let amount_out;
-        let is_open_trande = match position.state() {
+        let is_open_trade;
+        let predicted_price = position.predicted_price();
+        let is_long_position = position.is_long_position();
+
+        let position_id = match position.id() {
+            Some(p) => p,
+            None => {
+                log::error!("position id is None: order_id = {}", order_id);
+                return Ok(false);
+            }
+        };
+
+        is_open_trade = match position.state() {
             State::Opening => true,
             State::Closing(_) => false,
             _ => {
@@ -667,7 +685,9 @@ impl FundManager {
         };
 
         let price = filled_value / filled_size;
-        if is_open_trande {
+        let amount_in;
+        let amount_out;
+        if is_open_trade {
             amount_in = price * filled_size;
             amount_out = filled_size;
         } else {
@@ -687,16 +707,18 @@ impl FundManager {
         let prev_amount = self.state.amount;
         let position_cloned;
 
-        if is_open_trande {
+        if is_open_trade {
             self.state.amount -= amount_in;
             let average_price = amount_in / amount_out;
-            let take_profit_price = position.predicted_price();
+            let take_profit_price = predicted_price;
             let distance = (take_profit_price - average_price).abs() / self.config.risk_reward;
-            let cut_loss_price = if position.is_long_position() {
+            let cut_loss_price = if is_long_position {
                 average_price - distance
             } else {
                 average_price + distance
             };
+
+            let position = self.state.trade_positions.get_mut(&position_id).unwrap();
 
             position.open(
                 average_price,
@@ -709,7 +731,9 @@ impl FundManager {
             position_cloned = position.clone();
             self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
         } else {
-            if position.is_long_position() {
+            let position = self.state.trade_positions.get_mut(&position_id).unwrap();
+
+            if is_long_position {
                 self.state.amount += amount_out;
             } else {
                 self.state.amount += position.amount_in_anchor_token() * 2.0 - amount_out;
@@ -722,7 +746,7 @@ impl FundManager {
 
             let amount = position.amount();
             if amount == 0.0 {
-                self.state.trade_positions.remove(position_index);
+                self.state.trade_positions.remove(&position_id);
             } else {
                 log::info!(
                     "Position is partially closed. The remaing amount = {}",
@@ -754,7 +778,8 @@ impl FundManager {
             .state
             .trade_positions
             .iter_mut()
-            .find(|pos| pos.order_id() == order_id);
+            .find(|(_, pos)| pos.order_id() == order_id)
+            .map(|(_, v)| v);
 
         let position = match position {
             Some(v) => v,
@@ -788,7 +813,7 @@ impl FundManager {
 
         self.state
             .trade_positions
-            .retain(|pos| pos.order_id() != order_id);
+            .retain(|_, position| position.order_id() != order_id);
     }
 
     fn ignore_duplicated_orders(&self, actions: &[TradeAction]) -> Vec<TradeAction> {
@@ -796,8 +821,8 @@ impl FundManager {
         self.state
             .trade_positions
             .iter()
-            .filter(|position| matches!(position.state(), State::Open | State::Opening))
-            .for_each(|position| {
+            .filter(|(_, position)| matches!(position.state(), State::Open | State::Opening))
+            .for_each(|(_, position)| {
                 let fixed_point_price =
                     (position.ordered_price() * PRECISION_MULTIPLIER).round() as i64;
                 prices.insert(fixed_point_price);
@@ -840,7 +865,7 @@ impl FundManager {
 
         let mut positions_to_cancel: Vec<TradePosition> = Vec::new();
 
-        for position in &self.state.trade_positions {
+        for (_, position) in &self.state.trade_positions {
             if position.state() != State::Opening {
                 continue;
             }
@@ -921,7 +946,7 @@ impl FundManager {
             .close_all_positions(Some(self.config.token_name.clone()))
             .await;
 
-        for position in self.state.trade_positions.iter_mut() {
+        for (_, position) in self.state.trade_positions.iter_mut() {
             position.delete(None, 0.0, true, reason.clone());
             self.state
                 .db_handler
@@ -936,11 +961,11 @@ impl FundManager {
             return;
         }
 
-        self.state.trade_positions = vec![];
+        self.state.trade_positions.clear();
     }
 
     pub fn check_positions(&self, price: f64) {
-        for position in &self.state.trade_positions {
+        for (_, position) in &self.state.trade_positions {
             position.print_info(price);
             let _ = position.pnl(price);
         }
