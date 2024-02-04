@@ -14,8 +14,8 @@ pub struct DBHandler {
 lazy_static! {
     static ref SAVE_ALL_POSITION_STATE: bool = {
         match env::var("SAVE_ALL_POSITION_STATE") {
-            Ok(val) => val.parse::<bool>().unwrap_or(true),
-            Err(_) => true,
+            Ok(val) => val.parse::<bool>().unwrap_or(false),
+            Err(_) => false,
         }
     };
 }
@@ -139,6 +139,7 @@ impl DBHandler {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn get_open_positions_map(&self) -> HashMap<String, HashMap<u32, TradePosition>> {
         let mut open_positions_map = HashMap::new();
         if let Some(db) = self.transaction_log.get_db().await {

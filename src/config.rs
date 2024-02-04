@@ -111,7 +111,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
     let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1")?;
     let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_PERIOD_SECS", "60")?;
-    let use_market_order = get_bool_env_var("USE_MARKET_ORDER", true);
+    let use_market_order = get_bool_env_var("USE_MARKET_ORDER", false);
 
     let rest_endpoint = env::var("REST_ENDPOINT").expect("REST_ENDPOINT must be set");
     let web_socket_endpoint =

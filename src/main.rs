@@ -65,7 +65,8 @@ async fn prepare_trader_instance(
     let (prediction_interval, interval, dex_name) = trader_config::get();
 
     // Read open positions from the DB
-    let open_positions_map = db_handler.lock().await.get_open_positions_map().await;
+    //let open_positions_map = db_handler.lock().await.get_open_positions_map().await;
+    let open_positions_map = HashMap::new();
 
     // Create an error manager
     let error_manager = ErrorManager::new();
@@ -110,6 +111,8 @@ async fn main_loop(
 
     let mut sigterm_stream =
         tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+
+    trader_instance.0.liquidate("start").await;
 
     loop {
         let now = SystemTime::now();

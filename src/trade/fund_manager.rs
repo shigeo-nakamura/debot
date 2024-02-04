@@ -103,7 +103,9 @@ impl FundManager {
         };
 
         let mut amount = initial_amount;
-        let dry_run_counter = open_positions.len();
+
+        let mut rng = rand::thread_rng();
+        let dry_run_counter = rng.gen_range(1..=std::u16::MAX);
         for (_, position) in open_positions.clone() {
             amount -= position.amount_in_anchor_token();
         }
@@ -116,7 +118,7 @@ impl FundManager {
             dex_connector,
             market_data,
             last_trade_time: None,
-            dry_run_counter,
+            dry_run_counter: dry_run_counter.into(),
         };
 
         Self { config, state }
@@ -302,11 +304,6 @@ impl FundManager {
                     }
                 }
 
-                if self.state.amount < self.config.trading_amount {
-                    log::warn!("No enough fund left: {}", self.state.amount);
-                    return Ok(());
-                }
-
                 target_price = match *TAKE_PROFIT_RATIO {
                     Some(v) => {
                         if is_buy {
@@ -331,6 +328,11 @@ impl FundManager {
                         }
                     }
                 };
+            }
+
+            if self.state.amount == 0.0 || self.state.amount < self.config.trading_amount {
+                log::warn!("No enough fund left: {}", self.state.amount);
+                return Ok(());
             }
 
             self.execute_chances(
@@ -360,21 +362,25 @@ impl FundManager {
                     price_as_fixed_point
                 });
 
-                for (index, position) in positions_pairs.iter() {
-                    if position.state() != State::Opening {
-                        continue;
+                for (_, position) in positions_pairs.iter().rev() {
+                    if matches!(position.state(), State::Opening | State::Open) {
+                        let side = if position.is_long_position() {
+                            "Buy"
+                        } else {
+                            "Sell"
+                        };
+                        log::debug!(
+                            "{:>5}: {:<6.4}[{}]{}",
+                            side,
+                            position.ordered_price(),
+                            position.order_id(),
+                            if position.state() == State::Open {
+                                "*"
+                            } else {
+                                ""
+                            }
+                        );
                     }
-                    let side = if position.is_long_position() {
-                        "long"
-                    } else {
-                        "short"
-                    };
-                    log::debug!(
-                        "[{:<3}]{:<5}: {:<6.4}",
-                        index,
-                        side,
-                        position.ordered_price()
-                    );
                 }
             } else {
                 log::trace!("{:<6.4}", current_price);
@@ -503,7 +509,11 @@ impl FundManager {
             let mut rng = rand::thread_rng();
             if rng.gen::<f64>() < 0.5 {
                 let filled_value = trade_amount * order_price;
-                let fee = filled_value * 0.001;
+                let fee = if self.config.strategy == TradingStrategy::RangeGrid {
+                    0.0
+                } else {
+                    filled_value * 0.001
+                };
                 self.position_filled(order_id, filled_value, trade_amount, fee)
                     .await?;
             }
@@ -882,7 +892,12 @@ impl FundManager {
         }
 
         for position in &positions_to_cancel {
-            log::debug!("cancel {:<6.4}", position.ordered_price());
+            log::debug!(
+                "cancel {:<6.4}, order_id:{}, state:{:?}",
+                position.ordered_price(),
+                position.order_id(),
+                position.state()
+            );
             self.cancel_order(position.order_id()).await;
         }
     }
