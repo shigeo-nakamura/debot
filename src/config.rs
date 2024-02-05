@@ -128,7 +128,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let check_market_range = get_bool_env_var("CHECK_MARKET_RANGE", false);
     let grid_size = get_env_var("GRID_SIZE", "20")?;
-    let grid_step = get_env_var("GRID_STEP", "0.0001")?;
+    let grid_step = get_env_var("GRID_STEP", "0.001")?;
 
     let env_config = EnvConfig {
         mongodb_uri,

@@ -362,6 +362,8 @@ impl FundManager {
                     price_as_fixed_point
                 });
 
+                let adx = self.state.market_data.adx();
+
                 for (_, position) in positions_pairs.iter().rev() {
                     if matches!(position.state(), State::Opening | State::Open) {
                         let side = if position.is_long_position() {
@@ -370,7 +372,8 @@ impl FundManager {
                             "Sell"
                         };
                         log::debug!(
-                            "{:>5}: {:<6.4}[{}]{}",
+                            "[{:<0.2}]{:>5}: {:<6.4}[{}]{}",
+                            adx,
                             side,
                             position.ordered_price(),
                             position.order_id(),
