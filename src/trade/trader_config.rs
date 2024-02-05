@@ -4,5 +4,5 @@ use super::derivative_trader::SampleInterval;
 
 pub fn get() -> (usize, SampleInterval, String) {
     let dex_name = env::var("DEX_NAME").expect("DEX_NAME must be specified");
-    (15, SampleInterval::new(5, 15), dex_name.to_owned())
+    (5, SampleInterval::new(1, 5), dex_name.to_owned())
 }

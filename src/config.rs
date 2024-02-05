@@ -38,7 +38,9 @@ pub struct EnvConfig {
     pub strategy: TradingStrategy,
     pub check_market_range: bool,
     pub grid_size: usize,
+    pub grid_size_alpha: f64,
     pub grid_step: f64,
+    pub grid_step_exp_base: f64,
 }
 
 #[derive(Debug)]
@@ -127,8 +129,10 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     };
 
     let check_market_range = get_bool_env_var("CHECK_MARKET_RANGE", false);
-    let grid_size = get_env_var("GRID_SIZE", "20")?;
-    let grid_step = get_env_var("GRID_STEP", "0.001")?;
+    let grid_size = get_env_var("GRID_SIZE", "5")?;
+    let grid_size_alpha = get_env_var("GRID_SIZE_ALPHA", "4.0")?;
+    let grid_step = get_env_var("GRID_STEP", "0.00001")?;
+    let grid_step_exp_base = get_env_var("GRID_STEP_EXP_BASE", "300.0")?;
 
     let env_config = EnvConfig {
         mongodb_uri,
@@ -153,7 +157,9 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         strategy,
         check_market_range,
         grid_size,
+        grid_size_alpha,
         grid_step,
+        grid_step_exp_base,
     };
 
     Ok(env_config)

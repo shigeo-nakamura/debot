@@ -52,7 +52,9 @@ struct DerivativeTraderConfig {
     rest_endpoint: String,
     web_socket_endpoint: String,
     grid_size: usize,
+    grid_size_alpha: f64,
     grid_step: f64,
+    grid_step_exp_base: f64,
 }
 
 struct DerivativeTraderState {
@@ -90,7 +92,9 @@ impl DerivativeTrader {
         strategy: &TradingStrategy,
         check_market_range: bool,
         grid_size: usize,
+        grid_size_alpha: f64,
         grid_step: f64,
+        grid_step_exp_base: f64,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let mut config = DerivativeTraderConfig {
@@ -105,7 +109,9 @@ impl DerivativeTrader {
             rest_endpoint: rest_endpoint.to_owned(),
             web_socket_endpoint: web_socket_endpoint.to_owned(),
             grid_size,
+            grid_size_alpha,
             grid_step,
+            grid_step_exp_base,
         };
 
         let state = Self::initialize_state(
@@ -318,7 +324,9 @@ impl DerivativeTrader {
             config.trade_period,
             config.max_price_size as usize,
             config.grid_size,
+            config.grid_size_alpha,
             config.grid_step,
+            config.grid_step_exp_base,
         )
     }
 

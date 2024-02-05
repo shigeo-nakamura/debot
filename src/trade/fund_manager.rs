@@ -25,10 +25,11 @@ struct TradeChance {
 pub struct FundManagerState {
     amount: f64,
     trade_positions: HashMap<u32, TradePosition>,
+    latest_open_position_id: Option<u32>,
     db_handler: Arc<Mutex<DBHandler>>,
     dex_connector: Arc<dyn DexConnector>,
     market_data: MarketData,
-    last_trade_time: Option<i64>,
+    last_losscut_time: Option<i64>,
     dry_run_counter: usize,
 }
 
@@ -117,8 +118,9 @@ impl FundManager {
             db_handler,
             dex_connector,
             market_data,
-            last_trade_time: None,
+            last_losscut_time: None,
             dry_run_counter: dry_run_counter.into(),
+            latest_open_position_id: None,
         };
 
         Self { config, state }
@@ -223,6 +225,12 @@ impl FundManager {
         let data = self.state.market_data.to_owned();
         let mut updated_actions = actions.clone();
 
+        if let Some(last_time) = self.state.last_losscut_time {
+            if chrono::Utc::now().timestamp() - last_time <= self.config.non_trading_period_secs {
+                return Ok(());
+            }
+        }
+
         if self.config.strategy == TradingStrategy::RangeGrid {
             if self.config.check_market_range && !data.is_range_bound().unwrap_or_default() {
                 let _ = self.liquidate(Some(String::from("Out of range bound")));
@@ -296,14 +304,6 @@ impl FundManager {
                     return Ok(());
                 }
 
-                if let Some(last_time) = self.state.last_trade_time {
-                    if chrono::Utc::now().timestamp() - last_time
-                        <= self.config.non_trading_period_secs
-                    {
-                        return Ok(());
-                    }
-                }
-
                 target_price = match *TAKE_PROFIT_RATIO {
                     Some(v) => {
                         if is_buy {
@@ -348,15 +348,17 @@ impl FundManager {
                 None,
             )
             .await?;
-
-            self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
         }
 
         if self.config.strategy == TradingStrategy::RangeGrid {
             if updated_actions.len() > 0 {
-                let mut positions_pairs: Vec<(&u32, &TradePosition)> =
-                    self.state.trade_positions.iter().collect();
-                positions_pairs.sort_by_key(|(_, v)| {
+                let mut positions_vec: Vec<TradePosition> = self
+                    .state
+                    .trade_positions
+                    .iter()
+                    .map(|(_, v)| v.clone())
+                    .collect();
+                positions_vec.sort_by_key(|v| {
                     let price_as_fixed_point =
                         (v.ordered_price() * PRECISION_MULTIPLIER).round() as i64;
                     price_as_fixed_point
@@ -364,7 +366,7 @@ impl FundManager {
 
                 let adx = self.state.market_data.adx();
 
-                for (_, position) in positions_pairs.iter().rev() {
+                for position in positions_vec.iter().rev() {
                     if matches!(position.state(), State::Opening | State::Open) {
                         let side = if position.is_long_position() {
                             "Buy"
@@ -385,6 +387,17 @@ impl FundManager {
                         );
                     }
                 }
+                let max_price = match positions_vec.first() {
+                    Some(p) => p.ordered_price(),
+                    None => current_price,
+                };
+                let min_price = match positions_vec.last() {
+                    Some(p) => p.ordered_price(),
+                    None => current_price,
+                };
+                let spread = (max_price - min_price).abs();
+                let spread_ratio = (spread / current_price) * 100.0;
+                log::debug!("spread = {:<6.4}({:<1.3}%)", spread, spread_ratio);
             } else {
                 log::trace!("{:<6.4}", current_price);
             }
@@ -455,6 +468,8 @@ impl FundManager {
                 reason_for_close,
             )
             .await?;
+
+            self.state.last_losscut_time = Some(chrono::Utc::now().timestamp());
         }
 
         Ok(())
@@ -484,7 +499,7 @@ impl FundManager {
             "Close"
         };
 
-        log::info!(
+        log::debug!(
             "Execute: {}, symbol = {}, order_price = {:<6.4?}, side = {:?}, reason = {:?}",
             is_open,
             symbol,
@@ -721,7 +736,6 @@ impl FundManager {
         let position_cloned;
 
         if is_open_trade {
-            self.state.amount -= amount_in;
             let average_price = amount_in / amount_out;
             let take_profit_price = predicted_price;
             let distance = (take_profit_price - average_price).abs() / self.config.risk_reward;
@@ -731,21 +745,67 @@ impl FundManager {
                 average_price + distance
             };
 
-            let position = self.state.trade_positions.get_mut(&position_id).unwrap();
+            let close_position;
+            let open_position_id: Option<u32> =
+                if self.config.strategy == TradingStrategy::RangeGrid {
+                    self.state.latest_open_position_id
+                } else {
+                    None
+                };
 
-            position.open(
-                average_price,
-                amount_out,
-                amount_in,
-                fee,
-                take_profit_price,
-                cut_loss_price,
-            )?;
-            position_cloned = position.clone();
-            self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
+            if let Some(open_position_id) = open_position_id {
+                close_position = true;
+                let open_position = match self.state.trade_positions.get_mut(&open_position_id) {
+                    Some(v) => v,
+                    None => {
+                        log::error!("open position not found {}", open_position_id);
+                        return Err(());
+                    }
+                };
+                let prev_amount_in_anchor_token = open_position.amount_in_anchor_token();
+                open_position.add(
+                    Some(average_price),
+                    is_long_position,
+                    take_profit_price,
+                    cut_loss_price,
+                    amount_out,
+                    amount_in,
+                    fee,
+                );
+                if matches!(open_position.state(), State::Closed(_)) {
+                    self.state.latest_open_position_id = None;
+                }
+
+                let changed_amount =
+                    open_position.amount_in_anchor_token() - prev_amount_in_anchor_token;
+                self.state.amount -= changed_amount;
+
+                position_cloned = open_position.clone();
+            } else {
+                self.state.amount -= amount_in;
+                close_position = false;
+                let position = self.state.trade_positions.get_mut(&position_id).unwrap();
+                position.open(
+                    average_price,
+                    amount_out,
+                    amount_in,
+                    fee,
+                    take_profit_price,
+                    cut_loss_price,
+                )?;
+                self.state.latest_open_position_id = position.id();
+                position_cloned = position.clone();
+            }
+            if close_position {
+                let position = self.state.trade_positions.get_mut(&position_id).unwrap();
+                if !position.cancel() {
+                    log::error!("Failed close the position: {:?}", position);
+                    return Err(());
+                }
+                self.state.trade_positions.remove(&position_id);
+            }
         } else {
             let position = self.state.trade_positions.get_mut(&position_id).unwrap();
-
             if is_long_position {
                 self.state.amount += amount_out;
             } else {
@@ -760,6 +820,7 @@ impl FundManager {
             let amount = position.amount();
             if amount == 0.0 {
                 self.state.trade_positions.remove(&position_id);
+                self.state.latest_open_position_id = None;
             } else {
                 log::info!(
                     "Position is partially closed. The remaing amount = {}",

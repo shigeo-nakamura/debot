@@ -94,7 +94,9 @@ async fn prepare_trader_instance(
         &config.strategy,
         config.check_market_range,
         config.grid_size,
+        config.grid_size_alpha,
         config.grid_step,
+        config.grid_step_exp_base,
     )
     .await;
 
