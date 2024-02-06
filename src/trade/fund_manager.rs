@@ -2,7 +2,7 @@
 
 use super::DBHandler;
 use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
-use debot_position_manager::{ReasonForClose, State, TradePosition};
+use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
 use lazy_static::lazy_static;
 use rand::Rng;
@@ -368,15 +368,10 @@ impl FundManager {
 
                 for position in positions_vec.iter().rev() {
                     if matches!(position.state(), State::Opening | State::Open) {
-                        let side = if position.is_long_position() {
-                            "Buy"
-                        } else {
-                            "Sell"
-                        };
                         log::debug!(
-                            "[{:<0.2}]{:>5}: {:<6.4}[{}]{}",
+                            "[{:<0.2}]{:<5}: {:<6.4}[{}]{}",
                             adx,
-                            side,
+                            format!("{:5}", position.position_type()),
                             position.ordered_price(),
                             position.order_id(),
                             if position.state() == State::Open {
@@ -434,14 +429,14 @@ impl FundManager {
     ) -> Result<(), ()> {
         let reason_for_close = match action {
             TradeAction::BuyClose => {
-                if !position.is_long_position() {
+                if position.position_type() == PositionType::Short {
                     Some(ReasonForClose::Other("TredeChanged".to_owned()))
                 } else {
                     None
                 }
             }
             TradeAction::SellClose => {
-                if position.is_long_position() {
+                if position.position_type() == PositionType::Long {
                     Some(ReasonForClose::Other("TrendChanged".to_owned()))
                 } else {
                     None
@@ -458,7 +453,7 @@ impl FundManager {
                     predicted_price: None,
                     amount: position.amount(),
                     atr: None,
-                    action: if position.is_long_position() {
+                    action: if position.position_type() == PositionType::Long {
                         TradeAction::SellClose
                     } else {
                         TradeAction::BuyClose
@@ -489,27 +484,30 @@ impl FundManager {
         };
         let size = trade_amount.to_string();
         let side = if chance.action.is_buy() {
-            OrderSide::Buy
+            OrderSide::Long
         } else {
-            OrderSide::Sell
+            OrderSide::Short
         };
         let is_open = if chance.action.is_open() {
             "Open"
         } else {
             "Close"
         };
+        let reason = match reason_for_close.clone() {
+            Some(r) => r,
+            None => ReasonForClose::Other(String::from("n/a")),
+        };
 
         log::debug!(
-            "Execute: {}, symbol = {}, order_price = {:<6.4?}, side = {:?}, reason = {:?}",
+            "Execute: {}, symbol = {}, order_price = {:<6.4?}, side = {}, reason = {}",
             is_open,
             symbol,
             order_price,
             side,
-            reason_for_close
+            reason,
         );
 
         if self.config.dry_run {
-            // Prepare a new/updated position
             self.state.dry_run_counter += 1;
             let order_id = self.state.dry_run_counter.to_string();
             self.prepare_position(
@@ -532,7 +530,7 @@ impl FundManager {
                 } else {
                     filled_value * 0.001
                 };
-                self.position_filled(order_id, filled_value, trade_amount, fee)
+                self.position_filled(order_id, side, filled_value, trade_amount, fee)
                     .await?;
             }
         } else {
@@ -550,8 +548,6 @@ impl FundManager {
             match res {
                 Ok(res) => {
                     let order_id = res.order_id;
-                    // Prepare a new/updated position
-                    log::info!("new order id = {}", order_id);
                     self.prepare_position(
                         &order_id,
                         Some(order_price),
@@ -591,7 +587,11 @@ impl FundManager {
         atr: Option<f64>,
         position_id: Option<u32>,
     ) -> Result<(), ()> {
-        let is_long_position = trade_action.is_buy();
+        let position_type = if trade_action.is_buy() {
+            PositionType::Long
+        } else {
+            PositionType::Short
+        };
         let position_cloned;
 
         if trade_action.is_open() {
@@ -614,7 +614,7 @@ impl FundManager {
                 self.config.order_effective_duration_secs,
                 token_name,
                 &self.config.fund_name,
-                is_long_position,
+                position_type,
                 predicted_price.unwrap(),
                 atr,
             );
@@ -631,7 +631,7 @@ impl FundManager {
                 return Err(());
             }
             let position = position.unwrap();
-            position.close(order_id, &reason_for_close.unwrap().to_string())?;
+            position.request_close(order_id, &reason_for_close.unwrap().to_string())?;
             position_cloned = position.clone();
         }
 
@@ -661,6 +661,7 @@ impl FundManager {
     pub async fn position_filled(
         &mut self,
         order_id: String,
+        filled_side: OrderSide,
         filled_value: f64,
         filled_size: f64,
         fee: f64,
@@ -690,7 +691,7 @@ impl FundManager {
 
         let is_open_trade;
         let predicted_price = position.predicted_price();
-        let is_long_position = position.is_long_position();
+        let position_type = position.position_type();
 
         let position_id = match position.id() {
             Some(p) => p,
@@ -724,8 +725,9 @@ impl FundManager {
         }
 
         log::info!(
-            "fill_position: token_name = {}, order_id = {:?}, value = {:?}, size = {:?}, fee = {:?}",
+            "fill_position:{}, {}, order_id = {:?}, value = {:?}, size = {:?}, fee = {:?}",
             self.config.token_name,
+            filled_side,
             order_id,
             filled_value,
             filled_size,
@@ -739,7 +741,7 @@ impl FundManager {
             let average_price = amount_in / amount_out;
             let take_profit_price = predicted_price;
             let distance = (take_profit_price - average_price).abs() / self.config.risk_reward;
-            let cut_loss_price = if is_long_position {
+            let cut_loss_price = if position_type == PositionType::Long {
                 average_price - distance
             } else {
                 average_price + distance
@@ -763,9 +765,9 @@ impl FundManager {
                     }
                 };
                 let prev_amount_in_anchor_token = open_position.amount_in_anchor_token();
-                open_position.add(
+                open_position.on_updated(
                     Some(average_price),
-                    is_long_position,
+                    position_type,
                     take_profit_price,
                     cut_loss_price,
                     amount_out,
@@ -785,7 +787,7 @@ impl FundManager {
                 self.state.amount -= amount_in;
                 close_position = false;
                 let position = self.state.trade_positions.get_mut(&position_id).unwrap();
-                position.open(
+                position.on_opened(
                     average_price,
                     amount_out,
                     amount_in,
@@ -806,7 +808,7 @@ impl FundManager {
             }
         } else {
             let position = self.state.trade_positions.get_mut(&position_id).unwrap();
-            if is_long_position {
+            if position_type == PositionType::Long {
                 self.state.amount += amount_out;
             } else {
                 self.state.amount += position.amount_in_anchor_token() * 2.0 - amount_out;
@@ -814,7 +816,7 @@ impl FundManager {
 
             let close_price = amount_out / amount_in;
 
-            position.delete(Some(close_price), fee, false, None);
+            position.on_closed(Some(close_price), fee, false, None);
             position_cloned = position.clone();
 
             let amount = position.amount();
@@ -944,7 +946,7 @@ impl FundManager {
                 continue;
             }
             let price = position.ordered_price();
-            if position.is_long_position() {
+            if position.position_type() == PositionType::Long {
                 if price < min_buy_price || max_buy_price < price {
                     positions_to_cancel.push(position.clone());
                 }
@@ -1026,7 +1028,7 @@ impl FundManager {
             .await;
 
         for (_, position) in self.state.trade_positions.iter_mut() {
-            position.delete(None, 0.0, true, reason.clone());
+            position.on_closed(None, 0.0, true, reason.clone());
             self.state
                 .db_handler
                 .lock()
@@ -1046,7 +1048,7 @@ impl FundManager {
     pub fn check_positions(&self, price: f64) {
         for (_, position) in &self.state.trade_positions {
             position.print_info(price);
-            let _ = position.pnl(price);
+            let _ = position.total_pnl(Some(price));
         }
     }
 

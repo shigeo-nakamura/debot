@@ -364,6 +364,7 @@ impl DerivativeTrader {
                 if fund_manager
                     .position_filled(
                         order.order_id.clone(),
+                        order.filled_side.clone(),
                         order.filled_value.clone(),
                         order.filled_size.clone(),
                         order.filled_fee.clone(),
