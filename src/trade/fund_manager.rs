@@ -725,13 +725,16 @@ impl FundManager {
         }
 
         log::info!(
-            "fill_position:{}, {}, order_id = {:?}, value = {:?}, size = {:?}, fee = {:?}",
+            "fill_position:{}, {}, order_id = {:?}, value = {:?}, size = {:?}, fee = {:?}, price = {:<6.4}, amount_in = {}, amont_out = {}",
             self.config.token_name,
             filled_side,
             order_id,
             filled_value,
             filled_size,
-            fee
+            fee,
+            price,
+            amount_in,
+            amount_out
         );
 
         let prev_amount = self.state.amount;
@@ -766,7 +769,7 @@ impl FundManager {
                 };
                 let prev_amount_in_anchor_token = open_position.amount_in_anchor_token();
                 open_position.on_updated(
-                    Some(average_price),
+                    self.state.market_data.last_price(),
                     position_type,
                     take_profit_price,
                     cut_loss_price,
@@ -887,9 +890,19 @@ impl FundManager {
             .log_position(position)
             .await;
 
-        self.state
-            .trade_positions
-            .retain(|_, position| position.order_id() != order_id);
+        match self.find_position_from_order_id(&order_id) {
+            Some(position) => match position.id() {
+                Some(id) => {
+                    if matches!(position.state(), State::Canceled(_)) {
+                        self.state.trade_positions.remove(&id);
+                    } else {
+                        log::error!("position to cancel is in the wrong state: {:?}", position);
+                    }
+                }
+                None => log::error!("position is is none"),
+            },
+            None => log::error!("position to cancel not found"),
+        }
     }
 
     fn ignore_duplicated_orders(&self, actions: &[TradeAction]) -> Vec<TradeAction> {
