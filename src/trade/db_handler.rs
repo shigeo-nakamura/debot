@@ -22,17 +22,17 @@ lazy_static! {
 
 impl DBHandler {
     pub async fn new(
-        position_counter: u32,
-        price_counter: u32,
-        balance_counter: u32,
+        max_position_counter: u32,
+        max_price_counter: u32,
+        max_balance_counter: u32,
         mongodb_uri: &str,
         db_name: &str,
     ) -> Self {
         let transaction_log = Arc::new(
             TransactionLog::new(
-                position_counter,
-                price_counter,
-                balance_counter,
+                max_position_counter,
+                max_price_counter,
+                max_balance_counter,
                 mongodb_uri,
                 db_name,
             )

@@ -1,7 +1,7 @@
 // main.rs
 
 use config::EnvConfig;
-use debot_market_analyzer::PricePoint;
+use debot_market_analyzer::{PricePoint, TradingStrategy};
 use error_manager::ErrorManager;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
@@ -29,9 +29,14 @@ async fn main() -> std::io::Result<()> {
     let config = config::get_config_from_env().expect("Invalid configuration");
 
     // Set up the DB handler
+    let max_position_counter = if config.strategy == TradingStrategy::RangeGrid {
+        std::u32::MAX
+    } else {
+        config.log_limit
+    };
     let db_handler = Arc::new(Mutex::new(
         DBHandler::new(
-            config.log_limit,
+            max_position_counter,
             config.max_price_size * trade::TOKEN_LIST_SIZE as u32,
             config.log_limit,
             &config.mongodb_uri,

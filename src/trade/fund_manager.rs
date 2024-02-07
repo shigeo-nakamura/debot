@@ -910,7 +910,7 @@ impl FundManager {
         self.state
             .trade_positions
             .iter()
-            .filter(|(_, position)| matches!(position.state(), State::Open | State::Opening))
+            .filter(|(_, position)| matches!(position.state(), State::Opening))
             .for_each(|(_, position)| {
                 let fixed_point_price =
                     (position.ordered_price() * PRECISION_MULTIPLIER).round() as i64;
