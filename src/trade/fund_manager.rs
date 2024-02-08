@@ -55,6 +55,7 @@ struct FundManagerStatics {
     fill_count: u32,
     profit_count: u32,
     loss_count: u32,
+    pnl: f64,
 }
 
 pub struct FundManager {
@@ -227,10 +228,24 @@ impl FundManager {
     }
 
     async fn find_open_chances(&mut self, current_price: f64) -> Result<(), ()> {
-        let actions = self
-            .state
-            .market_data
-            .is_open_signaled(self.config.strategy);
+        let (open_price, is_long) = match self.config.strategy {
+            TradingStrategy::RangeGrid => {
+                let open_position = self.get_open_position();
+                match open_position {
+                    Some(position) => (
+                        Some(position.average_open_price()),
+                        Some(position.position_type() == PositionType::Long),
+                    ),
+                    None => (None, None),
+                }
+            }
+            _ => (None, None),
+        };
+
+        let actions =
+            self.state
+                .market_data
+                .is_open_signaled(self.config.strategy, open_price, is_long);
 
         self.handle_open_chances(current_price, &actions).await
     }
@@ -403,18 +418,29 @@ impl FundManager {
                             color = GREEN;
                         }
 
+                        let is_updated = updated_actions.iter().any(|a| {
+                            a.target_price().unwrap_or_default() == position.ordered_price()
+                        });
+
                         log::debug!(
-                            "[{:<0.2}] {:<5}: {}{:<6.4}{} ({:.1}){}",
+                            "[{:<0.2}] {:<5}: {}{:<6.4}{} [{}]({:.1}){}",
                             adx,
                             side,
                             color,
                             position.ordered_price(),
                             RESET,
+                            position.order_id(),
                             position.amount_in_anchor_token(),
                             match position.state() {
                                 State::Open => "*",
-                                State::Closing(_) => "**",
-                                _ => "",
+                                State::Closing(_) => "-",
+                                _ => {
+                                    if is_updated {
+                                        "+"
+                                    } else {
+                                        ""
+                                    }
+                                }
                             }
                         );
                     }
@@ -430,8 +456,9 @@ impl FundManager {
                 let spread = (max_price - min_price).abs();
                 let spread_ratio = (spread / current_price) * 100.0;
                 log::info!(
-                    "pnl: {:.3}, order/cancel/fill/profit/loss = {}/{}/{}/{}/{}, spread = {:<6.4}({:<1.3}%)",
-                    self.pnl(),
+                    "pnl: {:.3}/{:.3} order/cancel/fill/profit/loss = {}/{}/{}/{}/{}, spread = {:<6.4}({:<1.3}%)",
+                    self.statistics.pnl,
+                    self.pnl_of_open_position(),
                     self.statistics.order_count,
                     self.statistics.cancel_count,
                     self.statistics.fill_count,
@@ -682,14 +709,12 @@ impl FundManager {
             position_cloned = position.clone();
 
             match reason_for_close {
-                Some(r) => {
-                    match r {
-                        ReasonForClose::TakeProfit => self.statistics.profit_count += 1,
-                        ReasonForClose::CutLoss => self.statistics.loss_count += 1,
-                        _ => {},
-                    }
-                }
-                None => {},
+                Some(r) => match r {
+                    ReasonForClose::TakeProfit => self.statistics.profit_count += 1,
+                    ReasonForClose::CutLoss => self.statistics.loss_count += 1,
+                    _ => {}
+                },
+                None => {}
             }
         }
 
@@ -725,9 +750,9 @@ impl FundManager {
         }
     }
 
-    fn pnl(&self) -> f64 {
+    fn pnl_of_open_position(&self) -> f64 {
         match self.get_open_position() {
-            Some(position) => position.total_pnl(Some(self.state.market_data.last_price())),
+            Some(position) => position.calculate_pnl(Some(self.state.market_data.last_price())),
             None => None,
         }
         .unwrap_or_default()
@@ -879,11 +904,13 @@ impl FundManager {
             }
             if close_position {
                 let position = self.state.trade_positions.get_mut(&position_id).unwrap();
-                if !position.cancel() {
-                    log::error!("Failed close the position: {:?}", position);
+                let is_closed = position.cancel()?;
+                if is_closed {
+                    self.state.trade_positions.remove(&position_id);
+                } else {
+                    log::error!("The position is not closed: {:?}", position);
                     return Err(());
                 }
-                self.state.trade_positions.remove(&position_id);
             }
         } else {
             let position = self.state.trade_positions.get_mut(&position_id).unwrap();
@@ -902,6 +929,7 @@ impl FundManager {
             if amount == 0.0 {
                 self.state.trade_positions.remove(&position_id);
                 self.state.latest_open_position_id = None;
+                self.statistics.pnl += position_cloned.pnl();
             } else {
                 log::info!(
                     "Position is partially closed. The remaing amount = {}",
@@ -931,16 +959,12 @@ impl FundManager {
     }
 
     async fn cancel_order(&mut self, order_id: &str) {
-        let position = self
-            .state
-            .trade_positions
-            .iter_mut()
-            .find(|(_, pos)| pos.order_id() == order_id)
-            .map(|(_, v)| v);
-
-        let position = match position {
+        let mut position = match self.find_position_from_order_id(&order_id) {
             Some(v) => v,
-            None => return,
+            None => {
+                log::error!("positino not found: order_id = {}", order_id);
+                return;
+            }
         };
 
         if !self.config.dry_run {
@@ -955,10 +979,13 @@ impl FundManager {
             }
         }
 
-        if !position.cancel() {
-            log::warn!("Failed to cancel the order id = {}", order_id);
-            return;
-        }
+        let is_closed = match position.cancel() {
+            Ok(is_closed) => is_closed,
+            Err(_) => {
+                log::error!("Failed to cancel the position = {:?}", position);
+                return;
+            }
+        };
 
         self.statistics.cancel_count += 1;
 
@@ -967,21 +994,18 @@ impl FundManager {
             .db_handler
             .lock()
             .await
-            .log_position(position)
+            .log_position(&position)
             .await;
 
-        match self.find_position_from_order_id(&order_id) {
-            Some(position) => match position.id() {
-                Some(id) => {
-                    if matches!(position.state(), State::Canceled(_)) {
-                        self.state.trade_positions.remove(&id);
-                    } else {
-                        log::error!("position to cancel is in the wrong state: {:?}", position);
-                    }
+        if is_closed {
+            let position_id = match position.id() {
+                Some(id) => id,
+                None => {
+                    log::error!("Position id is None: {:?}", position);
+                    return;
                 }
-                None => log::error!("position is is none"),
-            },
-            None => log::error!("position to cancel not found"),
+            };
+            self.state.trade_positions.remove(&position_id);
         }
     }
 
@@ -1023,35 +1047,37 @@ impl FundManager {
     }
 
     async fn cancel_out_of_range_orders(&mut self, actions: &[TradeAction]) {
-        let (min_buy_price, max_buy_price, min_sell_price, max_sell_price) =
-            match Self::find_min_max_trade_prices(actions) {
-                Some(v) => v,
-                None => {
-                    log::error!("Price ranges are unkown");
-                    return;
-                }
-            };
+        let (buy_price, sell_price) = Self::find_min_max_trade_prices(actions);
+        if buy_price.is_none() && sell_price.is_none() {
+            log::error!("Price ranges are unknown: {:?}", actions);
+            return;
+        }
 
         let mut positions_to_cancel: Vec<TradePosition> = Vec::new();
 
         let open_position = self.get_open_position();
-
         for (_, position) in &self.state.trade_positions {
             if position.state() != State::Opening {
                 continue;
             }
+
             let price = position.ordered_price();
             if position.position_type() == PositionType::Long {
-                if price < min_buy_price || max_buy_price < price {
-                    positions_to_cancel.push(position.clone());
-                    continue;
+                if buy_price.is_some() {
+                    if price < buy_price.unwrap().0 || buy_price.unwrap().1 < price {
+                        positions_to_cancel.push(position.clone());
+                        continue;
+                    }
                 }
             } else {
-                if price < min_sell_price || max_sell_price < price {
-                    positions_to_cancel.push(position.clone());
-                    continue;
+                if sell_price.is_some() {
+                    if price < sell_price.unwrap().0 || sell_price.unwrap().1 < price {
+                        positions_to_cancel.push(position.clone());
+                        continue;
+                    }
                 }
             }
+
             if let Some(ref open_position) = open_position {
                 if open_position.position_type() == PositionType::Long {
                     if position.position_type() == PositionType::Short {
@@ -1082,7 +1108,9 @@ impl FundManager {
         }
     }
 
-    fn find_min_max_trade_prices(actions: &[TradeAction]) -> Option<(f64, f64, f64, f64)> {
+    fn find_min_max_trade_prices(
+        actions: &[TradeAction],
+    ) -> (Option<(f64, f64)>, Option<(f64, f64)>) {
         let mut min_buy_price: Option<f64> = None;
         let mut max_buy_price: Option<f64> = None;
         let mut min_sell_price: Option<f64> = None;
@@ -1108,20 +1136,17 @@ impl FundManager {
             }
         }
 
-        if min_buy_price.is_none()
-            || max_buy_price.is_none()
-            || min_sell_price.is_none()
-            || max_sell_price.is_none()
-        {
-            return None;
-        }
+        let buy_price = match (min_buy_price, max_buy_price) {
+            (Some(min), Some(max)) => Some((min, max)),
+            _ => None,
+        };
 
-        Some((
-            min_buy_price.unwrap(),
-            max_buy_price.unwrap(),
-            min_sell_price.unwrap(),
-            max_sell_price.unwrap(),
-        ))
+        let sell_price = match (min_sell_price, max_sell_price) {
+            (Some(min), Some(max)) => Some((min, max)),
+            _ => None,
+        };
+
+        (buy_price, sell_price)
     }
 
     pub async fn liquidate(&mut self, reason: Option<String>) {
@@ -1135,11 +1160,7 @@ impl FundManager {
             log::error!("liquidate failed (cancel): {:?}", e);
         }
 
-        let res = self
-            .state
-            .dex_connector
-            .close_all_positions(None)
-            .await;
+        let res = self.state.dex_connector.close_all_positions(None).await;
 
         for (_, position) in self.state.trade_positions.iter_mut() {
             position.on_closed(None, 0.0, true, reason.clone());
@@ -1162,7 +1183,6 @@ impl FundManager {
     pub fn check_positions(&self, price: f64) {
         for (_, position) in &self.state.trade_positions {
             position.print_info(price);
-            let _ = position.total_pnl(Some(price));
         }
     }
 

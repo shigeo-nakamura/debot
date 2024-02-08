@@ -129,7 +129,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     };
 
     let check_market_range = get_bool_env_var("CHECK_MARKET_RANGE", false);
-    let grid_size = get_env_var("GRID_SIZE", "5")?;
+    let grid_size = get_env_var("GRID_SIZE", "20")?;
     let grid_size_alpha = get_env_var("GRID_SIZE_ALPHA", "4.0")?;
     let grid_step = get_env_var("GRID_STEP", "0.00001")?;
     let grid_step_exp_base = get_env_var("GRID_STEP_EXP_BASE", "300.0")?;
