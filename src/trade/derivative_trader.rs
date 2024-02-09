@@ -55,6 +55,7 @@ struct DerivativeTraderConfig {
     grid_size_alpha: f64,
     grid_step: f64,
     grid_step_exp_base: f64,
+    grid_loss_cut_ratio: f64,
 }
 
 struct DerivativeTraderState {
@@ -95,6 +96,7 @@ impl DerivativeTrader {
         grid_size_alpha: f64,
         grid_step: f64,
         grid_step_exp_base: f64,
+        grid_loss_cut_ratio: f64,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let mut config = DerivativeTraderConfig {
@@ -112,6 +114,7 @@ impl DerivativeTrader {
             grid_size_alpha,
             grid_step,
             grid_step_exp_base,
+            grid_loss_cut_ratio,
         };
 
         let state = Self::initialize_state(
@@ -261,6 +264,7 @@ impl DerivativeTrader {
                     order_effective_duration_secs,
                     use_market_order,
                     check_market_range,
+                    config.grid_loss_cut_ratio,
                 )
             })
             .collect()

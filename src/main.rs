@@ -102,6 +102,7 @@ async fn prepare_trader_instance(
         config.grid_size_alpha,
         config.grid_step,
         config.grid_step_exp_base,
+        config.grid_loss_cut_ratio,
     )
     .await;
 

@@ -41,6 +41,7 @@ pub struct EnvConfig {
     pub grid_size_alpha: f64,
     pub grid_step: f64,
     pub grid_step_exp_base: f64,
+    pub grid_loss_cut_ratio: f64,
 }
 
 #[derive(Debug)]
@@ -133,6 +134,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let grid_size_alpha = get_env_var("GRID_SIZE_ALPHA", "4.0")?;
     let grid_step = get_env_var("GRID_STEP", "0.00001")?;
     let grid_step_exp_base = get_env_var("GRID_STEP_EXP_BASE", "300.0")?;
+    let grid_loss_cut_ratio = get_env_var("GRID_LOSS_CUT_RATIO", "0.005")?;
 
     let env_config = EnvConfig {
         mongodb_uri,
@@ -160,6 +162,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         grid_size_alpha,
         grid_step,
         grid_step_exp_base,
+        grid_loss_cut_ratio,
     };
 
     Ok(env_config)
