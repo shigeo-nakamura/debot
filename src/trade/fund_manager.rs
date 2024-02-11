@@ -52,11 +52,12 @@ struct FundManagerConfig {
 #[derive(Default)]
 struct FundManagerStatics {
     order_count: u32,
-    cancel_count: u32,
     fill_count: u32,
     profit_count: u32,
     loss_count: u32,
+    liquidate_count: u32,
     pnl: f64,
+    min_amount: f64,
 }
 
 pub struct FundManager {
@@ -133,7 +134,8 @@ impl FundManager {
             latest_open_position_id: None,
         };
 
-        let statistics = FundManagerStatics::default();
+        let mut statistics = FundManagerStatics::default();
+        statistics.min_amount = initial_amount;
 
         Self {
             config,
@@ -373,6 +375,10 @@ impl FundManager {
         }
 
         if self.config.strategy == TradingStrategy::RangeGrid {
+            // Cancel the orders that are out of range
+            self.cancel_out_of_range_orders(&actions, current_price)
+                .await;
+
             if updated_actions.len() > 0 {
                 let mut positions_vec: Vec<TradePosition> = self
                     .state
@@ -444,14 +450,17 @@ impl FundManager {
                 let spread = (max_price - min_price).abs();
                 let spread_ratio = (spread / current_price) * 100.0;
                 log::info!(
-                    "pnl: {:.3}/{:.3} order/cancel/fill/profit/loss = {}/{}/{}/{}/{}, spread = {:<6.4}({:<1.3}%)",
+                    "pnl: {:.3}/{:.3}/{:.3} order/fill/liquidate/profit/loss = {}/{}/{}/{}/{}, min position = {:.1}, current = {:<6.4}, spread = {:<6.4}({:<1.3}%)",
                     self.statistics.pnl,
                     self.pnl_of_open_position(),
+                    self.unrealized_pnl_of_open_position(current_price),
                     self.statistics.order_count,
-                    self.statistics.cancel_count,
                     self.statistics.fill_count,
+                    self.statistics.liquidate_count,
                     self.statistics.profit_count,
                     self.statistics.loss_count,
+                    self.statistics.min_amount,
+                    current_price,
                     spread,
                     spread_ratio
                 );
@@ -574,6 +583,7 @@ impl FundManager {
             self.prepare_position(
                 &order_id,
                 Some(order_price),
+                trade_amount,
                 chance.action,
                 chance.predicted_price,
                 reason_for_close,
@@ -617,6 +627,7 @@ impl FundManager {
                     self.prepare_position(
                         &order_id,
                         Some(order_price),
+                        trade_amount,
                         chance.action,
                         chance.predicted_price,
                         reason_for_close,
@@ -646,6 +657,7 @@ impl FundManager {
         &mut self,
         order_id: &str,
         ordered_price: Option<f64>,
+        ordered_amount: f64,
         trade_action: TradeAction,
         predicted_price: Option<f64>,
         reason_for_close: Option<ReasonForClose>,
@@ -677,6 +689,7 @@ impl FundManager {
                 id.unwrap(),
                 order_id,
                 ordered_price.unwrap(),
+                ordered_amount,
                 self.config.order_effective_duration_secs,
                 token_name,
                 &self.config.fund_name,
@@ -745,6 +758,13 @@ impl FundManager {
     fn pnl_of_open_position(&self) -> f64 {
         match self.get_open_position() {
             Some(position) => position.pnl(),
+            None => 0.0,
+        }
+    }
+
+    fn unrealized_pnl_of_open_position(&self, price: f64) -> f64 {
+        match self.get_open_position() {
+            Some(position) => position.unrealized_pnl(price, position.amount()),
             None => 0.0,
         }
     }
@@ -856,7 +876,6 @@ impl FundManager {
             let current_price = self.state.market_data.last_price();
 
             if let Some(open_position_id) = open_position_id {
-                close_position = true;
                 let open_position = match self.state.trade_positions.get_mut(&open_position_id) {
                     Some(v) => v,
                     None => {
@@ -883,6 +902,7 @@ impl FundManager {
                 } else {
                     self.config.initial_amount + posstion_asset
                 };
+                close_position = position.ordered_amount() == 0.0;
                 position_cloned = open_position.clone();
             } else {
                 self.state.amount -= amount_in;
@@ -947,8 +967,12 @@ impl FundManager {
             .log_position(&position_cloned)
             .await;
 
+        if self.state.amount < self.statistics.min_amount {
+            self.statistics.min_amount = self.state.amount;
+        }
+
         log::debug!(
-            "{} Amount has changed from {} to {}",
+            "{} Amount has changed from {:.1} to {:.1}",
             self.config.fund_name,
             prev_amount,
             self.state.amount
@@ -985,8 +1009,6 @@ impl FundManager {
                 return;
             }
         };
-
-        self.statistics.cancel_count += 1;
 
         // Save the position in the DB
         self.state
@@ -1048,8 +1070,7 @@ impl FundManager {
     async fn cancel_out_of_range_orders(&mut self, actions: &[TradeAction], current_price: f64) {
         let (buy_price, sell_price) = Self::find_min_max_trade_prices(actions);
         if buy_price.is_none() && sell_price.is_none() {
-            log::error!("Price ranges are unknown: {:?}", actions);
-            return;
+            log::warn!("Price ranges are unknown: {:?}", actions);
         }
 
         let mut positions_to_cancel: Vec<TradePosition> = Vec::new();
@@ -1079,19 +1100,19 @@ impl FundManager {
 
             if let Some(ref open_position) = open_position {
                 let open_price = open_position.average_open_price();
-                let (sell_price, buy_price) = if open_price > current_price {
+                let (high_price, low_price) = if open_price > current_price {
                     (open_price, current_price)
                 } else {
                     (current_price, open_price)
                 };
 
                 if position.position_type() == PositionType::Short {
-                    if position.ordered_price() <= sell_price {
+                    if position.ordered_price() <= high_price {
                         positions_to_cancel.push(position.clone());
                         continue;
                     }
                 } else {
-                    if position.ordered_price() >= buy_price {
+                    if position.ordered_price() >= low_price {
                         positions_to_cancel.push(position.clone());
                         continue;
                     }
@@ -1152,6 +1173,8 @@ impl FundManager {
     }
 
     pub async fn liquidate(&mut self, reason: Option<String>) {
+        self.statistics.liquidate_count += 1;
+
         let res = self
             .state
             .dex_connector
