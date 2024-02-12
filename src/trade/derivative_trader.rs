@@ -49,11 +49,6 @@ struct DerivativeTraderConfig {
     max_dd_ratio: f64,
     rest_endpoint: String,
     web_socket_endpoint: String,
-    grid_size: usize,
-    grid_size_alpha: f64,
-    grid_step: f64,
-    grid_step_exp_base: f64,
-    grid_loss_cut_ratio: f64,
 }
 
 struct DerivativeTraderState {
@@ -74,14 +69,11 @@ impl DerivativeTrader {
         trade_interval: usize,
         sample_interval: SampleInterval,
         max_price_size: u32,
-        risk_reward: f64,
         db_handler: Arc<Mutex<DBHandler>>,
         open_positions_map: HashMap<String, HashMap<u32, TradePosition>>,
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
         save_prices: bool,
-        non_trading_period_secs: i64,
-        positino_size_ratio: f64,
         max_dd_ratio: f64,
         order_effective_duration_secs: i64,
         use_market_order: bool,
@@ -89,12 +81,6 @@ impl DerivativeTrader {
         web_socket_endpoint: &str,
         leverage: f64,
         strategy: &TradingStrategy,
-        check_market_range: bool,
-        grid_size: usize,
-        grid_size_alpha: f64,
-        grid_step: f64,
-        grid_step_exp_base: f64,
-        grid_loss_cut_ratio: f64,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let mut config = DerivativeTraderConfig {
@@ -109,11 +95,6 @@ impl DerivativeTrader {
             max_dd_ratio,
             rest_endpoint: rest_endpoint.to_owned(),
             web_socket_endpoint: web_socket_endpoint.to_owned(),
-            grid_size,
-            grid_size_alpha,
-            grid_step,
-            grid_step_exp_base,
-            grid_loss_cut_ratio,
         };
 
         let state = Self::initialize_state(
@@ -123,14 +104,10 @@ impl DerivativeTrader {
             price_market_data,
             load_prices,
             save_prices,
-            risk_reward,
-            non_trading_period_secs,
-            positino_size_ratio,
             order_effective_duration_secs,
             use_market_order,
             leverage,
             strategy,
-            check_market_range,
         )
         .await;
 
@@ -149,14 +126,10 @@ impl DerivativeTrader {
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
         save_prices: bool,
-        risk_reward: f64,
-        non_trading_period_secs: i64,
-        positino_size_ratio: f64,
         order_effective_duration_secs: i64,
         use_market_order: bool,
         leverage: f64,
         strategy: &TradingStrategy,
-        check_market_range: bool,
     ) -> DerivativeTraderState {
         let dex_connector = Self::create_dex_connector(config)
             .await
@@ -170,13 +143,9 @@ impl DerivativeTrader {
             &price_market_data,
             load_prices,
             save_prices,
-            risk_reward,
-            non_trading_period_secs,
-            positino_size_ratio,
             order_effective_duration_secs,
             use_market_order,
             strategy,
-            check_market_range,
         );
 
         let mut state = DerivativeTraderState {
@@ -203,64 +172,61 @@ impl DerivativeTrader {
         price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
         save_prices: bool,
-        risk_reward: f64,
-        non_trading_period_secs: i64,
-        positino_size_ratio: f64,
         order_effective_duration_secs: i64,
         use_market_order: bool,
         strategy: &TradingStrategy,
-        check_market_range: bool,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
 
         fund_manager_configurations
             .into_iter()
-            .map(|(token_name, initial_amount)| {
-                let fund_name = format!(
-                    "{:?}-{}-{}-{}",
-                    strategy,
-                    token_name,
-                    config.short_trade_period / 60,
-                    config.long_trade_period / 60
-                );
-
-                let mut market_data = Self::create_market_data(config.clone());
-
-                if load_prices {
-                    Self::restore_market_data(
-                        &mut market_data,
-                        &config.trader_name,
-                        &token_name,
-                        &price_market_data,
+            .map(
+                |(token_name, initial_amount, position_size_ratio, risk_reward, loss_cut_ratio)| {
+                    let fund_name = format!(
+                        "{:?}-{}-{}-{}",
+                        strategy,
+                        token_name,
+                        config.short_trade_period / 60,
+                        config.long_trade_period / 60
                     );
-                }
 
-                let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
-                *token_name_indices.get_mut(&token_name).unwrap() += 1;
+                    let mut market_data = Self::create_market_data(config.clone());
 
-                log::info!("create {}-{}-{}", fund_name, index, token_name);
+                    if load_prices {
+                        Self::restore_market_data(
+                            &mut market_data,
+                            &config.trader_name,
+                            &token_name,
+                            &price_market_data,
+                        );
+                    }
 
-                FundManager::new(
-                    &fund_name,
-                    index,
-                    &token_name,
-                    open_positions_map.get(&fund_name).cloned(),
-                    market_data,
-                    *strategy,
-                    initial_amount * positino_size_ratio,
-                    initial_amount,
-                    risk_reward,
-                    db_handler.clone(),
-                    dex_connector.clone(),
-                    save_prices,
-                    non_trading_period_secs,
-                    order_effective_duration_secs,
-                    use_market_order,
-                    check_market_range,
-                    config.grid_loss_cut_ratio,
-                )
-            })
+                    let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
+                    *token_name_indices.get_mut(&token_name).unwrap() += 1;
+
+                    log::info!("create {}-{}-{}", fund_name, index, token_name);
+
+                    FundManager::new(
+                        &fund_name,
+                        index,
+                        &token_name,
+                        open_positions_map.get(&fund_name).cloned(),
+                        market_data,
+                        *strategy,
+                        initial_amount * position_size_ratio,
+                        initial_amount,
+                        config.trade_period,
+                        risk_reward,
+                        db_handler.clone(),
+                        dex_connector.clone(),
+                        save_prices,
+                        order_effective_duration_secs,
+                        use_market_order,
+                        loss_cut_ratio,
+                    )
+                },
+            )
             .collect()
     }
 
@@ -299,10 +265,6 @@ impl DerivativeTrader {
             config.long_trade_period,
             config.trade_period,
             config.max_price_size as usize,
-            config.grid_size,
-            config.grid_size_alpha,
-            config.grid_step,
-            config.grid_step_exp_base,
         )
     }
 
@@ -328,32 +290,7 @@ impl DerivativeTrader {
     }
 
     pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        // Check newly filled orders
-        for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
-            let filled_orders = self
-                .state
-                .dex_connector
-                .get_filled_orders(fund_manager.token_name())
-                .await?;
-
-            for order in filled_orders.orders {
-                if fund_manager
-                    .position_filled(
-                        order.order_id.clone(),
-                        order.filled_side.clone(),
-                        order.filled_value.clone(),
-                        order.filled_size.clone(),
-                        order.filled_fee.clone(),
-                    )
-                    .await
-                    .map_err(|_| Box::new(io::Error::new(ErrorKind::Other, "An error occurred")))?
-                {
-                    break;
-                }
-            }
-        }
-
-        // Get token prices
+        // 1. Get token prices
         let mut token_set = HashSet::new();
         let price_futures: Vec<_> = self
             .state
@@ -380,6 +317,28 @@ impl DerivativeTrader {
         for result in price_results {
             let (token_name, price) = result?;
             prices.insert(token_name.to_owned(), price);
+        }
+
+        // 2. Check newly filled orders after the new price is queried; otherwise DexEmulator can't fill any orders
+        for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
+            let filled_orders = self
+                .state
+                .dex_connector
+                .get_filled_orders(fund_manager.token_name())
+                .await?;
+
+            for order in filled_orders.orders {
+                fund_manager
+                    .position_filled(
+                        order.order_id.clone(),
+                        order.filled_side.clone(),
+                        order.filled_value.clone(),
+                        order.filled_size.clone(),
+                        order.filled_fee.clone(),
+                    )
+                    .await
+                    .map_err(|_| Box::new(io::Error::new(ErrorKind::Other, "An error occurred")))?;
+            }
         }
 
         // Find trade chanes

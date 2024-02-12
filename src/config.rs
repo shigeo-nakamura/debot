@@ -21,13 +21,10 @@ pub struct EnvConfig {
     pub log_limit: u32,
     pub dry_run: bool,
     pub max_price_size: u32,
-    pub risk_reward: f64,
     pub max_error_duration: u64,
     pub save_prices: bool,
     pub load_prices: bool,
     pub interval_msec: u64,
-    pub non_trading_period_secs: i64,
-    pub position_size_ratio: f64,
     pub liquidate_when_exit: bool,
     pub max_dd_ratio: f64,
     pub order_effective_duration_secs: i64,
@@ -36,12 +33,6 @@ pub struct EnvConfig {
     pub web_socket_endpoint: String,
     pub leverage: f64,
     pub strategy: TradingStrategy,
-    pub check_market_range: bool,
-    pub grid_size: usize,
-    pub grid_size_alpha: f64,
-    pub grid_step: f64,
-    pub grid_step_exp_base: f64,
-    pub grid_loss_cut_ratio: f64,
 }
 
 #[derive(Debug)]
@@ -100,17 +91,13 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let log_limit = get_env_var("LOG_LIMIT", "10000")?;
     let dry_run = get_bool_env_var("DRY_RUN", true);
     let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "24")?;
+    let max_price_size = max_price_size_hours * 60 * 60;
 
-    let risk_reward = get_env_var("RISK_REWARD", "1.5")?;
     let max_error_duration = get_env_var("MAX_ERROR_DURATION", "10")?;
     let save_prices = get_bool_env_var("SAVE_PRICES", false);
     let load_prices = get_bool_env_var("LOAD_PRICES", false);
 
-    let max_price_size = max_price_size_hours * 60 * 60;
-
     let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
-    let non_trading_period_secs = get_env_var("NON_TRADING_PERIOD_SECS", "60")?;
-    let position_size_ratio = get_env_var("POSITION_SIZE_RATIO", "0.02")?;
     let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
     let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1")?;
     let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_PERIOD_SECS", "60")?;
@@ -124,17 +111,9 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
         "TrendFollow" => TradingStrategy::TrendFollow,
-        "MeanReversion" => TradingStrategy::MeanReversion,
-        "RangeGrid" => TradingStrategy::RangeGrid,
-        &_ => TradingStrategy::TrendFollow,
+        "ConstantProportionPortfolio" => TradingStrategy::ConstantProportionPortfolio,
+        &_ => panic!("Unknown strategy"),
     };
-
-    let check_market_range = get_bool_env_var("CHECK_MARKET_RANGE", false);
-    let grid_size = get_env_var("GRID_SIZE", "20")?;
-    let grid_size_alpha = get_env_var("GRID_SIZE_ALPHA", "4.0")?;
-    let grid_step = get_env_var("GRID_STEP", "0.00001")?;
-    let grid_step_exp_base = get_env_var("GRID_STEP_EXP_BASE", "300.0")?;
-    let grid_loss_cut_ratio = get_env_var("GRID_LOSS_CUT_RATIO", "0.005")?;
 
     let env_config = EnvConfig {
         mongodb_uri,
@@ -142,13 +121,10 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         log_limit,
         dry_run,
         max_price_size,
-        risk_reward,
         max_error_duration,
         save_prices,
         load_prices,
         interval_msec,
-        non_trading_period_secs,
-        position_size_ratio,
         liquidate_when_exit,
         max_dd_ratio,
         order_effective_duration_secs,
@@ -157,12 +133,6 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         web_socket_endpoint,
         leverage,
         strategy,
-        check_market_range,
-        grid_size,
-        grid_size_alpha,
-        grid_step,
-        grid_step_exp_base,
-        grid_loss_cut_ratio,
     };
 
     Ok(env_config)

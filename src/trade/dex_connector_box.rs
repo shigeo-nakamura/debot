@@ -4,9 +4,19 @@ use dex_connector::{
     RabbitxConnector, TickerResponse,
 };
 
-use crate::config::get_rabbitx_config_from_env;
-
 use super::{dex_emulator::DexEmulator, fund_config::RABBITX_TOKEN_LIST};
+use crate::config::get_rabbitx_config_from_env;
+use lazy_static::lazy_static;
+use std::env;
+
+lazy_static! {
+    static ref FILLED_PROBABILITY_IN_EMULATION: f64 = {
+        match env::var("FILLED_PROBABILITY_IN_EMULATION:") {
+            Ok(val) => val.parse::<f64>().unwrap_or(1.0),
+            Err(_) => 1.0,
+        }
+    };
+}
 
 pub struct DexConnectorBox {
     inner: Box<dyn DexConnector>,
@@ -45,7 +55,8 @@ impl DexConnectorBox {
                 connector.start().await?;
 
                 if dry_run {
-                    let dex_emulator = DexEmulator::new(connector, 0.9, 0.01);
+                    let dex_emulator =
+                        DexEmulator::new(connector, *FILLED_PROBABILITY_IN_EMULATION, 0.005);
                     Ok(DexConnectorBox {
                         inner: Box::new(dex_emulator),
                     })

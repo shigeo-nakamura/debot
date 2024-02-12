@@ -31,7 +31,6 @@ pub struct DexEmulator<T: DexConnector> {
 
 impl<T: DexConnector> DexEmulator<T> {
     pub fn new(dex_connector: T, filled_probability: f64, slippage: f64) -> Self {
-        log::info!("Use DexEmulator");
         let mut rng = rand::thread_rng();
         let order_id_counter = rng.gen_range(1..=std::u32::MAX);
 
@@ -64,16 +63,20 @@ impl<T: DexConnector> DexEmulator<T> {
                 rng.gen_range(0.0..order_book.size)
             };
 
-            let price_condition = if is_buy_order {
-                order_book.price.map_or(true, |p| p >= current_price)
+            let always_fill_for_market_order = order_book.price.is_none();
+            let adjusted_price = if let Some(price) = order_book.price {
+                price
             } else {
-                order_book.price.map_or(true, |p| p <= current_price)
+                current_price * (1.0 + if is_buy_order { slippage } else { -slippage })
+            };
+
+            let price_condition = if is_buy_order {
+                always_fill_for_market_order || adjusted_price >= current_price
+            } else {
+                always_fill_for_market_order || adjusted_price <= current_price
             };
 
             if price_condition && fill > 0.0 {
-                let adjusted_price = order_book.price.unwrap_or_else(|| {
-                    current_price * (1.0 + if is_buy_order { slippage } else { -slippage })
-                });
                 filled_orders.push((
                     order_book.order_id,
                     fill,
@@ -109,7 +112,7 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
     async fn get_ticker(&self, symbol: &str) -> Result<TickerResponse, DexError> {
         let res = self.dex_connector.get_ticker(symbol).await?;
         let mut price_mutex = self.current_price.lock().await;
-        price_mutex.entry(symbol.to_string()).or_insert(res.price);
+        price_mutex.insert(symbol.to_string(), res.price);
         Ok(res)
     }
 
@@ -127,10 +130,13 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
 
         let mut rng = StdRng::from_entropy();
         let order_books = self.order_books.lock().await;
-        let order_books_entry = order_books.get(symbol).ok_or(DexError::Other(format!(
-            "Order books not found for symbol: {}",
-            symbol
-        )))?;
+        let order_books_entry = match order_books.get(symbol) {
+            Some(entry) => entry,
+            None => {
+                log::trace!("Order books not found for symbol: {}", symbol);
+                return Ok(FilledOrdersResponse::default());
+            }
+        };
 
         let mut filled_orders = Vec::new();
 
@@ -237,11 +243,50 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
         })
     }
 
-    async fn cancel_order(&self, _symbol: &str, _order_id: &str) -> Result<(), DexError> {
+    async fn cancel_order(&self, symbol: &str, order_id_str: &str) -> Result<(), DexError> {
+        let order_id = match order_id_str.parse::<u32>() {
+            Ok(id) => id,
+            Err(_) => return Err(DexError::Other("Invalid order ID format".to_string())),
+        };
+
+        let mut order_books = self.order_books.lock().await;
+        if let Some(order_books_entry) = order_books.get_mut(symbol) {
+            let mut buy_order_books = order_books_entry.buy_order_books.lock().await;
+            buy_order_books.retain(|order_book| order_book.order_id != order_id);
+
+            let mut sell_order_books = order_books_entry.sell_order_books.lock().await;
+            sell_order_books.retain(|order_book| order_book.order_id != order_id);
+        } else {
+            log::warn!("No order books found for symbol: {}", symbol);
+        }
+
         Ok(())
     }
 
-    async fn cancel_all_orders(&self, _symbol: Option<String>) -> Result<(), DexError> {
+    async fn cancel_all_orders(&self, symbol_option: Option<String>) -> Result<(), DexError> {
+        let mut order_books = self.order_books.lock().await;
+
+        match symbol_option {
+            Some(symbol) => {
+                if let Some(order_books_entry) = order_books.get_mut(&symbol) {
+                    let mut buy_order_books = order_books_entry.buy_order_books.lock().await;
+                    buy_order_books.clear();
+
+                    let mut sell_order_books = order_books_entry.sell_order_books.lock().await;
+                    sell_order_books.clear();
+                }
+            }
+            None => {
+                for order_books_entry in order_books.values_mut() {
+                    let mut buy_order_books = order_books_entry.buy_order_books.lock().await;
+                    buy_order_books.clear();
+
+                    let mut sell_order_books = order_books_entry.sell_order_books.lock().await;
+                    sell_order_books.clear();
+                }
+            }
+        }
+
         Ok(())
     }
 

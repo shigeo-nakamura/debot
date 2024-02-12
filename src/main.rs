@@ -2,6 +2,7 @@
 
 use config::EnvConfig;
 use debot_market_analyzer::{PricePoint, TradingStrategy};
+use debot_utils::DateTimeUtils;
 use error_manager::ErrorManager;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
@@ -29,7 +30,7 @@ async fn main() -> std::io::Result<()> {
     let config = config::get_config_from_env().expect("Invalid configuration");
 
     // Set up the DB handler
-    let max_position_counter = if config.strategy == TradingStrategy::RangeGrid {
+    let max_position_counter = if config.strategy == TradingStrategy::MarketMake {
         std::u32::MAX
     } else {
         config.log_limit
@@ -82,14 +83,11 @@ async fn prepare_trader_instance(
         prediction_interval,
         interval,
         config.max_price_size,
-        config.risk_reward,
         db_handler,
         open_positions_map,
         price_market_data.clone(),
         config.load_prices,
         config.save_prices,
-        config.non_trading_period_secs,
-        config.position_size_ratio,
         config.max_dd_ratio,
         config.order_effective_duration_secs,
         config.use_market_order,
@@ -97,12 +95,6 @@ async fn prepare_trader_instance(
         &config.web_socket_endpoint,
         config.leverage,
         &config.strategy,
-        config.check_market_range,
-        config.grid_size,
-        config.grid_size_alpha,
-        config.grid_step,
-        config.grid_step_exp_base,
-        config.grid_loss_cut_ratio,
     )
     .await;
 
@@ -155,7 +147,7 @@ async fn main_loop(
                 .db_handler()
                 .lock()
                 .await
-                .log_app_state(last_execution_time, last_equity, false)
+                .log_app_state(last_execution_time, last_equity, false, None)
                 .await;
         }
 
@@ -176,7 +168,7 @@ async fn main_loop(
                             .db_handler()
                             .lock()
                             .await
-                            .log_app_state(None, None, true)
+                            .log_app_state(None, None, true, None)
                             .await;
                         log::info!("returned due to Draw down!");
                         return Ok(());
@@ -246,7 +238,7 @@ async fn main_loop(
             if config.liquidate_when_exit {
                 trader.liquidate("reboot").await;
             }
-            return Ok(());
+            std::process::exit(0);
         }
     }
 }
@@ -266,9 +258,14 @@ async fn handle_trader_activities(
             .db_handler()
             .lock()
             .await
-            .log_app_state(None, None, true)
+            .log_app_state(
+                None,
+                None,
+                true,
+                Some(DateTimeUtils::get_current_datetime_string()),
+            )
             .await;
-        loop {}
+        std::process::exit(1);
     }
 
     match trader.find_chances().await {
@@ -285,9 +282,8 @@ async fn handle_trader_activities(
 
 #[cfg(test)]
 mod tests {
-    use dex_connector::{DexConnector, OrderSide, RabbitxConnector};
-    use std::{env, sync::Arc, time::Duration};
-    use tokio::time::sleep;
+    use dex_connector::{DexConnector, RabbitxConnector};
+    use std::{env, sync::Arc};
 
     use crate::{config::get_rabbitx_config_from_env, trade::fund_config::RABBITX_TOKEN_LIST};
 

@@ -63,6 +63,7 @@ impl DBHandler {
         last_execution_time: Option<SystemTime>,
         last_equity: Option<f64>,
         circuit_break: bool,
+        error_time: Option<String>,
     ) {
         log::info!("log_app_state: {:?}", last_execution_time);
 
@@ -72,6 +73,7 @@ impl DBHandler {
                 last_execution_time,
                 last_equity,
                 circuit_break,
+                error_time,
             )
             .await
             {
