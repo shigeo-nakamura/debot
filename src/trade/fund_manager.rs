@@ -1,10 +1,10 @@
 // fund_manager.rs
 
+use super::dex_connector_box::DexConnectorBox;
 use super::DBHandler;
 use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
 use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
-use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::f64;
@@ -26,10 +26,9 @@ struct FundManagerState {
     trade_positions: HashMap<u32, TradePosition>,
     latest_open_position_id: Option<u32>,
     db_handler: Arc<Mutex<DBHandler>>,
-    dex_connector: Arc<dyn DexConnector>,
+    dex_connector: Arc<DexConnectorBox>,
     market_data: MarketData,
     last_losscut_time: Option<i64>,
-    dry_run_counter: usize,
 }
 
 struct FundManagerConfig {
@@ -40,7 +39,6 @@ struct FundManagerConfig {
     risk_reward: f64,
     trading_amount: f64,
     initial_amount: f64,
-    dry_run: bool,
     save_prices: bool,
     non_trading_period_secs: i64,
     order_effective_duration_secs: i64,
@@ -83,8 +81,7 @@ impl FundManager {
         initial_amount: f64,
         risk_reward: f64,
         db_handler: Arc<Mutex<DBHandler>>,
-        dex_connector: Arc<dyn DexConnector>,
-        dry_run: bool,
+        dex_connector: Arc<DexConnectorBox>,
         save_prices: bool,
         non_trading_period_secs: i64,
         order_effective_duration_secs: i64,
@@ -100,7 +97,6 @@ impl FundManager {
             risk_reward,
             trading_amount,
             initial_amount,
-            dry_run,
             save_prices,
             non_trading_period_secs,
             order_effective_duration_secs,
@@ -116,8 +112,6 @@ impl FundManager {
 
         let mut amount = initial_amount;
 
-        let mut rng = rand::thread_rng();
-        let dry_run_counter = rng.gen_range(1..=std::u16::MAX);
         for (_, position) in open_positions.clone() {
             amount -= position.asset_in_usd().abs()
         }
@@ -130,7 +124,6 @@ impl FundManager {
             dex_connector,
             market_data,
             last_losscut_time: None,
-            dry_run_counter: dry_run_counter.into(),
             latest_open_position_id: None,
         };
 
@@ -577,76 +570,47 @@ impl FundManager {
             reason,
         );
 
-        if self.config.dry_run {
-            self.state.dry_run_counter += 1;
-            let order_id = self.state.dry_run_counter.to_string();
-            self.prepare_position(
-                &order_id,
-                Some(order_price),
-                trade_amount,
-                chance.action,
-                chance.predicted_price,
-                reason_for_close,
-                &chance.token_name,
-                chance.atr,
-                chance.position_id,
-            )
-            .await?;
-
-            let mut rng = rand::thread_rng();
-            if rng.gen::<f64>() < 0.5 {
-                let filled_value = trade_amount * order_price;
-                let fee = if self.config.strategy == TradingStrategy::RangeGrid {
-                    0.0
-                } else {
-                    filled_value * 0.001
-                };
-                self.position_filled(order_id, side, filled_value, trade_amount, fee)
-                    .await?;
+        // Execute the transaction
+        let order_price_str = if chance.action.is_open() {
+            if self.config.use_market_order {
+                None
+            } else {
+                Some(order_price.to_string())
             }
         } else {
-            // Execute the transaction
-            let order_price_str = if chance.action.is_open() {
-                if self.config.use_market_order {
-                    None
-                } else {
-                    Some(order_price.to_string())
-                }
-            } else {
-                None
-            };
+            None
+        };
 
-            let res: Result<CreateOrderResponse, DexError> = self
-                .state
-                .dex_connector
-                .create_order(symbol, &size, side.clone(), order_price_str)
-                .await;
-            match res {
-                Ok(res) => {
-                    let order_id = res.order_id;
-                    self.prepare_position(
-                        &order_id,
-                        Some(order_price),
-                        trade_amount,
-                        chance.action,
-                        chance.predicted_price,
-                        reason_for_close,
-                        &chance.token_name,
-                        chance.atr,
-                        chance.position_id,
-                    )
-                    .await?;
-                }
-                Err(e) => {
-                    log::error!(
-                        "create_order failed({}, {}, {:?}): {:?}",
-                        symbol,
-                        size,
-                        side,
-                        e
-                    );
-                    return Err(());
-                }
+        let res: Result<CreateOrderResponse, DexError> = self
+            .state
+            .dex_connector
+            .create_order(symbol, &size, side.clone(), order_price_str)
+            .await;
+        match res {
+            Ok(res) => {
+                let order_id = res.order_id;
+                self.prepare_position(
+                    &order_id,
+                    Some(order_price),
+                    trade_amount,
+                    chance.action,
+                    chance.predicted_price,
+                    reason_for_close,
+                    &chance.token_name,
+                    chance.atr,
+                    chance.position_id,
+                )
+                .await?;
+            }
+            Err(e) => {
+                log::error!(
+                    "create_order failed({}, {}, {:?}): {:?}",
+                    symbol,
+                    size,
+                    side,
+                    e
+                );
+                return Err(());
             }
         }
 
@@ -764,7 +728,7 @@ impl FundManager {
 
     fn unrealized_pnl_of_open_position(&self, price: f64) -> f64 {
         match self.get_open_position() {
-            Some(position) => position.unrealized_pnl(price, position.amount()),
+            Some(position) => position.amount() * price + position.asset_in_usd(),
             None => 0.0,
         }
     }
@@ -777,16 +741,14 @@ impl FundManager {
         filled_size: f64,
         fee: f64,
     ) -> Result<bool, ()> {
-        if !self.config.dry_run {
-            self.state
-                .dex_connector
-                .clear_filled_order(&self.config.token_name, &order_id)
-                .await
-                .map_err(|e| {
-                    log::error!("{:?}", e);
-                    ()
-                })?;
-        }
+        self.state
+            .dex_connector
+            .clear_filled_order(&self.config.token_name, &order_id)
+            .await
+            .map_err(|e| {
+                log::error!("{:?}", e);
+                ()
+            })?;
 
         let position = match self.find_position_from_order_id(&order_id) {
             Some(p) => p,
@@ -990,16 +952,14 @@ impl FundManager {
             }
         };
 
-        if !self.config.dry_run {
-            if let Err(e) = self
-                .state
-                .dex_connector
-                .cancel_order(position.order_id(), &self.config.token_name)
-                .await
-            {
-                log::error!("{:?}", e);
-                return;
-            }
+        if let Err(e) = self
+            .state
+            .dex_connector
+            .cancel_order(position.order_id(), &self.config.token_name)
+            .await
+        {
+            log::error!("{:?}", e);
+            return;
         }
 
         let is_closed = match position.cancel() {
@@ -1211,7 +1171,7 @@ impl FundManager {
         }
     }
 
-    pub fn reset_dex_client(&mut self, dex_connector: Arc<dyn DexConnector>) {
+    pub fn reset_dex_client(&mut self, dex_connector: Arc<DexConnectorBox>) {
         self.state.dex_connector = dex_connector;
     }
 }

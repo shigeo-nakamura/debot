@@ -6,7 +6,6 @@ use debot_market_analyzer::TradingStrategy;
 use debot_position_manager::TradePosition;
 use dex_connector::DexConnector;
 use dex_connector::DexError;
-use dex_connector::RabbitxConnector;
 use futures::future::join_all;
 use futures::FutureExt;
 use std::collections::HashMap;
@@ -17,10 +16,8 @@ use std::io::ErrorKind;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::config::get_rabbitx_config_from_env;
-
+use super::dex_connector_box::DexConnectorBox;
 use super::fund_config;
-use super::fund_config::RABBITX_TOKEN_LIST;
 use super::DBHandler;
 use super::FundManager;
 
@@ -43,6 +40,7 @@ impl SampleInterval {
 struct DerivativeTraderConfig {
     trader_name: String,
     dex_name: String,
+    dry_run: bool,
     short_trade_period: usize,
     long_trade_period: usize,
     trade_period: usize,
@@ -60,7 +58,7 @@ struct DerivativeTraderConfig {
 
 struct DerivativeTraderState {
     db_handler: Arc<Mutex<DBHandler>>,
-    dex_connector: Arc<dyn DexConnector>,
+    dex_connector: Arc<DexConnectorBox>,
     fund_manager_map: HashMap<String, FundManager>,
 }
 
@@ -102,6 +100,7 @@ impl DerivativeTrader {
         let mut config = DerivativeTraderConfig {
             trader_name: dex_name.to_owned(),
             dex_name: dex_name.to_owned(),
+            dry_run,
             short_trade_period: sample_interval.short_term * SECONDS_IN_MINUTE,
             long_trade_period: sample_interval.long_term * SECONDS_IN_MINUTE,
             trade_period: trade_interval * SECONDS_IN_MINUTE,
@@ -125,7 +124,6 @@ impl DerivativeTrader {
             load_prices,
             save_prices,
             risk_reward,
-            dry_run,
             non_trading_period_secs,
             positino_size_ratio,
             order_effective_duration_secs,
@@ -152,7 +150,6 @@ impl DerivativeTrader {
         load_prices: bool,
         save_prices: bool,
         risk_reward: f64,
-        dry_run: bool,
         non_trading_period_secs: i64,
         positino_size_ratio: f64,
         order_effective_duration_secs: i64,
@@ -174,7 +171,6 @@ impl DerivativeTrader {
             load_prices,
             save_prices,
             risk_reward,
-            dry_run,
             non_trading_period_secs,
             positino_size_ratio,
             order_effective_duration_secs,
@@ -202,13 +198,12 @@ impl DerivativeTrader {
     fn create_fund_managers(
         config: &mut DerivativeTraderConfig,
         db_handler: Arc<Mutex<DBHandler>>,
-        dex_connector: Arc<dyn DexConnector>,
+        dex_connector: Arc<DexConnectorBox>,
         open_positions_map: &HashMap<String, HashMap<u32, TradePosition>>,
         price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
         save_prices: bool,
         risk_reward: f64,
-        dry_run: bool,
         non_trading_period_secs: i64,
         positino_size_ratio: f64,
         order_effective_duration_secs: i64,
@@ -258,7 +253,6 @@ impl DerivativeTrader {
                     risk_reward,
                     db_handler.clone(),
                     dex_connector.clone(),
-                    dry_run,
                     save_prices,
                     non_trading_period_secs,
                     order_effective_duration_secs,
@@ -272,36 +266,14 @@ impl DerivativeTrader {
 
     async fn create_dex_connector(
         config: &DerivativeTraderConfig,
-    ) -> Result<Arc<dyn DexConnector>, DexError> {
-        let dex_connector = match config.dex_name.as_str() {
-            "rabbitx" => {
-                let rabbitx_config = match get_rabbitx_config_from_env().await {
-                    Ok(v) => v,
-                    Err(_) => {
-                        return Err(DexError::Other("Some env vars are missing".to_string()));
-                    }
-                };
-
-                let market_ids: Vec<String> =
-                    RABBITX_TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
-                let connector = RabbitxConnector::new(
-                    &config.rest_endpoint,
-                    &config.web_socket_endpoint,
-                    &rabbitx_config.profile_id,
-                    &rabbitx_config.api_key,
-                    &rabbitx_config.public_jwt,
-                    &rabbitx_config.refresh_token,
-                    &rabbitx_config.secret,
-                    &rabbitx_config.private_jwt,
-                    &market_ids,
-                )
-                .await?;
-                connector.start().await?;
-                connector
-            }
-            _ => return Err(DexError::Other("Unsupported dex".to_owned())),
-        };
-
+    ) -> Result<Arc<DexConnectorBox>, DexError> {
+        let dex_connector = DexConnectorBox::create(
+            &config.dex_name,
+            &config.rest_endpoint,
+            &config.web_socket_endpoint,
+            config.dry_run,
+        )
+        .await?;
         Ok(Arc::new(dex_connector))
     }
 

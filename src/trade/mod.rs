@@ -2,9 +2,10 @@
 
 pub mod db_handler;
 pub mod derivative_trader;
+pub mod dex_connector_box;
+pub mod dex_emulator;
 pub mod fund_config;
 pub mod fund_manager;
-pub mod mock_dex_connector;
 pub mod trader_config;
 
 pub use db_handler::DBHandler;

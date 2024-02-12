@@ -11,7 +11,8 @@ use rand::{rngs::StdRng, Rng, SeedableRng};
 struct OrderBook {
     price: Option<f64>,
     size: f64,
-    order_id: usize,
+    order_id: u32,
+    partially_filled: bool,
 }
 
 struct OrderBooks {
@@ -21,17 +22,18 @@ struct OrderBooks {
 
 pub struct DexEmulator<T: DexConnector> {
     dex_connector: T,
-    filled_probability: f64, // 0.0..1.0
-    slippage: f64,           // 0.0..1.0
+    filled_probability: f64,
+    slippage: f64,
     order_books: Arc<Mutex<HashMap<String, OrderBooks>>>,
-    order_id_counter: Arc<Mutex<usize>>,
+    order_id_counter: Arc<Mutex<u32>>,
     current_price: Arc<Mutex<HashMap<String, f64>>>,
 }
 
 impl<T: DexConnector> DexEmulator<T> {
-    fn new(dex_connector: T, filled_probability: f64, slippage: f64) -> Self {
+    pub fn new(dex_connector: T, filled_probability: f64, slippage: f64) -> Self {
+        log::info!("Use DexEmulator");
         let mut rng = rand::thread_rng();
-        let order_id_counter = rng.gen_range(1..=std::usize::MAX);
+        let order_id_counter = rng.gen_range(1..=std::u32::MAX);
 
         DexEmulator {
             dex_connector,
@@ -41,6 +43,52 @@ impl<T: DexConnector> DexEmulator<T> {
             order_id_counter: Arc::new(Mutex::new(order_id_counter)),
             current_price: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    async fn process_order_book(
+        order_books: &mut Vec<OrderBook>,
+        current_price: f64,
+        filled_orders: &mut Vec<(u32, f64, f64, OrderSide)>,
+        is_buy_order: bool,
+        rng: &mut impl Rng,
+        filled_probability: f64,
+        slippage: f64,
+    ) {
+        order_books.retain_mut(|order_book| {
+            let fill = if order_book.partially_filled {
+                order_book.size
+            } else if rng.gen::<f64>() < filled_probability {
+                order_book.size
+            } else {
+                order_book.partially_filled = true;
+                rng.gen_range(0.0..order_book.size)
+            };
+
+            let price_condition = if is_buy_order {
+                order_book.price.map_or(true, |p| p >= current_price)
+            } else {
+                order_book.price.map_or(true, |p| p <= current_price)
+            };
+
+            if price_condition && fill > 0.0 {
+                let adjusted_price = order_book.price.unwrap_or_else(|| {
+                    current_price * (1.0 + if is_buy_order { slippage } else { -slippage })
+                });
+                filled_orders.push((
+                    order_book.order_id,
+                    fill,
+                    adjusted_price,
+                    if is_buy_order {
+                        OrderSide::Long
+                    } else {
+                        OrderSide::Short
+                    },
+                ));
+                order_book.size -= fill;
+            }
+
+            order_book.size > 0.0
+        });
     }
 }
 
@@ -59,7 +107,7 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
     }
 
     async fn get_ticker(&self, symbol: &str) -> Result<TickerResponse, DexError> {
-        let res = self.get_ticker(symbol).await?;
+        let res = self.dex_connector.get_ticker(symbol).await?;
         let mut price_mutex = self.current_price.lock().await;
         price_mutex.entry(symbol.to_string()).or_insert(res.price);
         Ok(res)
@@ -68,10 +116,13 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
     async fn get_filled_orders(&self, symbol: &str) -> Result<FilledOrdersResponse, DexError> {
         let current_price = {
             let price_mutex = self.current_price.lock().await;
-            *price_mutex.get(symbol).ok_or(DexError::Other(format!(
-                "Current price not found for symbol: {}",
-                symbol
-            )))?
+            match price_mutex.get(symbol) {
+                Some(v) => *v,
+                None => {
+                    log::info!("get_filled_orders: price for {} is not known yet", symbol);
+                    return Ok(FilledOrdersResponse::default());
+                }
+            }
         };
 
         let mut rng = StdRng::from_entropy();
@@ -83,56 +134,34 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
 
         let mut filled_orders = Vec::new();
 
+        // Process buy order books
         {
             let mut buy_order_books = order_books_entry.buy_order_books.lock().await;
-            buy_order_books.retain_mut(|order_book| {
-                let fill = if rng.gen::<f64>() < self.filled_probability {
-                    order_book.size
-                } else {
-                    rng.gen_range(0.0..order_book.size)
-                };
-
-                if order_book.price.map_or(true, |p| p >= current_price) && fill > 0.0 {
-                    let adjusted_price = order_book
-                        .price
-                        .unwrap_or_else(|| current_price * (1.0 - self.slippage));
-                    filled_orders.push((
-                        order_book.order_id,
-                        fill,
-                        adjusted_price,
-                        OrderSide::Long,
-                    ));
-                    order_book.size -= fill;
-                }
-
-                order_book.size > 0.0
-            });
+            Self::process_order_book(
+                &mut buy_order_books,
+                current_price,
+                &mut filled_orders,
+                true, // is_buy_order
+                &mut rng,
+                self.filled_probability,
+                self.slippage,
+            )
+            .await;
         }
 
+        // Process sell order books
         {
             let mut sell_order_books = order_books_entry.sell_order_books.lock().await;
-            sell_order_books.retain_mut(|order_book| {
-                let fill = if rng.gen::<f64>() < self.filled_probability {
-                    order_book.size
-                } else {
-                    rng.gen_range(0.0..order_book.size)
-                };
-
-                if order_book.price.map_or(true, |p| p <= current_price) && fill > 0.0 {
-                    let adjusted_price = order_book
-                        .price
-                        .unwrap_or_else(|| current_price * (1.0 + self.slippage));
-                    filled_orders.push((
-                        order_book.order_id,
-                        fill,
-                        adjusted_price,
-                        OrderSide::Short,
-                    ));
-                    order_book.size -= fill;
-                }
-
-                order_book.size > 0.0
-            });
+            Self::process_order_book(
+                &mut sell_order_books,
+                current_price,
+                &mut filled_orders,
+                false, // is_buy_order
+                &mut rng,
+                self.filled_probability,
+                self.slippage,
+            )
+            .await;
         }
 
         Ok(FilledOrdersResponse {
@@ -182,6 +211,7 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
             price,
             size,
             order_id,
+            partially_filled: false,
         };
 
         let mut order_books = self.order_books.lock().await;
