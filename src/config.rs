@@ -32,7 +32,7 @@ pub struct EnvConfig {
     pub rest_endpoint: String,
     pub web_socket_endpoint: String,
     pub leverage: f64,
-    pub strategy: TradingStrategy,
+    pub strategy: Option<TradingStrategy>,
 }
 
 #[derive(Debug)]
@@ -110,9 +110,9 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let leverage = get_env_var("LEVERAGE", "5.0")?;
 
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
-        "TrendFollow" => TradingStrategy::TrendFollow,
-        "Rebalance" => TradingStrategy::Rebalance,
-        &_ => panic!("Unknown strategy"),
+        "TrendFollow" => Some(TradingStrategy::TrendFollow),
+        "Rebalance" => Some(TradingStrategy::Rebalance),
+        &_ => None,
     };
 
     let env_config = EnvConfig {

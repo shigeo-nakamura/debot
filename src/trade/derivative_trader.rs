@@ -82,7 +82,7 @@ impl DerivativeTrader {
         rest_endpoint: &str,
         web_socket_endpoint: &str,
         leverage: f64,
-        strategy: &TradingStrategy,
+        strategy: Option<&TradingStrategy>,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let mut config = DerivativeTraderConfig {
@@ -132,7 +132,7 @@ impl DerivativeTrader {
         order_effective_duration_secs: i64,
         use_market_order: bool,
         leverage: f64,
-        strategy: &TradingStrategy,
+        strategy: Option<&TradingStrategy>,
     ) -> DerivativeTraderState {
         let dex_connector = Self::create_dex_connector(config)
             .await
@@ -177,7 +177,7 @@ impl DerivativeTrader {
         save_prices: bool,
         order_effective_duration_secs: i64,
         use_market_order: bool,
-        strategy: &TradingStrategy,
+        strategy: Option<&TradingStrategy>,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
@@ -185,7 +185,14 @@ impl DerivativeTrader {
         fund_manager_configurations
             .into_iter()
             .map(
-                |(token_name, initial_amount, position_size_ratio, risk_reward, loss_cut_ratio)| {
+                |(
+                    token_name,
+                    strategy,
+                    initial_amount,
+                    position_size_ratio,
+                    risk_reward,
+                    loss_cut_ratio,
+                )| {
                     let fund_name = format!(
                         "{:?}-{}-{}-{}",
                         strategy,
@@ -216,7 +223,7 @@ impl DerivativeTrader {
                         &token_name,
                         open_positions_map.get(&fund_name).cloned(),
                         market_data,
-                        *strategy,
+                        strategy,
                         initial_amount * position_size_ratio,
                         initial_amount,
                         risk_reward,
@@ -260,11 +267,8 @@ impl DerivativeTrader {
         }
     }
 
-    fn create_market_data(
-        config: DerivativeTraderConfig,
-        strategy: &TradingStrategy,
-    ) -> MarketData {
-        if *strategy == TradingStrategy::Rebalance && config.rebalance_period == 0 {
+    fn create_market_data(config: DerivativeTraderConfig, strategy: TradingStrategy) -> MarketData {
+        if strategy == TradingStrategy::Rebalance && config.rebalance_period == 0 {
             panic!("rebalance period has to be configured");
         }
         MarketData::new(

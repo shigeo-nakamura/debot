@@ -6,7 +6,10 @@ pub const RABBITX_TOKEN_LIST: [&str; TOKEN_LIST_SIZE] = [
     "BTC-USD", "ETH-USD", "SOL-USD", "SUI-USD", "APT-USD", "ARB-USD",
 ];
 
-pub fn get(dex_name: &str, strategy: &TradingStrategy) -> Vec<(String, f64, f64, f64, f64)> {
+pub fn get(
+    dex_name: &str,
+    strategy: Option<&TradingStrategy>,
+) -> Vec<(String, TradingStrategy, f64, f64, f64, f64)> {
     if dex_name == "rabbitx" {
         let all_funds = vec![
             (
@@ -109,10 +112,19 @@ pub fn get(dex_name: &str, strategy: &TradingStrategy) -> Vec<(String, f64, f64,
 
         all_funds
             .into_iter()
-            .filter(|(_, token_strategy, _, _, _, _)| token_strategy == strategy)
+            .filter(|(_, token_strategy, _, _, _, _)|
+                // Check if strategy is None or if it matches the token's strategy
+                strategy.is_none() || strategy == Some(&token_strategy))
             .map(
-                |(token, _, amount, size_ratio, risk_reward, loss_cut_ratio)| {
-                    (token, amount, size_ratio, risk_reward, loss_cut_ratio)
+                |(token, token_strategy, amount, size_ratio, risk_reward, loss_cut_ratio)| {
+                    (
+                        token,
+                        token_strategy,
+                        amount,
+                        size_ratio,
+                        risk_reward,
+                        loss_cut_ratio,
+                    )
                 },
             )
             .collect()

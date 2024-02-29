@@ -30,11 +30,12 @@ async fn main() -> std::io::Result<()> {
     let config = config::get_config_from_env().expect("Invalid configuration");
 
     // Set up the DB handler
-    let max_position_counter = if config.strategy == TradingStrategy::MarketMake {
-        std::u32::MAX
-    } else {
-        config.log_limit
-    };
+    let max_position_counter =
+        if config.strategy.is_some() && config.strategy.unwrap() == TradingStrategy::MarketMake {
+            std::u32::MAX
+        } else {
+            config.log_limit
+        };
     let db_handler = Arc::new(Mutex::new(
         DBHandler::new(
             max_position_counter,
@@ -95,7 +96,7 @@ async fn prepare_trader_instance(
         &config.rest_endpoint,
         &config.web_socket_endpoint,
         config.leverage,
-        &config.strategy,
+        config.strategy.as_ref(),
     )
     .await;
 
