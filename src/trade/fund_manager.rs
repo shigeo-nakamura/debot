@@ -304,6 +304,10 @@ impl FundManager {
                 }
                 _ => continue,
             };
+            let target_amount = match target_amount {
+                Some(amount) => amount,
+                None => self.config.trading_amount,
+            };
 
             let target_price = match self.config.strategy {
                 TradingStrategy::MarketMake => {
@@ -323,10 +327,12 @@ impl FundManager {
                 }
             };
 
+            let open_position = self.get_open_position();
+
             if self.config.strategy == TradingStrategy::MarketMake {
                 if self.state.amount < self.config.initial_amount / 2.0 {
                     log::warn!("No enough fund left: {}", self.state.amount);
-                    if let Some(open_position) = self.get_open_position() {
+                    if let Some(open_position) = open_position {
                         if matches!(open_position.state(), State::Open) {
                             let _ = self
                                 .execute_chances(
@@ -353,9 +359,14 @@ impl FundManager {
                     break;
                 }
             } else {
-                if self.state.amount <= self.config.trading_amount {
-                    log::warn!("No enough fund left: {}", self.state.amount);
-                    break;
+                if let Some(open_position) = open_position {
+                    let is_long_position = open_position.position_type() == PositionType::Long;
+                    if is_buy == is_long_position {
+                        if self.state.amount <= target_amount {
+                            log::warn!("No enough fund left: {}", self.state.amount);
+                            break;
+                        }
+                    }
                 }
             }
 
@@ -364,11 +375,7 @@ impl FundManager {
                 TradeChance {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(target_price),
-                    amount: if target_amount.is_some() {
-                        target_amount.unwrap()
-                    } else {
-                        self.config.trading_amount
-                    } * confidence,
+                    amount: target_amount * confidence,
                     atr: Some(data.atr()),
                     action: modified_action,
                     position_id: None,
@@ -1054,17 +1061,14 @@ impl FundManager {
                 let amount_in_usd = position.amount() * current_price;
                 let amount_diff = self.state.amount - amount_in_usd;
                 let is_buy = amount_diff > 0.0;
-                let target_amount = amount_diff.abs() / current_price;
+                let target_amount = amount_diff.abs() / 2.0 / current_price;
                 if is_buy {
                     TradeAction::BuyOpen(TradeDetail::new(None, Some(target_amount), 1.0))
                 } else {
                     TradeAction::SellOpen(TradeDetail::new(None, Some(target_amount), 1.0))
                 }
             }
-            None => {
-                let target_amount = self.config.trading_amount / current_price;
-                TradeAction::BuyOpen(TradeDetail::new(None, Some(target_amount), 1.0))
-            }
+            None => TradeAction::BuyOpen(TradeDetail::new(None, None, 1.0)),
         }
     }
 
