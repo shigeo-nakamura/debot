@@ -266,7 +266,8 @@ async fn handle_trader_activities(
                 Some(DateTimeUtils::get_current_datetime_string()),
             )
             .await;
-        std::process::exit(1);
+        //std::process::exit(1);
+        panic!("Intentionally crashing the app to trigger a restart.");
     }
 
     match trader.find_chances().await {
