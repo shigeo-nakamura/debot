@@ -11,6 +11,14 @@ pub fn get(dex_name: &str, strategy: &TradingStrategy) -> Vec<(String, f64, f64,
         let all_funds = vec![
             (
                 RABBITX_TOKEN_LIST[0].to_owned(), // BTC
+                TradingStrategy::ConstantProportionPortfolio,
+                100.0, // initial amount(in USD)
+                0.5,   // position size ration
+                0.0,   // risk reward
+                0.0,   // loss cut ration
+            ),
+            (
+                RABBITX_TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::TrendFollow,
                 100.0, // initial amount(in USD)
                 0.1,   // position size ration
