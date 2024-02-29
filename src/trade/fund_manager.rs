@@ -986,14 +986,14 @@ impl FundManager {
 
         let distance = (predicted_price - filled_price).abs() / self.config.risk_reward;
         let cut_loss_price = match self.config.strategy {
-            TradingStrategy::ConstantProportionPortfolio => None,
+            TradingStrategy::Rebalance => None,
             _ => match filled_side {
                 OrderSide::Long => Some(filled_price - distance),
                 _ => Some(filled_price + distance),
             },
         };
         let take_profit_price = match self.config.strategy {
-            TradingStrategy::ConstantProportionPortfolio => None,
+            TradingStrategy::Rebalance => None,
             _ => Some(predicted_price),
         };
 

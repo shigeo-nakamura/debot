@@ -264,8 +264,7 @@ impl DerivativeTrader {
         config: DerivativeTraderConfig,
         strategy: &TradingStrategy,
     ) -> MarketData {
-        if *strategy == TradingStrategy::ConstantProportionPortfolio && config.rebalance_period == 0
-        {
+        if *strategy == TradingStrategy::Rebalance && config.rebalance_period == 0 {
             panic!("rebalance period has to be configured");
         }
         MarketData::new(
