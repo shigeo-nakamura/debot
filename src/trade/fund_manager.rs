@@ -2,7 +2,7 @@
 
 use super::dex_connector_box::DexConnectorBox;
 use super::DBHandler;
-use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
+use debot_market_analyzer::{MarketData, TradeAction, TradeDetail, TradingStrategy};
 use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
 use std::collections::HashMap;
@@ -30,7 +30,6 @@ struct FundManagerState {
     market_data: MarketData,
     last_losscut_time: Option<i64>,
     last_price: f64,
-    trade_period_counter: usize,
 }
 
 struct FundManagerConfig {
@@ -41,7 +40,6 @@ struct FundManagerConfig {
     risk_reward: f64,
     trading_amount: f64,
     initial_amount: f64,
-    trade_period: usize,
     save_prices: bool,
     order_effective_duration_secs: i64,
     use_market_order: bool,
@@ -76,7 +74,6 @@ impl FundManager {
         strategy: TradingStrategy,
         trading_amount: f64,
         initial_amount: f64,
-        trade_period: usize,
         risk_reward: f64,
         db_handler: Arc<Mutex<DBHandler>>,
         dex_connector: Arc<DexConnectorBox>,
@@ -93,7 +90,6 @@ impl FundManager {
             risk_reward,
             trading_amount,
             initial_amount,
-            trade_period,
             save_prices,
             order_effective_duration_secs,
             use_market_order,
@@ -121,7 +117,6 @@ impl FundManager {
             last_losscut_time: None,
             latest_open_position_id: None,
             last_price: 0.0,
-            trade_period_counter: 0,
         };
 
         let mut statistics = FundManagerStatics::default();
@@ -195,8 +190,6 @@ impl FundManager {
         self.state.last_price = price;
 
         self.check_positions(price);
-
-        self.state.trade_period_counter += 1;
 
         Ok(())
     }
@@ -285,15 +278,29 @@ impl FundManager {
         let mut order_price = current_price;
 
         for action in updated_actions.clone() {
+            let mut modified_action = action.clone();
+
+            if action == TradeAction::Rebalance {
+                modified_action = self.rebalance(current_price);
+            }
+
             let is_buy;
-            let (target_price, confidence) = match action.clone() {
+            let (target_price, target_amount, confidence) = match modified_action.clone() {
                 TradeAction::BuyOpen(detail) => {
                     is_buy = true;
-                    (detail.target_price(), detail.confidence())
+                    (
+                        detail.target_price(),
+                        detail.target_amount(),
+                        detail.confidence(),
+                    )
                 }
                 TradeAction::SellOpen(detail) => {
                     is_buy = false;
-                    (detail.target_price(), detail.confidence())
+                    (
+                        detail.target_price(),
+                        detail.target_amount(),
+                        detail.confidence(),
+                    )
                 }
                 _ => continue,
             };
@@ -357,9 +364,13 @@ impl FundManager {
                 TradeChance {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(target_price),
-                    amount: self.config.trading_amount * confidence,
+                    amount: if target_amount.is_some() {
+                        target_amount.unwrap()
+                    } else {
+                        self.config.trading_amount
+                    } * confidence,
                     atr: Some(data.atr()),
-                    action: action.clone(),
+                    action: modified_action,
                     position_id: None,
                 },
                 None,
@@ -500,9 +511,7 @@ impl FundManager {
         let cloned_open_positions = self.state.trade_positions.clone();
 
         for (position_id, position) in cloned_open_positions.iter() {
-            if self.config.strategy == TradingStrategy::MarketMake
-                && position.asset_in_usd().abs() < self.config.trading_amount / 2.0
-            {
+            if position.asset_in_usd().abs() < self.config.trading_amount / 2.0 {
                 continue;
             }
             match position.state() {
@@ -976,18 +985,19 @@ impl FundManager {
         let prev_amount = self.state.amount;
 
         let distance = (predicted_price - filled_price).abs() / self.config.risk_reward;
-        let cut_loss_price = match filled_side {
-            OrderSide::Long => Some(filled_price - distance),
-            _ => Some(filled_price + distance),
+        let cut_loss_price = match self.config.strategy {
+            TradingStrategy::ConstantProportionPortfolio => None,
+            _ => match filled_side {
+                OrderSide::Long => Some(filled_price - distance),
+                _ => Some(filled_price + distance),
+            },
         };
         let take_profit_price = match self.config.strategy {
+            TradingStrategy::ConstantProportionPortfolio => None,
             _ => Some(predicted_price),
         };
 
-        let open_position_id = match self.config.strategy {
-            TradingStrategy::MarketMake => self.state.latest_open_position_id,
-            _ => None,
-        };
+        let open_position_id = self.state.latest_open_position_id;
 
         self.process_trade_position(
             &position_id,
@@ -1035,6 +1045,26 @@ impl FundManager {
         );
 
         return Ok(true);
+    }
+
+    fn rebalance(&self, current_price: f64) -> TradeAction {
+        match self.get_open_position() {
+            Some(position) => {
+                let amount_in_usd = position.amount() * current_price;
+                let amount_diff = self.state.amount - amount_in_usd;
+                let is_buy = amount_diff > 0.0;
+                let target_amount = amount_diff.abs() / current_price;
+                if is_buy {
+                    TradeAction::BuyOpen(TradeDetail::new(None, Some(target_amount), 1.0))
+                } else {
+                    TradeAction::SellOpen(TradeDetail::new(None, Some(target_amount), 1.0))
+                }
+            }
+            None => {
+                let target_amount = self.config.trading_amount / current_price;
+                TradeAction::BuyOpen(TradeDetail::new(None, Some(target_amount), 1.0))
+            }
+        }
     }
 
     async fn cancel_order(&mut self, order_id: &str) {

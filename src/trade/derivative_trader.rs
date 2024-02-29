@@ -44,7 +44,7 @@ struct DerivativeTraderConfig {
     short_trade_period: usize,
     long_trade_period: usize,
     trade_period: usize,
-    rebalance_interval: usize,
+    rebalance_period: usize,
     max_price_size: u32,
     initial_balance: f64,
     max_dd_ratio: f64,
@@ -92,7 +92,7 @@ impl DerivativeTrader {
             short_trade_period: sample_interval.short_term * SECONDS_IN_MINUTE,
             long_trade_period: sample_interval.long_term * SECONDS_IN_MINUTE,
             trade_period: trade_interval * SECONDS_IN_MINUTE,
-            rebalance_interval: rebalance_interval.unwrap_or_default() * SECONDS_IN_MINUTE,
+            rebalance_period: rebalance_interval.unwrap_or_default() * SECONDS_IN_MINUTE,
             max_price_size: max_price_size,
             initial_balance: 0.0,
             max_dd_ratio,
@@ -194,7 +194,7 @@ impl DerivativeTrader {
                         config.long_trade_period / 60
                     );
 
-                    let mut market_data = Self::create_market_data(config.clone());
+                    let mut market_data = Self::create_market_data(config.clone(), strategy);
 
                     if load_prices {
                         Self::restore_market_data(
@@ -219,7 +219,6 @@ impl DerivativeTrader {
                         *strategy,
                         initial_amount * position_size_ratio,
                         initial_amount,
-                        config.trade_period,
                         risk_reward,
                         db_handler.clone(),
                         dex_connector.clone(),
@@ -261,12 +260,20 @@ impl DerivativeTrader {
         }
     }
 
-    fn create_market_data(config: DerivativeTraderConfig) -> MarketData {
+    fn create_market_data(
+        config: DerivativeTraderConfig,
+        strategy: &TradingStrategy,
+    ) -> MarketData {
+        if *strategy == TradingStrategy::ConstantProportionPortfolio && config.rebalance_period == 0
+        {
+            panic!("rebalance period has to be configured");
+        }
         MarketData::new(
             config.trader_name.to_owned(),
             config.short_trade_period,
             config.long_trade_period,
             config.trade_period,
+            config.rebalance_period,
             config.max_price_size as usize,
         )
     }
