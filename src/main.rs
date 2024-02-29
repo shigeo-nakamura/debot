@@ -262,7 +262,7 @@ async fn handle_trader_activities(
             .log_app_state(
                 None,
                 None,
-                true,
+                false,
                 Some(DateTimeUtils::get_current_datetime_string()),
             )
             .await;

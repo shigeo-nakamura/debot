@@ -487,7 +487,8 @@ impl FundManager {
         let atr = self.state.market_data.atr();
 
         log::info!(
-                    "pnl: {:.3}/{:.3}/{:.3}({:.3}%) order/fill/profit/loss = {}/{}/{}/{}, min position = {:.1}, current = {:<6.4}({:<6.4}), spread/atr = {:<6.4}({:<1.3}%)/{:.3}",
+                    "{} pnl: {:.3}/{:.3}/{:.3}({:.3}%) order/fill/profit/loss = {}/{}/{}/{}, min position = {:.1}, current = {:<6.4}({:<6.4}), spread/atr = {:<6.4}({:<1.3}%)/{:.3}",
+                    self.config.token_name,
                     self.statistics.pnl,
                     self.pnl_of_open_position(),
                     pnl,
