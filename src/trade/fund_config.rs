@@ -1,10 +1,22 @@
+use std::env;
+
 use debot_market_analyzer::TradingStrategy;
+use lazy_static::lazy_static;
 
 pub const TOKEN_LIST_SIZE: usize = 6;
 
 pub const RABBITX_TOKEN_LIST: [&str; TOKEN_LIST_SIZE] = [
     "BTC-USD", "ETH-USD", "SOL-USD", "SUI-USD", "APT-USD", "ARB-USD",
 ];
+
+lazy_static! {
+    static ref FUND_SCALE_FACTOR: f64 = {
+        match env::var("FUND_SCALE_FACTOR") {
+            Ok(val) => val.parse::<f64>().unwrap_or(1.0),
+            Err(_) => 1.0,
+        }
+    };
+}
 
 pub fn get(
     dex_name: &str,
@@ -120,7 +132,7 @@ pub fn get(
                     (
                         token,
                         token_strategy,
-                        amount,
+                        amount * *FUND_SCALE_FACTOR,
                         size_ratio,
                         risk_reward,
                         loss_cut_ratio,
