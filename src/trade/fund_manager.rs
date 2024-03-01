@@ -438,7 +438,7 @@ impl FundManager {
                         .any(|a| a.target_price().unwrap_or_default() == position.ordered_price());
 
                     let amount = format!(
-                        "{:6.4}",
+                        "{:6.6}",
                         if position.state() == State::Open {
                             position.amount()
                         } else {
@@ -649,7 +649,7 @@ impl FundManager {
         };
 
         log::debug!(
-            "Execute: {} {} [{}, {}] order_price = {:<6.4?}, size ={:.4}",
+            "Execute: {} {} [{}, {}] order_price = {:<6.4?}, size ={:.10}",
             symbol,
             if chance.action.is_open() {
                 "Open"
@@ -1001,7 +1001,7 @@ impl FundManager {
         let filled_price = filled_value / filled_size;
 
         log::info!(
-            "fill_position:{}, [{}] order_id = {:?}, value = {:.4?}, size = {:.6?}, fee = {:.4?}, price = {:<6.4}",
+            "fill_position:{}, [{}] order_id = {:?}, value = {:.4?}, size = {:.10?}, fee = {:.4?}, price = {:<6.6}",
             self.config.token_name,
             filled_side,
             order_id,
