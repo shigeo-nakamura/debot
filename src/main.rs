@@ -3,6 +3,7 @@
 use config::EnvConfig;
 use debot_market_analyzer::{PricePoint, TradingStrategy};
 use debot_utils::DateTimeUtils;
+use dex_connector::DexError;
 use error_manager::ErrorManager;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
@@ -255,7 +256,7 @@ async fn handle_trader_activities(
     // Check if the error duration has passed
     if error_manager.has_error_duration_passed(error_duration) {
         log::error!("Error duration exceeded the limit");
-        trader.liquidate("Continous Errors").await;
+        trader.liquidate("Continous error").await;
         trader
             .db_handler()
             .lock()
@@ -278,15 +279,22 @@ async fn handle_trader_activities(
         Err(e) => {
             log::error!("Error while finding opportunities: {}", e);
             error_manager.save_first_error_time();
-            let _ = trader.reset_dex_client().await;
+
+            if let Some(dex_error) = e.downcast_ref::<DexError>() {
+                if matches!(*dex_error, DexError::NoConnection) {
+                    trader.liquidate("Network Connection error").await;
+                    let _ = trader.reset_dex_client().await;
+                }
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use dex_connector::{DexConnector, RabbitxConnector};
-    use std::{env, sync::Arc};
+    use dex_connector::{DexConnector, OrderSide, RabbitxConnector};
+    use std::{env, sync::Arc, time::Duration};
+    use tokio::time::sleep;
 
     use crate::{config::get_rabbitx_config_from_env, trade::fund_config::RABBITX_TOKEN_LIST};
 
@@ -368,7 +376,7 @@ mod tests {
     //         let client = init_connector(dex_name).await;
     //         let price = 30000;
     //         let response = client
-    //             .create_order(symbol, "0.001", OrderSide::Buy, Some(price.to_string()))
+    //             .create_order(symbol, "0.001", OrderSide::Long, Some(price.to_string()))
     //             .await
     //             .unwrap();
 
@@ -388,7 +396,7 @@ mod tests {
     //         let client = init_connector(dex_name).await;
     //         let price = 50000;
     //         let response = client
-    //             .create_order(symbol, "0.001", OrderSide::Sell, Some(price.to_string()))
+    //             .create_order(symbol, "0.001", OrderSide::Short, Some(price.to_string()))
     //             .await
     //             .unwrap();
 
@@ -407,7 +415,7 @@ mod tests {
     //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
     //         let client = init_connector(dex_name).await;
     //         let response = client
-    //             .create_order(symbol, "0.001", OrderSide::Buy, None)
+    //             .create_order(symbol, "0.001", OrderSide::Long, None)
     //             .await;
     //         log::info!("{:?}", response);
     //         assert!(response.is_ok());
@@ -418,7 +426,10 @@ mod tests {
     //         log::info!("{:?}", response);
     //         assert!(response.is_ok());
 
-    //         client.close_all_positions(Some(symbol.to_string())).await.unwrap();
+    //         client
+    //             .close_all_positions(Some(symbol.to_string()))
+    //             .await
+    //             .unwrap();
     //     }
     // }
 
@@ -427,7 +438,7 @@ mod tests {
     //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
     //         let client = init_connector(dex_name).await;
     //         let response = client
-    //             .create_order(symbol, "0.001", OrderSide::Sell, None)
+    //             .create_order(symbol, "0.001", OrderSide::Short, None)
     //             .await;
     //         log::info!("{:?}", response);
     //         assert!(response.is_ok());

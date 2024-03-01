@@ -240,6 +240,8 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
 
         Ok(CreateOrderResponse {
             order_id: order_id.to_string(),
+            ordered_price: price.unwrap_or_default(),
+            ordered_size: size,
         })
     }
 

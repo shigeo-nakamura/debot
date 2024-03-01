@@ -100,7 +100,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
     let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
     let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1")?;
-    let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_PERIOD_SECS", "60")?;
+    let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_PERIOD_SECS", "300")?;
     let use_market_order = get_bool_env_var("USE_MARKET_ORDER", false);
 
     let rest_endpoint = env::var("REST_ENDPOINT").expect("REST_ENDPOINT must be set");
@@ -110,8 +110,8 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let leverage = get_env_var("LEVERAGE", "5.0")?;
 
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
-        "TrendFollow" => Some(TradingStrategy::TrendFollow),
-        "Rebalance" => Some(TradingStrategy::Rebalance),
+        "trendfollow" => Some(TradingStrategy::TrendFollow),
+        "rebalance" => Some(TradingStrategy::Rebalance),
         &_ => None,
     };
 

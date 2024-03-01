@@ -675,19 +675,25 @@ impl FundManager {
             .await;
         match res {
             Ok(res) => {
-                let order_id = res.order_id;
-                self.prepare_position(
-                    &order_id,
-                    Some(order_price),
-                    trade_amount,
-                    chance.action,
-                    chance.predicted_price,
-                    reason_for_close,
-                    &chance.token_name,
-                    chance.atr,
-                    chance.position_id,
-                )
-                .await?;
+                if res.ordered_size > 0.0 {
+                    let order_id = res.order_id;
+                    self.prepare_position(
+                        &order_id,
+                        if res.ordered_price == 0.0 {
+                            None
+                        } else {
+                            Some(res.ordered_price)
+                        },
+                        res.ordered_size,
+                        chance.action,
+                        chance.predicted_price,
+                        reason_for_close,
+                        &chance.token_name,
+                        chance.atr,
+                        chance.position_id,
+                    )
+                    .await?;
+                }
             }
             Err(e) => {
                 log::error!(
@@ -868,6 +874,12 @@ impl FundManager {
                     );
                     ()
                 })?;
+
+            log::debug!(
+                "process_trade_position: on_filled for order_position: {}",
+                position_id
+            );
+
             position.on_filled(
                 position_type.clone(),
                 filled_price,
@@ -890,6 +902,11 @@ impl FundManager {
         match open_position_id {
             Some(open_position_id) => match self.state.trade_positions.get_mut(&open_position_id) {
                 Some(open_position) => {
+                    log::debug!(
+                        "process_trade_position: on_filled for open_position: {}",
+                        open_position_id
+                    );
+
                     open_position.on_filled(
                         position_type,
                         filled_price,
@@ -916,6 +933,10 @@ impl FundManager {
                         .trade_positions
                         .insert(*order_position_id, position_cloned);
                     self.state.latest_open_position_id = Some(*order_position_id);
+                    log::debug!(
+                        "process_trade_position: new open_position_id = {:?}",
+                        self.state.latest_open_position_id
+                    );
                 }
             }
         }
@@ -958,7 +979,7 @@ impl FundManager {
         let position = match self.find_position_from_order_id(&order_id) {
             Some(p) => p,
             None => {
-                log::debug!("Filled position not found: order_id = {}", order_id,);
+                log::warn!("Filled position not found: order_id = {}", order_id,);
                 return Ok(false);
             }
         };

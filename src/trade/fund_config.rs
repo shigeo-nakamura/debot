@@ -27,7 +27,7 @@ pub fn get(
             (
                 RABBITX_TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::Rebalance,
-                100.0, // initial amount(in USD)
+                200.0, // initial amount(in USD)
                 0.5,   // position size ration
                 0.0,   // risk reward
                 0.0,   // loss cut ration
@@ -35,7 +35,7 @@ pub fn get(
             (
                 RABBITX_TOKEN_LIST[1].to_owned(), // ETH
                 TradingStrategy::Rebalance,
-                100.0, // initial amount(in USD)
+                200.0, // initial amount(in USD)
                 0.5,   // position size ration
                 0.0,   // risk reward
                 0.0,   // loss cut ration
@@ -43,7 +43,7 @@ pub fn get(
             (
                 RABBITX_TOKEN_LIST[2].to_owned(), // SOL
                 TradingStrategy::Rebalance,
-                100.0, // initial amount(in USD)
+                200.0, // initial amount(in USD)
                 0.5,   // position size ration
                 0.0,   // risk reward
                 0.0,   // loss cut ration
@@ -51,75 +51,27 @@ pub fn get(
             (
                 RABBITX_TOKEN_LIST[3].to_owned(), // SUI
                 TradingStrategy::Rebalance,
-                100.0, // initial amount(in USD)
+                200.0, // initial amount(in USD)
                 0.5,   // position size ration
                 0.0,   // risk reward
                 0.0,   // loss cut ration
             ),
-            (
-                RABBITX_TOKEN_LIST[4].to_owned(), // APT
-                TradingStrategy::Rebalance,
-                100.0, // initial amount(in USD)
-                0.5,   // position size ration
-                0.0,   // risk reward
-                0.0,   // loss cut ration
-            ),
-            (
-                RABBITX_TOKEN_LIST[5].to_owned(), // ARB
-                TradingStrategy::Rebalance,
-                100.0, // initial amount(in USD)
-                0.5,   // position size ration
-                0.0,   // risk reward
-                0.0,   // loss cut ration
-            ),
-            (
-                RABBITX_TOKEN_LIST[0].to_owned(), // BTC
-                TradingStrategy::TrendFollow,
-                100.0, // initial amount(in USD)
-                0.1,   // position size ration
-                2.0,   // risk reward
-                0.01,  // loss cut ration
-            ),
-            (
-                RABBITX_TOKEN_LIST[1].to_owned(), // ETH
-                TradingStrategy::TrendFollow,
-                100.0, // initial amount(in USD)
-                0.1,   // position size ration
-                2.0,   // risk reward
-                0.01,  // loss cut ration
-            ),
-            (
-                RABBITX_TOKEN_LIST[2].to_owned(), // SOL
-                TradingStrategy::TrendFollow,
-                100.0, // initial amount(in USD)
-                0.1,   // position size ration
-                2.0,   // risk reward
-                0.01,  // loss cut ration
-            ),
-            (
-                RABBITX_TOKEN_LIST[3].to_owned(), // SUI
-                TradingStrategy::TrendFollow,
-                100.0, // initial amount(in USD)
-                0.1,   // position size ration
-                2.0,   // risk reward
-                0.01,  // loss cut ration
-            ),
-            (
-                RABBITX_TOKEN_LIST[4].to_owned(), // APT
-                TradingStrategy::TrendFollow,
-                100.0, // initial amount(in USD)
-                0.1,   // position size ration
-                2.0,   // risk reward
-                0.01,  // loss cut ration
-            ),
-            (
-                RABBITX_TOKEN_LIST[5].to_owned(), // ARB
-                TradingStrategy::TrendFollow,
-                100.0, // initial amount(in USD)
-                0.1,   // position size ration
-                2.0,   // risk reward
-                0.01,  // loss cut ration
-            ),
+            // (
+            //     RABBITX_TOKEN_LIST[4].to_owned(), // APT
+            //     TradingStrategy::Rebalance,
+            //     100.0, // initial amount(in USD)
+            //     0.5,   // position size ration
+            //     0.0,   // risk reward
+            //     0.0,   // loss cut ration
+            // ),
+            // (
+            //     RABBITX_TOKEN_LIST[5].to_owned(), // ARB
+            //     TradingStrategy::Rebalance,
+            //     100.0, // initial amount(in USD)
+            //     0.5,   // position size ration
+            //     0.0,   // risk reward
+            //     0.0,   // loss cut ration
+            // ),
         ];
 
         all_funds
