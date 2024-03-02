@@ -1,5 +1,7 @@
 use debot_market_analyzer::TradingStrategy;
 use debot_utils::decrypt_data_with_kms;
+use rust_decimal::Decimal;
+use rust_decimal::Error as DecimalParseError;
 use std::env;
 use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
@@ -26,12 +28,12 @@ pub struct EnvConfig {
     pub load_prices: bool,
     pub interval_msec: u64,
     pub liquidate_when_exit: bool,
-    pub max_dd_ratio: f64,
+    pub max_dd_ratio: Decimal,
     pub order_effective_duration_secs: i64,
     pub use_market_order: bool,
     pub rest_endpoint: String,
     pub web_socket_endpoint: String,
-    pub leverage: f64,
+    pub leverage: u32,
     pub strategy: Option<TradingStrategy>,
 }
 
@@ -39,6 +41,7 @@ pub struct EnvConfig {
 pub enum ConfigError {
     ParseIntError(ParseIntError),
     ParseFloatError(ParseFloatError),
+    DecimalParseError(DecimalParseError),
     OtherError(String),
 }
 
@@ -47,6 +50,7 @@ impl fmt::Display for ConfigError {
         match self {
             ConfigError::ParseIntError(e) => write!(f, "Parse int error: {}", e),
             ConfigError::ParseFloatError(e) => write!(f, "Parse float error: {}", e),
+            ConfigError::DecimalParseError(e) => write!(f, "Decimal parse error: {}", e),
             ConfigError::OtherError(s) => write!(f, "Other error: {}", s),
         }
     }
@@ -61,6 +65,12 @@ impl From<ParseIntError> for ConfigError {
 impl From<ParseFloatError> for ConfigError {
     fn from(err: ParseFloatError) -> ConfigError {
         ConfigError::ParseFloatError(err)
+    }
+}
+
+impl From<rust_decimal::Error> for ConfigError {
+    fn from(err: rust_decimal::Error) -> ConfigError {
+        ConfigError::DecimalParseError(err)
     }
 }
 
@@ -99,7 +109,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
     let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
-    let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1")?;
+    let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1").map_err(ConfigError::from)?;
     let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_PERIOD_SECS", "300")?;
     let use_market_order = get_bool_env_var("USE_MARKET_ORDER", false);
 
@@ -107,7 +117,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let web_socket_endpoint =
         env::var("WEB_SOCKET_ENDPOINT").expect("WEB_SOCKET_ENDPOINT must be set");
 
-    let leverage = get_env_var("LEVERAGE", "5.0")?;
+    let leverage = get_env_var("LEVERAGE", "3")?;
 
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
         "trendfollow" => Some(TradingStrategy::TrendFollow),

@@ -6,11 +6,13 @@ use dex_connector::{
     FilledOrdersResponse, OrderSide, TickerResponse,
 };
 use futures::lock::Mutex;
+use num::{FromPrimitive, ToPrimitive};
 use rand::{rngs::StdRng, Rng, SeedableRng};
+use rust_decimal::{Decimal, RoundingStrategy};
 
 struct OrderBook {
-    price: Option<f64>,
-    size: f64,
+    price: Option<Decimal>,
+    size: Decimal,
     order_id: u32,
     partially_filled: bool,
 }
@@ -23,14 +25,14 @@ struct OrderBooks {
 pub struct DexEmulator<T: DexConnector> {
     dex_connector: T,
     filled_probability: f64,
-    slippage: f64,
+    slippage: Decimal,
     order_books: Arc<Mutex<HashMap<String, OrderBooks>>>,
     order_id_counter: Arc<Mutex<u32>>,
-    current_price: Arc<Mutex<HashMap<String, f64>>>,
+    current_price: Arc<Mutex<HashMap<String, Decimal>>>,
 }
 
 impl<T: DexConnector> DexEmulator<T> {
-    pub fn new(dex_connector: T, filled_probability: f64, slippage: f64) -> Self {
+    pub fn new(dex_connector: T, filled_probability: f64, slippage: Decimal) -> Self {
         let mut rng = rand::thread_rng();
         let order_id_counter = rng.gen_range(1..=std::u32::MAX);
 
@@ -46,12 +48,12 @@ impl<T: DexConnector> DexEmulator<T> {
 
     async fn process_order_book(
         order_books: &mut Vec<OrderBook>,
-        current_price: f64,
-        filled_orders: &mut Vec<(u32, f64, f64, OrderSide)>,
+        current_price: Decimal,
+        filled_orders: &mut Vec<(u32, Decimal, Decimal, OrderSide)>,
         is_buy_order: bool,
         rng: &mut impl Rng,
         filled_probability: f64,
-        slippage: f64,
+        slippage: Decimal,
     ) {
         order_books.retain_mut(|order_book| {
             let fill = if order_book.partially_filled {
@@ -60,14 +62,27 @@ impl<T: DexConnector> DexEmulator<T> {
                 order_book.size
             } else {
                 order_book.partially_filled = true;
-                rng.gen_range(0.0..order_book.size)
+                let order_book_size = order_book.size.to_f64();
+
+                let filled_size = match order_book_size {
+                    Some(v) => {
+                        let filled_size = rng.gen_range(std::f64::EPSILON..v);
+                        Decimal::from_f64(filled_size)
+                    }
+                    None => None,
+                };
+                match filled_size {
+                    Some(v) => v,
+                    None => order_book.size,
+                }
             };
 
             let always_fill_for_market_order = order_book.price.is_none();
             let adjusted_price = if let Some(price) = order_book.price {
                 price
             } else {
-                current_price * (1.0 + if is_buy_order { slippage } else { -slippage })
+                current_price
+                    * (Decimal::new(1, 0) + if is_buy_order { slippage } else { -slippage })
             };
 
             let price_condition = if is_buy_order {
@@ -76,7 +91,7 @@ impl<T: DexConnector> DexEmulator<T> {
                 always_fill_for_market_order || adjusted_price <= current_price
             };
 
-            if price_condition && fill > 0.0 {
+            if price_condition && fill > Decimal::new(0, 0) {
                 filled_orders.push((
                     order_book.order_id,
                     fill,
@@ -90,7 +105,7 @@ impl<T: DexConnector> DexEmulator<T> {
                 order_book.size -= fill;
             }
 
-            order_book.size > 0.0
+            order_book.size > Decimal::new(0, 0)
         });
     }
 }
@@ -105,7 +120,7 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
         self.dex_connector.stop().await
     }
 
-    async fn set_leverage(&self, _symbol: &str, _leverage: &str) -> Result<(), DexError> {
+    async fn set_leverage(&self, _symbol: &str, _leverage: u32) -> Result<(), DexError> {
         Ok(())
     }
 
@@ -178,7 +193,7 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
                     filled_side: side,
                     filled_size: size,
                     filled_value: size * price,
-                    filled_fee: 0.0,
+                    filled_fee: Decimal::new(0, 0),
                 })
                 .collect(),
         })
@@ -195,23 +210,20 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
     async fn create_order(
         &self,
         symbol: &str,
-        size: &str,
+        size: Decimal,
         side: OrderSide,
-        price: Option<String>,
+        price: Option<Decimal>,
     ) -> Result<CreateOrderResponse, DexError> {
-        let price = price
-            .as_ref()
-            .map(|p| p.parse::<f64>())
-            .transpose()
-            .map_err(|e| DexError::Other(format!("{:?}", e)))?;
-        let size = size
-            .parse::<f64>()
-            .map_err(|e| DexError::Other(format!("{:?}", e)))?;
-
         let mut order_id_counter = self.order_id_counter.lock().await;
         *order_id_counter += 1;
         let order_id = *order_id_counter;
         drop(order_id_counter); // Explicitly drop the lock
+
+        let size = size.round_dp_with_strategy(5, RoundingStrategy::ToZero);
+        let price = match price {
+            Some(v) => Some(v.round_dp_with_strategy(5, RoundingStrategy::ToZero)),
+            None => None,
+        };
 
         let order_book = OrderBook {
             price,

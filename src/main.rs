@@ -5,6 +5,7 @@ use debot_market_analyzer::{PricePoint, TradingStrategy};
 use debot_utils::DateTimeUtils;
 use dex_connector::DexError;
 use error_manager::ErrorManager;
+use rust_decimal::Decimal;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use trade::{trader_config, DerivativeTrader};
@@ -107,7 +108,7 @@ async fn prepare_trader_instance(
 async fn main_loop(
     trader_instance: &mut (DerivativeTrader, &EnvConfig, ErrorManager),
     mut last_execution_time: Option<SystemTime>,
-    mut last_equity: Option<f64>,
+    mut last_equity: Option<Decimal>,
     mut last_dd_check_time: Option<SystemTime>,
 ) -> std::io::Result<()> {
     log::info!("main_loop() starts");
@@ -137,7 +138,7 @@ async fn main_loop(
                 Ok(balance) => {
                     let pnl = match last_equity {
                         Some(prev_balance) => balance - prev_balance,
-                        None => 0.0,
+                        None => Decimal::new(0, 0),
                     };
                     trader.db_handler().lock().await.log_pnl(pnl).await;
                     last_equity = Some(balance);
@@ -293,6 +294,7 @@ async fn handle_trader_activities(
 #[cfg(test)]
 mod tests {
     use dex_connector::{DexConnector, OrderSide, RabbitxConnector};
+    use rust_decimal::Decimal;
     use std::{env, sync::Arc, time::Duration};
     use tokio::time::sleep;
 
@@ -354,7 +356,7 @@ mod tests {
     async fn test_set_leverage() {
         for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
             let client = init_connector(dex_name).await;
-            let response = client.set_leverage(symbol, "1.0").await;
+            let response = client.set_leverage(symbol, 1).await;
             log::info!("{:?}", response);
             assert!(response.is_ok());
         }
@@ -370,88 +372,92 @@ mod tests {
         }
     }
 
-    // #[tokio::test]
-    // async fn test_create_limit_order_buy() {
-    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-    //         let client = init_connector(dex_name).await;
-    //         let price = 30000;
-    //         let response = client
-    //             .create_order(symbol, "0.001", OrderSide::Long, Some(price.to_string()))
-    //             .await
-    //             .unwrap();
+    #[tokio::test]
+    async fn test_create_limit_order_buy() {
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let price = Decimal::new(30000, 0);
+            let size = Decimal::new(1, 4);
+            let response = client
+                .create_order(symbol, size, OrderSide::Long, Some(price))
+                .await
+                .unwrap();
 
-    //         let order_id = response.order_id;
-    //         log::info!("order_id = {}", order_id);
+            let order_id = response.order_id;
+            log::info!("order_id = {}", order_id);
 
-    //         sleep(Duration::from_secs(5)).await;
+            sleep(Duration::from_secs(5)).await;
 
-    //         let response = client.cancel_order(symbol, &order_id).await;
-    //         assert!(response.is_ok());
-    //     }
-    // }
+            let response = client.cancel_order(symbol, &order_id).await;
+            assert!(response.is_ok());
+        }
+    }
 
-    // #[tokio::test]
-    // async fn test_create_limit_order_sell() {
-    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-    //         let client = init_connector(dex_name).await;
-    //         let price = 50000;
-    //         let response = client
-    //             .create_order(symbol, "0.001", OrderSide::Short, Some(price.to_string()))
-    //             .await
-    //             .unwrap();
+    #[tokio::test]
+    async fn test_create_limit_order_sell() {
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let price = Decimal::new(900000, 0);
+            let size = Decimal::new(1, 4);
+            let response = client
+                .create_order(symbol, size, OrderSide::Short, Some(price))
+                .await
+                .unwrap();
 
-    //         let order_id = response.order_id;
-    //         log::info!("order_id = {}", order_id);
+            let order_id = response.order_id;
+            log::info!("order_id = {}", order_id);
 
-    //         sleep(Duration::from_secs(5)).await;
+            sleep(Duration::from_secs(5)).await;
 
-    //         let response = client.cancel_all_orders(Some(symbol.to_string())).await;
-    //         assert!(response.is_ok());
-    //     }
-    // }
+            let response = client.cancel_all_orders(Some(symbol.to_string())).await;
+            assert!(response.is_ok());
+        }
+    }
 
-    // #[tokio::test]
-    // async fn test_create_market_order_buy() {
-    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-    //         let client = init_connector(dex_name).await;
-    //         let response = client
-    //             .create_order(symbol, "0.001", OrderSide::Long, None)
-    //             .await;
-    //         log::info!("{:?}", response);
-    //         assert!(response.is_ok());
+    #[tokio::test]
+    async fn test_create_market_order_buy() {
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let size = Decimal::new(1, 4);
+            let response = client
+                .create_order(symbol, size, OrderSide::Long, None)
+                .await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
 
-    //         sleep(Duration::from_secs(5)).await;
+            sleep(Duration::from_secs(5)).await;
 
-    //         let response = client.get_filled_orders(symbol).await;
-    //         log::info!("{:?}", response);
-    //         assert!(response.is_ok());
+            let response = client.get_filled_orders(symbol).await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
 
-    //         client
-    //             .close_all_positions(Some(symbol.to_string()))
-    //             .await
-    //             .unwrap();
-    //     }
-    // }
+            client
+                .close_all_positions(Some(symbol.to_string()))
+                .await
+                .unwrap();
+        }
+    }
 
-    // #[tokio::test]
-    // async fn test_create_market_order_sell() {
-    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-    //         let client = init_connector(dex_name).await;
-    //         let response = client
-    //             .create_order(symbol, "0.001", OrderSide::Short, None)
-    //             .await;
-    //         log::info!("{:?}", response);
-    //         assert!(response.is_ok());
+    #[tokio::test]
+    async fn test_create_market_order_sell() {
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let size = Decimal::new(1, 4);
+            let response = client
+                .create_order(symbol, size, OrderSide::Short, None)
+                .await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
 
-    //         sleep(Duration::from_secs(5)).await;
+            sleep(Duration::from_secs(5)).await;
 
-    //         let response = client.get_filled_orders(symbol).await;
-    //         log::info!("{:?}", response);
-    //         assert!(response.is_ok());
+            let response = client.get_filled_orders(symbol).await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
 
-    //         client.close_all_positions(None).await.unwrap();
-    //     }
-    // }
+            client.close_all_positions(None).await.unwrap();
+        }
+    }
 
     #[tokio::test]
     async fn test_close_all_positions() {

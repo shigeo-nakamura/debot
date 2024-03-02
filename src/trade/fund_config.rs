@@ -2,6 +2,7 @@ use std::env;
 
 use debot_market_analyzer::TradingStrategy;
 use lazy_static::lazy_static;
+use rust_decimal::Decimal;
 
 pub const TOKEN_LIST_SIZE: usize = 6;
 
@@ -10,10 +11,10 @@ pub const RABBITX_TOKEN_LIST: [&str; TOKEN_LIST_SIZE] = [
 ];
 
 lazy_static! {
-    static ref FUND_SCALE_FACTOR: f64 = {
+    static ref FUND_SCALE_FACTOR: Decimal = {
         match env::var("FUND_SCALE_FACTOR") {
-            Ok(val) => val.parse::<f64>().unwrap_or(1.0),
-            Err(_) => 1.0,
+            Ok(val) => val.parse::<Decimal>().unwrap_or(Decimal::new(1, 0)),
+            Err(_) => Decimal::new(1, 0),
         }
     };
 }
@@ -21,16 +22,16 @@ lazy_static! {
 pub fn get(
     dex_name: &str,
     strategy: Option<&TradingStrategy>,
-) -> Vec<(String, TradingStrategy, f64, f64, f64, f64)> {
+) -> Vec<(String, TradingStrategy, Decimal, Decimal, Decimal, Decimal)> {
     if dex_name == "rabbitx" {
         let all_funds = vec![
             (
                 RABBITX_TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::Rebalance,
-                500.0, // initial amount(in USD)
-                0.5,   // position size ration
-                0.0,   // risk reward
-                0.0,   // loss cut ration
+                Decimal::new(500, 0), // initial amount(in USD)
+                Decimal::new(5, 1),   // position size ration
+                Decimal::new(2, 0),   // risk reward
+                Decimal::new(1, 2),   // loss cut ration
             ),
             // (
             //     RABBITX_TOKEN_LIST[1].to_owned(), // ETH

@@ -3,6 +3,7 @@ use dex_connector::{
     BalanceResponse, CreateOrderResponse, DexConnector, DexError, FilledOrdersResponse, OrderSide,
     RabbitxConnector, TickerResponse,
 };
+use rust_decimal::Decimal;
 
 use super::{dex_emulator::DexEmulator, fund_config::RABBITX_TOKEN_LIST};
 use crate::config::get_rabbitx_config_from_env;
@@ -55,8 +56,11 @@ impl DexConnectorBox {
                 connector.start().await?;
 
                 if dry_run {
-                    let dex_emulator =
-                        DexEmulator::new(connector, *FILLED_PROBABILITY_IN_EMULATION, 0.005);
+                    let dex_emulator = DexEmulator::new(
+                        connector,
+                        *FILLED_PROBABILITY_IN_EMULATION,
+                        Decimal::new(5, 3),
+                    );
                     Ok(DexConnectorBox {
                         inner: Box::new(dex_emulator),
                     })
@@ -81,7 +85,7 @@ impl DexConnector for DexConnectorBox {
         self.inner.stop().await
     }
 
-    async fn set_leverage(&self, symbol: &str, leverage: &str) -> Result<(), DexError> {
+    async fn set_leverage(&self, symbol: &str, leverage: u32) -> Result<(), DexError> {
         self.inner.set_leverage(symbol, leverage).await
     }
 
@@ -104,9 +108,9 @@ impl DexConnector for DexConnectorBox {
     async fn create_order(
         &self,
         symbol: &str,
-        size: &str,
+        size: Decimal,
         side: OrderSide,
-        price: Option<String>,
+        price: Option<Decimal>,
     ) -> Result<CreateOrderResponse, DexError> {
         self.inner.create_order(symbol, size, side, price).await
     }

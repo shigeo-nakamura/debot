@@ -5,6 +5,7 @@ use debot_market_analyzer::PricePoint;
 use debot_position_manager::{State, TradePosition};
 use debot_utils::DateTimeUtils;
 use lazy_static::lazy_static;
+use rust_decimal::Decimal;
 use std::{collections::HashMap, env, sync::Arc, time::SystemTime};
 
 pub struct DBHandler {
@@ -43,7 +44,7 @@ impl DBHandler {
 }
 
 impl DBHandler {
-    pub async fn log_pnl(&self, pnl: f64) {
+    pub async fn log_pnl(&self, pnl: Decimal) {
         log::info!("log_pnl: {:6.6}", pnl);
 
         if let Some(db) = self.transaction_log.get_db().await {
@@ -61,7 +62,7 @@ impl DBHandler {
     pub async fn log_app_state(
         &self,
         last_execution_time: Option<SystemTime>,
-        last_equity: Option<f64>,
+        last_equity: Option<Decimal>,
         circuit_break: bool,
         error_time: Option<String>,
     ) {
@@ -120,7 +121,7 @@ impl DBHandler {
         Some(self.transaction_log.increment_counter(counter_type))
     }
 
-    pub async fn get_app_state(&self) -> (Option<SystemTime>, Option<f64>, bool) {
+    pub async fn get_app_state(&self) -> (Option<SystemTime>, Option<Decimal>, bool) {
         if let Some(db) = self.transaction_log.get_db().await {
             let app_state = TransactionLog::get_app_state(&db).await;
             (

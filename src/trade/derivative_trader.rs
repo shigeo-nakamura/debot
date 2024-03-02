@@ -8,6 +8,8 @@ use dex_connector::DexConnector;
 use dex_connector::DexError;
 use futures::future::join_all;
 use futures::FutureExt;
+use num::FromPrimitive;
+use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::error::Error;
@@ -46,8 +48,8 @@ struct DerivativeTraderConfig {
     trade_period: usize,
     rebalance_period: usize,
     max_price_size: u32,
-    initial_balance: f64,
-    max_dd_ratio: f64,
+    initial_balance: Decimal,
+    max_dd_ratio: Decimal,
     rest_endpoint: String,
     web_socket_endpoint: String,
 }
@@ -76,12 +78,12 @@ impl DerivativeTrader {
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
         save_prices: bool,
-        max_dd_ratio: f64,
+        max_dd_ratio: Decimal,
         order_effective_duration_secs: i64,
         use_market_order: bool,
         rest_endpoint: &str,
         web_socket_endpoint: &str,
-        leverage: f64,
+        leverage: u32,
         strategy: Option<&TradingStrategy>,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
@@ -94,7 +96,7 @@ impl DerivativeTrader {
             trade_period: trade_interval * SECONDS_IN_MINUTE,
             rebalance_period: rebalance_interval.unwrap_or_default() * SECONDS_IN_MINUTE,
             max_price_size: max_price_size,
-            initial_balance: 0.0,
+            initial_balance: Decimal::new(0, 0),
             max_dd_ratio,
             rest_endpoint: rest_endpoint.to_owned(),
             web_socket_endpoint: web_socket_endpoint.to_owned(),
@@ -131,7 +133,7 @@ impl DerivativeTrader {
         save_prices: bool,
         order_effective_duration_secs: i64,
         use_market_order: bool,
-        leverage: f64,
+        leverage: u32,
         strategy: Option<&TradingStrategy>,
     ) -> DerivativeTraderState {
         let dex_connector = Self::create_dex_connector(config)
@@ -261,7 +263,10 @@ impl DerivativeTrader {
         if let Some(price_points_map) = price_market_data.get(trader_name) {
             if let Some(price_points) = price_points_map.get(token_name) {
                 for price_point in price_points {
-                    market_data.add_price(Some(price_point.price), Some(price_point.timestamp));
+                    market_data.add_price(
+                        Decimal::from_f64(price_point.price),
+                        Some(price_point.timestamp),
+                    );
                 }
             }
         }
@@ -287,7 +292,7 @@ impl DerivativeTrader {
             Err(_) => return Err(()),
         };
         let lost = self.config.initial_balance - balance;
-        if lost > 0.0 {
+        if lost.is_sign_positive() {
             let dd_ratio = lost / self.config.initial_balance;
             log::info!(
                 "lost = {}, initial_balance = {}, dd_ratio = {}",
@@ -326,7 +331,7 @@ impl DerivativeTrader {
 
         let price_results = join_all(price_futures).await;
 
-        let mut prices: HashMap<String, Option<f64>> = HashMap::new();
+        let mut prices: HashMap<String, Option<Decimal>> = HashMap::new();
         for result in price_results {
             let (token_name, price) = result?;
             prices.insert(token_name.to_owned(), price);
@@ -414,7 +419,7 @@ impl DerivativeTrader {
         &self.state.db_handler
     }
 
-    pub async fn get_balance(&self) -> Result<f64, ()> {
+    pub async fn get_balance(&self) -> Result<Decimal, ()> {
         if let Ok(res) = self.state.dex_connector.get_balance().await {
             return Ok(res.equity);
         }

@@ -26,6 +26,7 @@ async-recursion = "1.0.4"
 bigdecimal = "0.3.1"
 chrono-tz = "0.8.2"
 ctor = "0.1"
+rust_decimal = { version = "1.0", features = ["serde"] }
 
 debot-market-analyzer = "1.1.*"
 debot-position-manager = "1.2.*"
