@@ -117,7 +117,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let web_socket_endpoint =
         env::var("WEB_SOCKET_ENDPOINT").expect("WEB_SOCKET_ENDPOINT must be set");
 
-    let leverage = get_env_var("LEVERAGE", "3")?;
+    let leverage = get_env_var("LEVERAGE", "5")?;
 
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
         "trendfollow" => Some(TradingStrategy::TrendFollow),

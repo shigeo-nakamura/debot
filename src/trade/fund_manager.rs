@@ -1053,19 +1053,29 @@ impl FundManager {
         match self.get_open_position() {
             Some(position) => {
                 let amount_in_usd = position.amount() * current_price;
-                let amount_diff = self.state.amount - amount_in_usd;
+                let target_amount_in_usd = (self.state.amount + amount_in_usd) / Decimal::new(2, 0);
+                let amount_diff = self.state.amount - target_amount_in_usd;
                 let is_buy = amount_diff.is_sign_positive();
-                let target_amount = amount_diff.abs() / Decimal::new(2, 0) / current_price;
+                let target_amount_in_usd_diff = amount_diff.abs() / Decimal::new(2, 0);
+
+                log::debug!(
+                    "rebalance: {} --> {}, {}: {:.6}",
+                    self.state.amount,
+                    target_amount_in_usd,
+                    if is_buy { "buy" } else { "sell" },
+                    target_amount_in_usd_diff
+                );
+
                 if is_buy {
                     TradeAction::BuyOpen(TradeDetail::new(
                         None,
-                        Some(target_amount),
+                        Some(target_amount_in_usd_diff),
                         Decimal::new(1, 0),
                     ))
                 } else {
                     TradeAction::SellOpen(TradeDetail::new(
                         None,
-                        Some(target_amount),
+                        Some(target_amount_in_usd_diff),
                         Decimal::new(1, 0),
                     ))
                 }

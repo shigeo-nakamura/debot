@@ -251,6 +251,7 @@ impl DerivativeTrader {
             config.dry_run,
         )
         .await?;
+        dex_connector.start().await?;
         Ok(Arc::new(dex_connector))
     }
 
@@ -392,13 +393,10 @@ impl DerivativeTrader {
             log::error!("Failed to stop the dex_connector");
         }
 
-        self.state.dex_connector = match Self::create_dex_connector(&self.config).await {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!("{:?}", e);
-                return false;
-            }
-        };
+        if self.state.dex_connector.start().await.is_err() {
+            log::error!("Failed to restart the dex_connector");
+            return false;
+        }
 
         for fund_manager in self.state.fund_manager_map.iter_mut() {
             fund_manager

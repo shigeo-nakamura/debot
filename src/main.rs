@@ -3,7 +3,6 @@
 use config::EnvConfig;
 use debot_market_analyzer::{PricePoint, TradingStrategy};
 use debot_utils::DateTimeUtils;
-use dex_connector::DexError;
 use error_manager::ErrorManager;
 use rust_decimal::Decimal;
 use tokio::sync::Mutex;
@@ -281,12 +280,7 @@ async fn handle_trader_activities(
             log::error!("Error while finding opportunities: {}", e);
             error_manager.save_first_error_time();
 
-            if let Some(dex_error) = e.downcast_ref::<DexError>() {
-                if matches!(*dex_error, DexError::NoConnection) {
-                    trader.liquidate("Network Connection error").await;
-                    let _ = trader.reset_dex_client().await;
-                }
-            }
+            let _ = trader.reset_dex_client().await;
         }
     }
 }

@@ -53,7 +53,6 @@ impl DexConnectorBox {
                     &market_ids,
                 )
                 .await?;
-                connector.start().await?;
 
                 if dry_run {
                     let dex_emulator = DexEmulator::new(
