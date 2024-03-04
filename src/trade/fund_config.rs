@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 
 pub const TOKEN_LIST_SIZE: usize = 6;
 
-pub const RABBITX_TOKEN_LIST: [&str; TOKEN_LIST_SIZE] = [
+pub const TOKEN_LIST: [&str; TOKEN_LIST_SIZE] = [
     "BTC-USD", "ETH-USD", "SOL-USD", "SUI-USD", "APT-USD", "ARB-USD",
 ];
 
@@ -26,15 +26,15 @@ pub fn get(
     if dex_name == "rabbitx" {
         let all_funds = vec![
             (
-                RABBITX_TOKEN_LIST[0].to_owned(), // BTC
+                TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::Rebalance,
                 Decimal::new(2000, 0), // initial amount(in USD)
-                Decimal::new(5, 1),   // position size ration
-                Decimal::new(2, 0),   // risk reward
-                Decimal::new(1, 2),   // loss cut ration
+                Decimal::new(5, 1),    // position size ration
+                Decimal::new(2, 0),    // risk reward
+                Decimal::new(1, 2),    // loss cut ration
             ),
             // (
-            //     RABBITX_TOKEN_LIST[1].to_owned(), // ETH
+            //     TOKEN_LIST[1].to_owned(), // ETH
             //     TradingStrategy::Rebalance,
             //     200.0, // initial amount(in USD)
             //     0.5,   // position size ration
@@ -42,7 +42,7 @@ pub fn get(
             //     0.0,   // loss cut ration
             // ),
             // (
-            //     RABBITX_TOKEN_LIST[2].to_owned(), // SOL
+            //     TOKEN_LIST[2].to_owned(), // SOL
             //     TradingStrategy::Rebalance,
             //     200.0, // initial amount(in USD)
             //     0.5,   // position size ration
@@ -50,7 +50,7 @@ pub fn get(
             //     0.0,   // loss cut ration
             // ),
             // (
-            //     RABBITX_TOKEN_LIST[3].to_owned(), // SUI
+            //     TOKEN_LIST[3].to_owned(), // SUI
             //     TradingStrategy::Rebalance,
             //     200.0, // initial amount(in USD)
             //     0.5,   // position size ration
@@ -58,7 +58,7 @@ pub fn get(
             //     0.0,   // loss cut ration
             // ),
             // (
-            //     RABBITX_TOKEN_LIST[4].to_owned(), // APT
+            //     TOKEN_LIST[4].to_owned(), // APT
             //     TradingStrategy::Rebalance,
             //     100.0, // initial amount(in USD)
             //     0.5,   // position size ration
@@ -66,7 +66,7 @@ pub fn get(
             //     0.0,   // loss cut ration
             // ),
             // (
-            //     RABBITX_TOKEN_LIST[5].to_owned(), // ARB
+            //     TOKEN_LIST[5].to_owned(), // ARB
             //     TradingStrategy::Rebalance,
             //     100.0, // initial amount(in USD)
             //     0.5,   // position size ration

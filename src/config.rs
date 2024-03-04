@@ -17,6 +17,12 @@ pub struct RabbitxConfig {
 }
 
 #[derive(Debug)]
+pub struct HyperliquidConfig {
+    pub agent_private_key: String,
+    pub evm_wallet_address: String,
+}
+
+#[derive(Debug)]
 pub struct EnvConfig {
     pub mongodb_uri: String,
     pub db_name: String,
@@ -178,5 +184,26 @@ pub async fn get_rabbitx_config_from_env() -> Result<RabbitxConfig, ConfigError>
         refresh_token,
         secret,
         private_jwt,
+    })
+}
+
+pub async fn get_hyperliquid_config_from_env() -> Result<HyperliquidConfig, ConfigError> {
+    let agent_private_key = env::var("HYPERLIQUID_AGENT_PRIVATE_KEY")
+        .expect("HYPERLIQUID_AGENT_PRIVATE_KEY must be set");
+    let evm_wallet_address = env::var("HYPERLIQUID_EVM_WALLET_ADDRESS")
+        .expect("HYPERLIQUID_EVM_WALLET_ADDRESS must be set");
+
+    let encrypted_data_key = env::var("ENCRYPTED_DATA_KEY")
+        .expect("ENCRYPTED_DATA_KEY must be set")
+        .replace(" ", ""); // Remove whitespace characters
+
+    let agent_private_key_vec = decrypt_data_with_kms(&encrypted_data_key, agent_private_key, true)
+        .await
+        .map_err(|_| ConfigError::OtherError("decrypt agent_private_key".to_owned()))?;
+    let agent_private_key = format!("0x{}", String::from_utf8(agent_private_key_vec).unwrap());
+
+    Ok(HyperliquidConfig {
+        agent_private_key,
+        evm_wallet_address,
     })
 }
