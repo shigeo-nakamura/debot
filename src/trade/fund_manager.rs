@@ -1056,7 +1056,7 @@ impl FundManager {
                 let target_amount_in_usd = (self.state.amount + amount_in_usd) / Decimal::new(2, 0);
                 let amount_diff = self.state.amount - target_amount_in_usd;
                 let is_buy = amount_diff.is_sign_positive();
-                let target_amount_in_usd_diff = amount_diff.abs() / Decimal::new(2, 0);
+                let target_amount_in_usd_diff = amount_diff.abs();
 
                 log::debug!(
                     "rebalance: {} --> {}, {}: {:.6}",
