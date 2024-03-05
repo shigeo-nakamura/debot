@@ -937,7 +937,8 @@ impl FundManager {
 
     pub async fn position_filled(
         &mut self,
-        order_id: String,
+        order_id: &str,
+        trade_id: &str,
         filled_side: OrderSide,
         filled_value: Decimal,
         filled_size: Decimal,
@@ -945,14 +946,14 @@ impl FundManager {
     ) -> Result<bool, ()> {
         self.state
             .dex_connector
-            .clear_filled_order(&self.config.token_name, &order_id)
+            .clear_filled_order(&self.config.token_name, trade_id)
             .await
             .map_err(|e| {
                 log::error!("{:?}", e);
                 ()
             })?;
 
-        let position = match self.find_position_from_order_id(&order_id) {
+        let position = match self.find_position_from_order_id(order_id) {
             Some(p) => p,
             None => {
                 log::warn!("Filled position not found: order_id = {}", order_id,);

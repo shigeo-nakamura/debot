@@ -349,7 +349,8 @@ impl DerivativeTrader {
             for order in filled_orders.orders {
                 fund_manager
                     .position_filled(
-                        order.order_id.clone(),
+                        &order.order_id.clone(),
+                        &order.trade_id.clone(),
                         order.filled_side.clone(),
                         order.filled_value.clone(),
                         order.filled_size.clone(),

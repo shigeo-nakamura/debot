@@ -99,8 +99,8 @@ impl DexConnector for DexConnectorBox {
         self.inner.get_balance().await
     }
 
-    async fn clear_filled_order(&self, symbol: &str, order_id: &str) -> Result<(), DexError> {
-        self.inner.clear_filled_order(symbol, order_id).await
+    async fn clear_filled_order(&self, symbol: &str, trade_id: &str) -> Result<(), DexError> {
+        self.inner.clear_filled_order(symbol, trade_id).await
     }
 
     async fn create_order(
