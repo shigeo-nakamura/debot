@@ -28,8 +28,8 @@ pub fn get(
             (
                 TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::Rebalance,
-                Decimal::new(2000, 0), // initial amount(in USD)
-                Decimal::new(5, 1),    // position size ration
+                Decimal::new(5000, 0), // initial amount(in USD)
+                Decimal::new(2, 1),    // position size ration
                 Decimal::new(2, 0),    // risk reward
                 Decimal::new(1, 2),    // loss cut ration
             ),

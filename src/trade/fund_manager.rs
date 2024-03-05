@@ -44,6 +44,7 @@ struct FundManagerConfig {
     order_effective_duration_secs: i64,
     use_market_order: bool,
     loss_cut_ratio: Decimal,
+    preportion: Decimal,
 }
 
 #[derive(Default)]
@@ -92,6 +93,7 @@ impl FundManager {
             order_effective_duration_secs,
             use_market_order,
             loss_cut_ratio,
+            preportion: Decimal::new(1, 0) - trading_amount / initial_amount,
         };
 
         let open_positions = match open_positions {
@@ -1053,7 +1055,8 @@ impl FundManager {
         match self.get_open_position() {
             Some(position) => {
                 let amount_in_usd = position.amount() * current_price;
-                let target_amount_in_usd = (self.state.amount + amount_in_usd) / Decimal::new(2, 0);
+                let target_amount_in_usd =
+                    (self.state.amount + amount_in_usd) * self.config.preportion;
                 let amount_diff = self.state.amount - target_amount_in_usd;
                 let is_buy = amount_diff.is_sign_positive();
                 let target_amount_in_usd_diff = amount_diff.abs();
