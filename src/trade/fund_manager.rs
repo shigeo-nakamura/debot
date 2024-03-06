@@ -341,7 +341,7 @@ impl FundManager {
                     let is_long_position = open_position.position_type() == PositionType::Long;
                     if is_buy == is_long_position {
                         if self.state.amount <= target_amount {
-                            log::warn!("No enough fund left: {}", self.state.amount);
+                            log::warn!("No enough fund left: {:.6}", self.state.amount);
                             if self.state.amount > Decimal::new(0, 0) {
                                 target_amount = self.state.amount;
                             } else {
@@ -1057,38 +1057,37 @@ impl FundManager {
     }
 
     fn rebalance(&self, current_price: Decimal) -> TradeAction {
-        match self.get_open_position() {
-            Some(position) => {
-                let amount_in_usd = position.amount() * current_price;
-                let target_amount_in_usd =
-                    (self.state.amount + amount_in_usd) * self.config.preportion;
-                let amount_diff = self.state.amount - target_amount_in_usd;
-                let is_buy = amount_diff.is_sign_positive();
-                let target_amount_in_usd_diff = amount_diff.abs();
+        let mut position_amount = Decimal::new(0, 0);
+        for (_, position) in &self.state.trade_positions {
+            position_amount += position.amount();
+        }
 
-                log::debug!(
-                    "rebalance: {:.6} --> {:.6}, {:.6}: {:.6}",
-                    self.state.amount,
-                    target_amount_in_usd,
-                    if is_buy { "buy" } else { "sell" },
-                    target_amount_in_usd_diff
-                );
+        let amount_in_usd = position_amount * current_price;
+        let target_amount_in_usd = (self.state.amount + amount_in_usd) * self.config.preportion;
+        let amount_diff = self.state.amount - target_amount_in_usd;
+        let is_buy = amount_diff.is_sign_positive();
+        let target_amount_in_usd_diff = amount_diff.abs();
 
-                if is_buy {
-                    TradeAction::BuyOpen(TradeDetail::new(
-                        None,
-                        Some(target_amount_in_usd_diff),
-                        Decimal::new(1, 0),
-                    ))
-                } else {
-                    TradeAction::SellOpen(TradeDetail::new(
-                        None,
-                        Some(target_amount_in_usd_diff),
-                        Decimal::new(1, 0),
-                    ))
-                }
-            }
-            None => TradeAction::BuyOpen(TradeDetail::new(None, None, Decimal::new(1, 0))),
+        log::debug!(
+            "rebalance: {:.6} --> {:.6}, {:.6}: {:.6}",
+            self.state.amount,
+            target_amount_in_usd,
+            if is_buy { "buy" } else { "sell" },
+            target_amount_in_usd_diff
+        );
+
+        if is_buy {
+            TradeAction::BuyOpen(TradeDetail::new(
+                None,
+                Some(target_amount_in_usd_diff),
+                Decimal::new(1, 0),
+            ))
+        } else {
+            TradeAction::SellOpen(TradeDetail::new(
+                None,
+                Some(target_amount_in_usd_diff),
+                Decimal::new(1, 0),
+            ))
         }
     }
 
