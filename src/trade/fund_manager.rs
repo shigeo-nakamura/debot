@@ -1116,8 +1116,8 @@ impl FundManager {
             .get_mut(&position.id().unwrap())
             .unwrap();
 
-        let is_closed = match position.cancel() {
-            Ok(is_closed) => is_closed,
+        let is_canceled = match position.cancel() {
+            Ok(is_canceled) => is_canceled,
             Err(_) => {
                 log::error!("Failed to cancel the position = {:?}", position);
                 return;
@@ -1132,19 +1132,26 @@ impl FundManager {
             .log_position(&position)
             .await;
 
-        if is_closed {
-            let position_id = match position.id() {
-                Some(id) => id,
-                None => {
-                    log::error!("Position id is None: {:?}", position);
-                    return;
-                }
-            };
+        let position_id = match position.id() {
+            Some(id) => id,
+            None => {
+                log::error!("Position id is None: {:?}", position);
+                return;
+            }
+        };
+
+        if is_canceled {
             self.state.trade_positions.remove(&position_id);
             if let Some(open_position_id) = self.state.latest_open_position_id {
                 if open_position_id == position_id {
+                    // Closing --> Closed
                     self.state.latest_open_position_id = None;
                 }
+            }
+        } else {
+            if self.state.latest_open_position_id.is_none() {
+                // Opening --> Open
+                self.state.latest_open_position_id = Some(position_id);
             }
         }
     }
