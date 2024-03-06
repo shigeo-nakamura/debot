@@ -281,7 +281,7 @@ impl FundManager {
                 }
                 _ => continue,
             };
-            let target_amount = match target_amount {
+            let mut target_amount = match target_amount {
                 Some(amount) => amount,
                 None => self.config.trading_amount,
             };
@@ -342,7 +342,11 @@ impl FundManager {
                     if is_buy == is_long_position {
                         if self.state.amount <= target_amount {
                             log::warn!("No enough fund left: {}", self.state.amount);
-                            break;
+                            if self.state.amount > Decimal::new(0, 0) {
+                                target_amount = self.state.amount;
+                            } else {
+                                break;
+                            }
                         }
                     }
                 }
@@ -1063,7 +1067,7 @@ impl FundManager {
                 let target_amount_in_usd_diff = amount_diff.abs();
 
                 log::debug!(
-                    "rebalance: {} --> {}, {}: {:.6}",
+                    "rebalance: {:.6} --> {:.6}, {:.6}: {:.6}",
                     self.state.amount,
                     target_amount_in_usd,
                     if is_buy { "buy" } else { "sell" },
