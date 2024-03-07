@@ -85,6 +85,7 @@ async fn prepare_trader_instance(
         trading_interval,
         interval,
         rebalance_interval,
+        config.interval_msec,
         config.max_price_size,
         db_handler,
         open_positions_map,

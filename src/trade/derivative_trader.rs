@@ -47,6 +47,7 @@ struct DerivativeTraderConfig {
     long_trade_period: usize,
     trade_period: usize,
     rebalance_period: usize,
+    interval_secs: i64,
     max_price_size: u32,
     initial_balance: Decimal,
     max_dd_ratio: Decimal,
@@ -72,6 +73,7 @@ impl DerivativeTrader {
         trade_interval: usize,
         sample_interval: SampleInterval,
         rebalance_interval: Option<usize>,
+        interval_msecs: u64,
         max_price_size: u32,
         db_handler: Arc<Mutex<DBHandler>>,
         open_positions_map: HashMap<String, HashMap<u32, TradePosition>>,
@@ -87,6 +89,8 @@ impl DerivativeTrader {
         strategy: Option<&TradingStrategy>,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
+        let interval_secs = interval_msecs as i64 / 1000;
+
         let mut config = DerivativeTraderConfig {
             trader_name: dex_name.to_owned(),
             dex_name: dex_name.to_owned(),
@@ -95,6 +99,7 @@ impl DerivativeTrader {
             long_trade_period: sample_interval.long_term * SECONDS_IN_MINUTE,
             trade_period: trade_interval * SECONDS_IN_MINUTE,
             rebalance_period: rebalance_interval.unwrap_or_default() * SECONDS_IN_MINUTE,
+            interval_secs,
             max_price_size: max_price_size,
             initial_balance: Decimal::new(0, 0),
             max_dd_ratio,
@@ -199,9 +204,21 @@ impl DerivativeTrader {
                         "{:?}-{}-{}-{}",
                         strategy,
                         token_name,
-                        config.short_trade_period / 60,
-                        config.long_trade_period / 60
+                        config.short_trade_period * config.interval_secs as usize / 60,
+                        config.long_trade_period * config.interval_secs as usize / 60
                     );
+
+                    let rebalance_interval_secs =
+                        config.rebalance_period as i64 * config.interval_secs;
+                    let order_effective_duration_secs = if rebalance_interval_secs > 0 {
+                        if order_effective_duration_secs > rebalance_interval_secs {
+                            rebalance_interval_secs / config.interval_secs - 5
+                        } else {
+                            order_effective_duration_secs
+                        }
+                    } else {
+                        order_effective_duration_secs
+                    };
 
                     let mut market_data = Self::create_market_data(config.clone(), strategy);
 
