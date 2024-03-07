@@ -1071,7 +1071,7 @@ impl FundManager {
         log::debug!(
             "rebalance USD: {:.6} --> {:.6}, {}: {:.6}",
             self.state.amount,
-            self.state.amount + buy_amount_in_usd,
+            self.state.amount - buy_amount_in_usd,
             if is_buy { "buy" } else { "sell" },
             trade_amount_in_usd
         );
