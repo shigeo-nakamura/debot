@@ -1063,29 +1063,29 @@ impl FundManager {
         }
 
         let amount_in_usd = position_amount * current_price;
-        let target_amount_in_usd = (self.state.amount + amount_in_usd) * self.config.preportion;
-        let amount_diff = self.state.amount - target_amount_in_usd;
-        let is_buy = amount_diff.is_sign_positive();
-        let target_amount_in_usd_diff = amount_diff.abs();
+        let buy_amount_in_usd = (Decimal::new(1, 0) - self.config.preportion) * self.state.amount
+            - self.config.preportion * amount_in_usd;
+        let is_buy = buy_amount_in_usd.is_sign_positive();
+        let trade_amount_in_usd = buy_amount_in_usd.abs();
 
         log::debug!(
-            "rebalance: {:.6} --> {:.6}, {:.6}: {:.6}",
+            "rebalance USD: {:.6} --> {:.6}, {}: {:.6}",
             self.state.amount,
-            target_amount_in_usd,
+            self.state.amount + buy_amount_in_usd,
             if is_buy { "buy" } else { "sell" },
-            target_amount_in_usd_diff
+            trade_amount_in_usd
         );
 
         if is_buy {
             TradeAction::BuyOpen(TradeDetail::new(
                 None,
-                Some(target_amount_in_usd_diff),
+                Some(trade_amount_in_usd),
                 Decimal::new(1, 0),
             ))
         } else {
             TradeAction::SellOpen(TradeDetail::new(
                 None,
-                Some(target_amount_in_usd_diff),
+                Some(trade_amount_in_usd),
                 Decimal::new(1, 0),
             ))
         }
