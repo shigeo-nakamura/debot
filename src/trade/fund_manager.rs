@@ -1001,10 +1001,7 @@ impl FundManager {
                 _ => Some(filled_price + distance),
             },
         };
-        let take_profit_price = match self.config.strategy {
-            TradingStrategy::Rebalance => None,
-            _ => Some(predicted_price),
-        };
+        let take_profit_price = Some(predicted_price);
 
         let open_position_id = self.state.latest_open_position_id;
 
