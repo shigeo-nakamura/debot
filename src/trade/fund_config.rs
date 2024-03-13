@@ -24,56 +24,42 @@ pub fn get(
     strategy: Option<&TradingStrategy>,
 ) -> Vec<(String, TradingStrategy, Decimal, Decimal, Decimal, Decimal)> {
     if dex_name == "rabbitx" {
-        let all_funds = vec![
-            (
-                TOKEN_LIST[0].to_owned(), // BTC
-                TradingStrategy::Rebalance,
-                Decimal::new(5000, 0), // initial amount(in USD)
-                Decimal::new(2, 1),    // position size ration
-                Decimal::new(2, 0),    // risk reward
-                Decimal::new(1, 2),    // loss cut ration
-            ),
-            // (
-            //     TOKEN_LIST[1].to_owned(), // ETH
-            //     TradingStrategy::Rebalance,
-            //     200.0, // initial amount(in USD)
-            //     0.5,   // position size ration
-            //     0.0,   // risk reward
-            //     0.0,   // loss cut ration
-            // ),
-            // (
-            //     TOKEN_LIST[2].to_owned(), // SOL
-            //     TradingStrategy::Rebalance,
-            //     200.0, // initial amount(in USD)
-            //     0.5,   // position size ration
-            //     0.0,   // risk reward
-            //     0.0,   // loss cut ration
-            // ),
-            // (
-            //     TOKEN_LIST[3].to_owned(), // SUI
-            //     TradingStrategy::Rebalance,
-            //     200.0, // initial amount(in USD)
-            //     0.5,   // position size ration
-            //     0.0,   // risk reward
-            //     0.0,   // loss cut ration
-            // ),
-            // (
-            //     TOKEN_LIST[4].to_owned(), // APT
-            //     TradingStrategy::Rebalance,
-            //     100.0, // initial amount(in USD)
-            //     0.5,   // position size ration
-            //     0.0,   // risk reward
-            //     0.0,   // loss cut ration
-            // ),
-            // (
-            //     TOKEN_LIST[5].to_owned(), // ARB
-            //     TradingStrategy::Rebalance,
-            //     100.0, // initial amount(in USD)
-            //     0.5,   // position size ration
-            //     0.0,   // risk reward
-            //     0.0,   // loss cut ration
-            // ),
-        ];
+        let all_funds = vec![(
+            TOKEN_LIST[0].to_owned(), // BTC
+            TradingStrategy::Rebalance,
+            Decimal::new(5000, 0), // initial amount(in USD)
+            Decimal::new(2, 1),    // position size ration
+            Decimal::new(2, 0),    // risk reward
+            Decimal::new(1, 2),    // loss cut ration
+        )];
+
+        all_funds
+            .into_iter()
+            .filter(|(_, token_strategy, _, _, _, _)|
+                // Check if strategy is None or if it matches the token's strategy
+                strategy.is_none() || strategy == Some(&token_strategy))
+            .map(
+                |(token, token_strategy, amount, size_ratio, risk_reward, loss_cut_ratio)| {
+                    (
+                        token,
+                        token_strategy,
+                        amount * *FUND_SCALE_FACTOR,
+                        size_ratio,
+                        risk_reward,
+                        loss_cut_ratio,
+                    )
+                },
+            )
+            .collect()
+    } else if dex_name == "hyperliquid" {
+        let all_funds = vec![(
+            TOKEN_LIST[0].to_owned(), // BTC
+            TradingStrategy::Rebalance,
+            Decimal::new(5000, 0), // initial amount(in USD)
+            Decimal::new(2, 1),    // position size ration
+            Decimal::new(2, 0),    // risk reward
+            Decimal::new(1, 2),    // loss cut ration
+        )];
 
         all_funds
             .into_iter()

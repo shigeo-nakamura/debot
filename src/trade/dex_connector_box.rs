@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use dex_connector::{
-    BalanceResponse, CreateOrderResponse, DexConnector, DexError, FilledOrdersResponse, OrderSide,
-    RabbitxConnector, TickerResponse,
+    BalanceResponse, CreateOrderResponse, DexConnector, DexError, FilledOrdersResponse,
+    HyperliquidConnector, OrderSide, RabbitxConnector, TickerResponse,
 };
 use rust_decimal::Decimal;
 
 use super::{dex_emulator::DexEmulator, fund_config::TOKEN_LIST};
-use crate::config::get_rabbitx_config_from_env;
+use crate::config::{get_hyperliquid_config_from_env, get_rabbitx_config_from_env};
 use lazy_static::lazy_static;
 use std::env;
 
@@ -49,6 +49,39 @@ impl DexConnectorBox {
                     &rabbitx_config.refresh_token,
                     &rabbitx_config.secret,
                     &rabbitx_config.private_jwt,
+                    &market_ids,
+                )
+                .await?;
+
+                if dry_run {
+                    let dex_emulator = DexEmulator::new(
+                        connector,
+                        *FILLED_PROBABILITY_IN_EMULATION,
+                        Decimal::new(5, 3),
+                    );
+                    Ok(DexConnectorBox {
+                        inner: Box::new(dex_emulator),
+                    })
+                } else {
+                    Ok(DexConnectorBox {
+                        inner: Box::new(connector),
+                    })
+                }
+            }
+            "hyperliquid" => {
+                let hyperliquid_config = match get_hyperliquid_config_from_env().await {
+                    Ok(v) => v,
+                    Err(_) => {
+                        return Err(DexError::Other("Some env vars are missing".to_string()));
+                    }
+                };
+
+                let market_ids: Vec<String> = TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
+                let connector = HyperliquidConnector::new(
+                    rest_endpoint,
+                    web_socket_endpoint,
+                    &hyperliquid_config.agent_private_key,
+                    &hyperliquid_config.evm_wallet_address,
                     &market_ids,
                 )
                 .await?;
