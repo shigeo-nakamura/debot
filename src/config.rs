@@ -200,7 +200,7 @@ pub async fn get_hyperliquid_config_from_env() -> Result<HyperliquidConfig, Conf
     let agent_private_key_vec = decrypt_data_with_kms(&encrypted_data_key, agent_private_key, true)
         .await
         .map_err(|_| ConfigError::OtherError("decrypt agent_private_key".to_owned()))?;
-    let agent_private_key = format!("0x{}", String::from_utf8(agent_private_key_vec).unwrap());
+    let agent_private_key = String::from_utf8(agent_private_key_vec).unwrap();
 
     Ok(HyperliquidConfig {
         agent_private_key,

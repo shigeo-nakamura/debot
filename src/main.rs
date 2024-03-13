@@ -354,25 +354,25 @@ mod tests {
             vec![("hyperliquid", "BTC-USD")];
     }
 
-    // #[tokio::test]
-    // async fn test_get_balance() {
-    //     for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
-    //         let client = init_connector(dex_name).await;
-    //         let response = client.get_balance().await;
-    //         log::info!("{:?}", response);
-    //         assert!(response.is_ok());
-    //     }
-    // }
+    #[tokio::test]
+    async fn test_set_leverage() {
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let response = client.set_leverage(symbol, 1).await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
+    }
 
-    // #[tokio::test]
-    // async fn test_set_leverage() {
-    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-    //         let client = init_connector(dex_name).await;
-    //         let response = client.set_leverage(symbol, 1).await;
-    //         log::info!("{:?}", response);
-    //         assert!(response.is_ok());
-    //     }
-    // }
+    #[tokio::test]
+    async fn test_get_balance() {
+        for (dex_name, _symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let response = client.get_balance().await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
+    }
 
     #[tokio::test]
     async fn test_get_ticker() {
@@ -389,7 +389,7 @@ mod tests {
     //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
     //         let client = init_connector(dex_name).await;
     //         let price = Decimal::new(30000, 0);
-    //         let size = Decimal::new(1, 4);
+    //         let size = Decimal::new(5, 4);
     //         let response = client
     //             .create_order(symbol, size, OrderSide::Long, Some(price))
     //             .await
@@ -398,7 +398,7 @@ mod tests {
     //         let order_id = response.order_id;
     //         log::info!("order_id = {}", order_id);
 
-    //         sleep(Duration::from_secs(5)).await;
+    //         sleep(Duration::from_secs(3)).await;
 
     //         let response = client.cancel_order(symbol, &order_id).await;
     //         assert!(response.is_ok());
@@ -410,7 +410,7 @@ mod tests {
     //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
     //         let client = init_connector(dex_name).await;
     //         let price = Decimal::new(900000, 0);
-    //         let size = Decimal::new(1, 4);
+    //         let size = Decimal::new(5, 4);
     //         let response = client
     //             .create_order(symbol, size, OrderSide::Short, Some(price))
     //             .await
@@ -419,7 +419,7 @@ mod tests {
     //         let order_id = response.order_id;
     //         log::info!("order_id = {}", order_id);
 
-    //         sleep(Duration::from_secs(5)).await;
+    //         sleep(Duration::from_secs(3)).await;
 
     //         let response = client.cancel_all_orders(Some(symbol.to_string())).await;
     //         assert!(response.is_ok());
@@ -430,14 +430,14 @@ mod tests {
     // async fn test_create_market_order_buy() {
     //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
     //         let client = init_connector(dex_name).await;
-    //         let size = Decimal::new(1, 4);
+    //         let size = Decimal::new(5, 4);
     //         let response = client
     //             .create_order(symbol, size, OrderSide::Long, None)
     //             .await;
     //         log::info!("{:?}", response);
     //         assert!(response.is_ok());
 
-    //         sleep(Duration::from_secs(5)).await;
+    //         sleep(Duration::from_secs(3)).await;
 
     //         let response = client.get_filled_orders(symbol).await;
     //         log::info!("{:?}", response);
@@ -454,14 +454,14 @@ mod tests {
     // async fn test_create_market_order_sell() {
     //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
     //         let client = init_connector(dex_name).await;
-    //         let size = Decimal::new(1, 4);
+    //         let size = Decimal::new(5, 4);
     //         let response = client
     //             .create_order(symbol, size, OrderSide::Short, None)
     //             .await;
     //         log::info!("{:?}", response);
     //         assert!(response.is_ok());
 
-    //         sleep(Duration::from_secs(5)).await;
+    //         sleep(Duration::from_secs(3)).await;
 
     //         let response = client.get_filled_orders(symbol).await;
     //         log::info!("{:?}", response);
