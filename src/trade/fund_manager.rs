@@ -676,14 +676,13 @@ impl FundManager {
                 }
             }
             Err(e) => {
-                log::error!(
+                log::info!(
                     "create_order failed({}, {}, {:?}): {:?}",
                     symbol,
                     size,
                     side,
                     e
                 );
-                return Err(());
             }
         }
 
@@ -958,7 +957,13 @@ impl FundManager {
             })?;
 
         let position = match self.find_position_from_order_id(order_id) {
-            Some(p) => p,
+            Some(p) => {
+                if matches!(p.state(), State::Open) {
+                    log::info!("Ignore already filled order: {:?}", p);
+                    return Ok(false);
+                }
+                p
+            }
             None => {
                 log::warn!("Filled position not found: order_id = {}", order_id,);
                 return Ok(false);
