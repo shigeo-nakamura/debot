@@ -1153,7 +1153,9 @@ impl FundManager {
         } else {
             if self.state.latest_open_position_id.is_none() {
                 // Opening --> Open
-                self.state.latest_open_position_id = Some(position_id);
+                if self.state.latest_open_position_id.is_none() {
+                    self.state.latest_open_position_id = Some(position_id);
+                }
             }
         }
     }
