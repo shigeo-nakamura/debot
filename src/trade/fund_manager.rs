@@ -214,7 +214,7 @@ impl FundManager {
                 continue;
             }
             log::debug!("Canceling expired order: order_id:{}", position.order_id());
-            self.cancel_order(position.order_id()).await;
+            self.cancel_order(position.order_id(), false).await;
         }
     }
 
@@ -1093,15 +1093,17 @@ impl FundManager {
         }
     }
 
-    async fn cancel_order(&mut self, order_id: &str) {
-        if let Err(e) = self
-            .state
-            .dex_connector
-            .cancel_order(&self.config.token_name, order_id)
-            .await
-        {
-            log::error!("{:?}", e);
-            return;
+    pub async fn cancel_order(&mut self, order_id: &str, is_already_rejected: bool) {
+        if !is_already_rejected {
+            if let Err(e) = self
+                .state
+                .dex_connector
+                .cancel_order(&self.config.token_name, order_id)
+                .await
+            {
+                log::error!("{:?}", e);
+                return;
+            }
         }
 
         let position = match self.find_position_from_order_id(&order_id) {

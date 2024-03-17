@@ -191,10 +191,11 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
                 .map(|(order_id, size, price, side)| FilledOrder {
                     order_id: order_id.to_string(),
                     trade_id: (order_id + 1000).to_string(),
-                    filled_side: side,
-                    filled_size: size,
-                    filled_value: size * price,
-                    filled_fee: Decimal::new(0, 0),
+                    filled_side: Some(side),
+                    filled_size: Some(size),
+                    filled_value: Some(size * price),
+                    filled_fee: Some(Decimal::new(0, 0)),
+                    is_rejected: false,
                 })
                 .collect(),
         })
