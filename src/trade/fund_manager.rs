@@ -938,24 +938,26 @@ impl FundManager {
         }
     }
 
-    pub async fn position_filled(
-        &mut self,
-        order_id: &str,
-        trade_id: &str,
-        filled_side: OrderSide,
-        filled_value: Decimal,
-        filled_size: Decimal,
-        fee: Decimal,
-    ) -> Result<bool, ()> {
-        self.state
+    pub async fn clear_filled_order(&self, trade_id: &str) {
+        let _ = self
+            .state
             .dex_connector
             .clear_filled_order(&self.config.token_name, trade_id)
             .await
             .map_err(|e| {
                 log::error!("{:?}", e);
                 ()
-            })?;
+            });
+    }
 
+    pub async fn position_filled(
+        &mut self,
+        order_id: &str,
+        filled_side: OrderSide,
+        filled_value: Decimal,
+        filled_size: Decimal,
+        fee: Decimal,
+    ) -> Result<bool, ()> {
         let position = match self.find_position_from_order_id(order_id) {
             Some(p) => {
                 if matches!(p.state(), State::Open) {

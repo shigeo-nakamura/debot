@@ -364,6 +364,7 @@ impl DerivativeTrader {
                 .await?;
 
             for order in filled_orders.orders {
+                fund_manager.clear_filled_order(&order.trade_id).await;
                 if order.is_rejected {
                     fund_manager
                         .cancel_order(&order.order_id.clone(), true)
@@ -372,7 +373,6 @@ impl DerivativeTrader {
                     fund_manager
                         .position_filled(
                             &order.order_id.clone(),
-                            &order.trade_id.clone(),
                             order.filled_side.unwrap(),
                             order.filled_value.unwrap(),
                             order.filled_size.unwrap(),
