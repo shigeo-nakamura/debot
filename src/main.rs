@@ -40,7 +40,7 @@ async fn main() -> std::io::Result<()> {
     let db_handler = Arc::new(Mutex::new(
         DBHandler::new(
             max_position_counter,
-            config.max_price_size * trade::TOKEN_LIST_SIZE as u32,
+            config.max_price_size * trade::TOKEN_LIST.len() as u32,
             config.log_limit,
             &config.mongodb_uri,
             &config.db_name,
@@ -70,7 +70,7 @@ async fn prepare_trader_instance(
     db_handler: Arc<Mutex<DBHandler>>,
     price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
 ) -> (DerivativeTrader, &EnvConfig, ErrorManager) {
-    let (trading_interval, interval, dex_name, rebalance_interval) = trader_config::get();
+    let (trading_interval, interval, dex_name, execution_interval) = trader_config::get();
 
     // Read open positions from the DB
     //let open_positions_map = db_handler.lock().await.get_open_positions_map().await;
@@ -84,7 +84,7 @@ async fn prepare_trader_instance(
         config.dry_run,
         trading_interval,
         interval,
-        rebalance_interval,
+        execution_interval,
         config.interval_msec,
         config.max_price_size,
         db_handler,
@@ -351,7 +351,22 @@ mod tests {
 
     lazy_static! {
         static ref DEX_TEST_CONFIG: Vec<(&'static str, &'static str)> =
-            vec![("hyperliquid", "BTC-USD")];
+            // vec![("hyperliquid", "BTC-USD")];
+            vec![("rabbitx", "BTC-USD")];
+    }
+
+    #[tokio::test]
+    async fn get_last_trades() {
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let response = client.get_last_trades(symbol).await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+
+            let response = client.clear_last_trades(symbol).await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
     }
 
     // #[tokio::test]
@@ -426,29 +441,29 @@ mod tests {
     //     }
     // }
 
-    #[tokio::test]
-    async fn test_create_market_order_buy() {
-        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-            let client = init_connector(dex_name).await;
-            let size = Decimal::new(5, 4);
-            let response = client
-                .create_order(symbol, size, OrderSide::Long, None)
-                .await;
-            log::info!("{:?}", response);
-            assert!(response.is_ok());
+    // #[tokio::test]
+    // async fn test_create_market_order_buy() {
+    //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+    //         let client = init_connector(dex_name).await;
+    //         let size = Decimal::new(5, 4);
+    //         let response = client
+    //             .create_order(symbol, size, OrderSide::Long, None)
+    //             .await;
+    //         log::info!("{:?}", response);
+    //         assert!(response.is_ok());
 
-            sleep(Duration::from_secs(3)).await;
+    //         sleep(Duration::from_secs(3)).await;
 
-            let response = client.get_filled_orders(symbol).await;
-            log::info!("{:?}", response);
-            assert!(response.is_ok());
+    //         let response = client.get_filled_orders(symbol).await;
+    //         log::info!("{:?}", response);
+    //         assert!(response.is_ok());
 
-            client
-                .close_all_positions(Some(symbol.to_string()))
-                .await
-                .unwrap();
-        }
-    }
+    //         client
+    //             .close_all_positions(Some(symbol.to_string()))
+    //             .await
+    //             .unwrap();
+    //     }
+    // }
 
     // #[tokio::test]
     // async fn test_create_market_order_sell() {

@@ -21,6 +21,11 @@ struct TradeChance {
     pub position_id: Option<u32>,
 }
 
+enum RebalanceStrategy {
+    Long,
+    Short,
+}
+
 struct FundManagerState {
     amount: Decimal,
     trade_positions: HashMap<u32, TradePosition>,
@@ -28,8 +33,9 @@ struct FundManagerState {
     db_handler: Arc<Mutex<DBHandler>>,
     dex_connector: Arc<DexConnectorBox>,
     market_data: MarketData,
-    last_losscut_time: Option<i64>,
+    last_position_close_time: Option<i64>,
     last_price: Decimal,
+    min_tick: Option<Decimal>,
 }
 
 struct FundManagerConfig {
@@ -42,9 +48,10 @@ struct FundManagerConfig {
     initial_amount: Decimal,
     save_prices: bool,
     order_effective_duration_secs: i64,
+    execution_delay_secs: i64,
     use_market_order: bool,
     loss_cut_ratio: Decimal,
-    preportion: Decimal,
+    proportion: Decimal,
 }
 
 #[derive(Default)]
@@ -77,6 +84,7 @@ impl FundManager {
         db_handler: Arc<Mutex<DBHandler>>,
         dex_connector: Arc<DexConnectorBox>,
         save_prices: bool,
+        execution_interval_secs: i64,
         order_effective_duration_secs: i64,
         use_market_order: bool,
         loss_cut_ratio: Decimal,
@@ -93,7 +101,8 @@ impl FundManager {
             order_effective_duration_secs,
             use_market_order,
             loss_cut_ratio,
-            preportion: Decimal::new(1, 0) - trading_amount / initial_amount,
+            proportion: Decimal::new(1, 0) - trading_amount / initial_amount,
+            execution_delay_secs: execution_interval_secs,
         };
 
         let open_positions = match open_positions {
@@ -114,9 +123,10 @@ impl FundManager {
             db_handler,
             dex_connector,
             market_data,
-            last_losscut_time: None,
+            last_position_close_time: None,
             latest_open_position_id: None,
             last_price: Decimal::new(0, 0),
+            min_tick: None,
         };
 
         let mut statistics = FundManagerStatics::default();
@@ -162,6 +172,10 @@ impl FundManager {
             .map_err(|e| format!("Failed to get price of {}: {:?}", token_name, e).to_owned())?;
         log::trace!("{}: {:?}", token_name, res.price);
 
+        if self.state.min_tick.is_none() {
+            self.state.min_tick = res.min_tick;
+        }
+
         Ok(res.price)
     }
 
@@ -169,6 +183,7 @@ impl FundManager {
         &mut self,
         price: Decimal,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        // Add price
         let data = &mut self.state.market_data;
         let price_point = data.add_price(Some(price), None);
         // Save the price in the DB
@@ -179,6 +194,18 @@ impl FundManager {
                 .await
                 .log_price(data.name(), &self.config.token_name, price_point)
                 .await;
+        }
+
+        // Add last trade price
+        let last_trade_prices = self
+            .state
+            .dex_connector
+            .get_last_trades(&self.config.token_name)
+            .await?;
+
+        for last_trade in last_trade_prices.last_trades {
+            let floor_price = Self::floor_price(last_trade.price, self.state.min_tick);
+            data.add_transaction_price(floor_price);
         }
 
         self.find_expired_orders().await;
@@ -208,11 +235,6 @@ impl FundManager {
 
         // Cancel the exipired orders
         for position in &positions_to_cancel {
-            if self.config.strategy == TradingStrategy::MarketMake
-                && !matches!(position.state(), State::Closing(_))
-            {
-                continue;
-            }
             log::debug!("Canceling expired order: order_id:{}", position.order_id());
             self.cancel_order(position.order_id(), false).await;
         }
@@ -223,10 +245,27 @@ impl FundManager {
             return Ok(());
         }
 
-        let actions: Vec<TradeAction> = self
-            .state
-            .market_data
-            .is_open_signaled(self.config.strategy);
+        if let Some(last_close_time) = self.state.last_position_close_time {
+            let current_time = chrono::Utc::now().timestamp();
+            let delay_secs = self.config.execution_delay_secs;
+            if current_time - last_close_time < delay_secs {
+                log::info!("Waiting for delay period to pass before executing new chances.");
+                return Ok(());
+            }
+        }
+
+        let force_open = if self.config.strategy == TradingStrategy::MarketMake {
+            self.state.latest_open_position_id.is_none()
+        } else {
+            false
+        };
+
+        let actions: Vec<TradeAction> = self.state.market_data.is_open_signaled(
+            self.config.strategy,
+            force_open,
+            self.state.min_tick.unwrap_or(Decimal::new(1, 0)),
+            Self::floor_price(current_price, self.state.min_tick),
+        );
 
         self.handle_open_chances(current_price, &actions).await
     }
@@ -247,10 +286,6 @@ impl FundManager {
         let data = self.state.market_data.to_owned();
         let updated_actions = actions.clone();
 
-        if self.config.strategy == TradingStrategy::MarketMake && !updated_actions.is_empty() {
-            self.cancel_all_orders().await;
-        }
-
         let target_price_factor = self.config.loss_cut_ratio * self.config.risk_reward;
         let mut order_price = current_price;
 
@@ -258,7 +293,11 @@ impl FundManager {
             let mut modified_action = action.clone();
 
             if action == TradeAction::Rebalance {
-                modified_action = self.rebalance(current_price);
+                modified_action = self.rebalance(current_price, RebalanceStrategy::Long);
+            }
+
+            if self.config.strategy == TradingStrategy::MarketMake {
+                self.close_open_position().await;
             }
 
             let is_buy;
@@ -307,46 +346,15 @@ impl FundManager {
 
             let open_position = self.get_open_position();
 
-            if self.config.strategy == TradingStrategy::MarketMake {
-                if self.state.amount < self.config.initial_amount / Decimal::new(2, 0) {
-                    log::warn!("No enough fund left: {}", self.state.amount);
-                    if let Some(open_position) = open_position {
-                        if matches!(open_position.state(), State::Open) {
-                            let _ = self
-                                .execute_chances(
-                                    self.state.market_data.last_price(),
-                                    TradeChance {
-                                        token_name: self.config.token_name.clone(),
-                                        predicted_price: None,
-                                        amount: open_position.amount().abs(),
-                                        atr: None,
-                                        action: if open_position.position_type()
-                                            == PositionType::Long
-                                        {
-                                            TradeAction::SellClose
-                                        } else {
-                                            TradeAction::BuyClose
-                                        },
-                                        position_id: open_position.id(),
-                                    },
-                                    Some(ReasonForClose::Other(String::from("NoEnoughFund"))),
-                                )
-                                .await;
-                        }
-                    }
-                    break;
-                }
-            } else {
-                if let Some(open_position) = open_position {
-                    let is_long_position = open_position.position_type() == PositionType::Long;
-                    if is_buy == is_long_position {
-                        if self.state.amount <= target_amount {
-                            log::warn!("No enough fund left: {:.6}", self.state.amount);
-                            if self.state.amount > Decimal::new(0, 0) {
-                                target_amount = self.state.amount;
-                            } else {
-                                break;
-                            }
+            if let Some(open_position) = open_position {
+                let is_long_position = open_position.position_type() == PositionType::Long;
+                if is_buy == is_long_position {
+                    if self.state.amount <= target_amount {
+                        log::warn!("No enough fund left: {:.6}", self.state.amount);
+                        if self.state.amount > Decimal::new(0, 0) {
+                            target_amount = self.state.amount;
+                        } else {
+                            break;
                         }
                     }
                 }
@@ -570,7 +578,7 @@ impl FundManager {
                 .await?;
 
             if let Some(ReasonForClose::CutLoss) = reason_for_close {
-                self.state.last_losscut_time = Some(chrono::Utc::now().timestamp());
+                self.state.last_position_close_time = Some(chrono::Utc::now().timestamp());
             }
         }
 
@@ -1002,13 +1010,16 @@ impl FundManager {
         let prev_amount = self.state.amount;
         let distance = (predicted_price - filled_price).abs() / self.config.risk_reward;
         let cut_loss_price = match self.config.strategy {
-            TradingStrategy::Rebalance => None,
+            TradingStrategy::Rebalance | TradingStrategy::MarketMake => None,
             _ => match filled_side {
                 OrderSide::Long => Some(filled_price - distance),
                 _ => Some(filled_price + distance),
             },
         };
-        let take_profit_price = Some(predicted_price);
+        let take_profit_price = match self.config.strategy {
+            TradingStrategy::MarketMake => None,
+            _ => Some(predicted_price),
+        };
 
         let open_position_id = self.state.latest_open_position_id;
 
@@ -1060,22 +1071,34 @@ impl FundManager {
         return Ok(true);
     }
 
-    fn rebalance(&self, current_price: Decimal) -> TradeAction {
+    fn rebalance(&self, current_price: Decimal, strategy: RebalanceStrategy) -> TradeAction {
+        if let Some(open_position) = self.get_open_position() {
+            if matches!(open_position.state(), State::Closing(_)) {
+                return TradeAction::None;
+            }
+        }
+
         let mut position_amount = Decimal::new(0, 0);
         for (_, position) in &self.state.trade_positions {
             position_amount += position.amount();
         }
 
         let amount_in_usd = position_amount * current_price;
-        let buy_amount_in_usd = (Decimal::new(1, 0) - self.config.preportion) * self.state.amount
-            - self.config.preportion * amount_in_usd;
-        let is_buy = buy_amount_in_usd.is_sign_positive();
-        let trade_amount_in_usd = buy_amount_in_usd.abs();
+
+        let target_amount_in_usd = match strategy {
+            RebalanceStrategy::Long => self.config.proportion * self.state.amount,
+            RebalanceStrategy::Short => -self.config.proportion * self.state.amount,
+        };
+
+        let rebalance_amount_in_usd = target_amount_in_usd - amount_in_usd;
+
+        let is_buy = rebalance_amount_in_usd.is_sign_positive();
+        let trade_amount_in_usd = rebalance_amount_in_usd.abs();
 
         log::debug!(
-            "rebalance USD: {:.6} --> {:.6}, {}: {:.6}",
+            "Rebalance USD: {:.6} --> {:.6}, {}: {:.6}",
             self.state.amount,
-            self.state.amount - buy_amount_in_usd,
+            self.state.amount - rebalance_amount_in_usd,
             if is_buy { "buy" } else { "sell" },
             trade_amount_in_usd
         );
@@ -1220,6 +1243,36 @@ impl FundManager {
         }
 
         self.state.trade_positions.clear();
+    }
+
+    fn floor_price(price: Decimal, min_tick: Option<Decimal>) -> Decimal {
+        let min_tick = min_tick.unwrap_or(Decimal::new(1, 0));
+        (price / min_tick).floor() * min_tick
+    }
+
+    async fn close_open_position(&mut self) {
+        if let Some(open_position) = self.get_open_position() {
+            if matches!(open_position.state(), State::Open) {
+                let _ = self
+                    .execute_chances(
+                        self.state.market_data.last_price(),
+                        TradeChance {
+                            token_name: self.config.token_name.clone(),
+                            predicted_price: None,
+                            amount: open_position.amount().abs(),
+                            atr: None,
+                            action: if open_position.position_type() == PositionType::Long {
+                                TradeAction::SellClose
+                            } else {
+                                TradeAction::BuyClose
+                            },
+                            position_id: open_position.id(),
+                        },
+                        Some(ReasonForClose::Other(String::from("PartialOrderFilled"))),
+                    )
+                    .await;
+            }
+        }
     }
 
     pub fn check_positions(&self, price: Decimal) {

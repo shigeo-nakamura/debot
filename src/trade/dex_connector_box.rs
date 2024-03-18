@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use dex_connector::{
     BalanceResponse, CreateOrderResponse, DexConnector, DexError, FilledOrdersResponse,
-    HyperliquidConnector, OrderSide, RabbitxConnector, TickerResponse,
+    HyperliquidConnector, LastTradeResponse, OrderSide, RabbitxConnector, TickerResponse,
 };
 use rust_decimal::Decimal;
 
@@ -156,5 +156,13 @@ impl DexConnector for DexConnectorBox {
 
     async fn close_all_positions(&self, symbol: Option<String>) -> Result<(), DexError> {
         self.inner.close_all_positions(symbol).await
+    }
+
+    async fn get_last_trades(&self, symbol: &str) -> Result<LastTradeResponse, DexError> {
+        self.inner.get_last_trades(symbol).await
+    }
+
+    async fn clear_last_trades(&self, symbol: &str) -> Result<(), DexError> {
+        self.inner.clear_last_trades(symbol).await
     }
 }
