@@ -37,7 +37,6 @@ struct FundManagerState {
     last_position_close_time: Option<i64>,
     last_price: Decimal,
     min_tick: Option<Decimal>,
-    rebalance_strategy: Option<RebalanceStrategy>,
 }
 
 struct FundManagerConfig {
@@ -129,7 +128,6 @@ impl FundManager {
             latest_open_position_id: None,
             last_price: Decimal::new(0, 0),
             min_tick: None,
-            rebalance_strategy: None,
         };
 
         let mut statistics = FundManagerStatics::default();
@@ -200,15 +198,22 @@ impl FundManager {
         }
 
         // Add last trade price
-        let last_trade_prices = self
-            .state
-            .dex_connector
-            .get_last_trades(&self.config.token_name)
-            .await?;
+        if self.config.strategy == TradingStrategy::MarketMake {
+            let last_trade_prices = self
+                .state
+                .dex_connector
+                .get_last_trades(&self.config.token_name)
+                .await?;
 
-        for last_trade in last_trade_prices.last_trades {
-            let floor_price = Self::floor_price(last_trade.price, self.state.min_tick);
-            data.add_transaction_price(floor_price);
+            for last_trade in last_trade_prices.last_trades {
+                let floor_price = Self::floor_price(last_trade.price, self.state.min_tick);
+                data.add_transaction_price(floor_price);
+            }
+
+            self.state
+                .dex_connector
+                .clear_last_trades(&self.config.token_name)
+                .await?;
         }
 
         self.find_expired_orders().await;
@@ -257,7 +262,10 @@ impl FundManager {
             }
         }
 
-        let force_open = if self.config.strategy == TradingStrategy::MarketMake {
+        let force_open = if matches!(
+            self.config.strategy,
+            TradingStrategy::MarketMake | TradingStrategy::Rebalance
+        ) {
             self.state.latest_open_position_id.is_none()
         } else {
             false
@@ -295,25 +303,14 @@ impl FundManager {
         for action in updated_actions.clone() {
             let mut modified_action = action.clone();
 
-            if self.config.strategy == TradingStrategy::Rebalance
-                && self.state.rebalance_strategy.is_none()
-            {
-                match action {
-                    TradeAction::BuyOpen(_) => {
-                        self.state.rebalance_strategy = Some(RebalanceStrategy::Long)
-                    }
-                    TradeAction::BuyClose => {
-                        self.state.rebalance_strategy = Some(RebalanceStrategy::Short)
-                    }
-                    _ => continue,
+            match action {
+                TradeAction::RebalanceLong => {
+                    modified_action = self.rebalance(current_price, RebalanceStrategy::Long);
                 }
-            }
-
-            if action == TradeAction::Rebalance && self.state.rebalance_strategy.is_some() {
-                modified_action = self.rebalance(
-                    current_price,
-                    self.state.rebalance_strategy.clone().unwrap(),
-                );
+                TradeAction::RebalanceShort => {
+                    modified_action = self.rebalance(current_price, RebalanceStrategy::Short);
+                }
+                _ => {}
             }
 
             if self.config.strategy == TradingStrategy::MarketMake {
@@ -598,7 +595,6 @@ impl FundManager {
                 .await?;
 
             self.state.last_position_close_time = Some(chrono::Utc::now().timestamp());
-            self.state.rebalance_strategy = None;
         }
 
         Ok(())
@@ -1091,8 +1087,10 @@ impl FundManager {
     }
 
     fn rebalance(&self, current_price: Decimal, strategy: RebalanceStrategy) -> TradeAction {
-        if !self.has_open_position() {
-            return TradeAction::None;
+        if let Some(open_position) = self.get_open_position() {
+            if matches!(open_position.state(), State::Opening | State::Closing(_)) {
+                return TradeAction::None;
+            }
         }
 
         let mut position_amount = Decimal::new(0, 0);
@@ -1101,10 +1099,11 @@ impl FundManager {
         }
 
         let amount_in_usd = position_amount * current_price;
+        let equity = self.state.amount + amount_in_usd.abs();
 
         let target_amount_in_usd = match strategy {
-            RebalanceStrategy::Long => self.config.proportion * self.state.amount,
-            RebalanceStrategy::Short => -self.config.proportion * self.state.amount,
+            RebalanceStrategy::Long => self.config.proportion * equity,
+            RebalanceStrategy::Short => -self.config.proportion * equity,
         };
 
         let rebalance_amount_in_usd = target_amount_in_usd - amount_in_usd;
@@ -1115,7 +1114,7 @@ impl FundManager {
         log::debug!(
             "Rebalance USD: {:.6} --> {:.6}, {}: {:.6}",
             self.state.amount,
-            self.state.amount - rebalance_amount_in_usd,
+            self.state.amount - rebalance_amount_in_usd.abs(),
             if is_buy { "buy" } else { "sell" },
             trade_amount_in_usd
         );
@@ -1197,9 +1196,10 @@ impl FundManager {
         } else {
             if self.state.latest_open_position_id.is_none() {
                 // Opening --> Open
-                if self.state.latest_open_position_id.is_none() {
-                    self.state.latest_open_position_id = Some(position_id);
-                }
+                self.state.latest_open_position_id = Some(position_id);
+            } else {
+                // Ignore the paritally filled position
+                self.state.trade_positions.remove(&position_id);
             }
         }
     }
@@ -1265,15 +1265,6 @@ impl FundManager {
     fn floor_price(price: Decimal, min_tick: Option<Decimal>) -> Decimal {
         let min_tick = min_tick.unwrap_or(Decimal::new(1, 0));
         (price / min_tick).floor() * min_tick
-    }
-
-    fn has_open_position(&self) -> bool {
-        if let Some(open_position) = self.get_open_position() {
-            if matches!(open_position.state(), State::Open) {
-                return true;
-            }
-        }
-        return false;
     }
 
     async fn close_open_position(&mut self) {

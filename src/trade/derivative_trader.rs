@@ -95,10 +95,13 @@ impl DerivativeTrader {
             trader_name: dex_name.to_owned(),
             dex_name: dex_name.to_owned(),
             dry_run,
-            short_trade_period: sample_interval.short_term * SECONDS_IN_MINUTE,
-            long_trade_period: sample_interval.long_term * SECONDS_IN_MINUTE,
-            trade_period: trade_interval * SECONDS_IN_MINUTE,
-            execution_period: execution_interval.unwrap_or_default() * SECONDS_IN_MINUTE,
+            short_trade_period: sample_interval.short_term * SECONDS_IN_MINUTE
+                / interval_secs as usize,
+            long_trade_period: sample_interval.long_term * SECONDS_IN_MINUTE
+                / interval_secs as usize,
+            trade_period: trade_interval * SECONDS_IN_MINUTE / interval_secs as usize,
+            execution_period: execution_interval.unwrap_or_default() * SECONDS_IN_MINUTE
+                / interval_secs as usize,
             interval_secs,
             max_price_size: max_price_size,
             initial_balance: Decimal::new(0, 0),
@@ -212,7 +215,7 @@ impl DerivativeTrader {
                         config.execution_period as i64 * config.interval_secs;
                     let order_effective_duration_secs = if execution_interval_secs > 0 {
                         if order_effective_duration_secs > execution_interval_secs {
-                            execution_interval_secs / config.interval_secs - 5
+                            execution_interval_secs - 5
                         } else {
                             order_effective_duration_secs
                         }
