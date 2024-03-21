@@ -37,7 +37,6 @@ struct FundManagerState {
     last_position_close_time: Option<i64>,
     last_price: Decimal,
     min_tick: Option<Decimal>,
-    rebalance_strategy: Option<RebalanceStrategy>,
 }
 
 struct FundManagerConfig {
@@ -129,7 +128,6 @@ impl FundManager {
             latest_open_position_id: None,
             last_price: Decimal::new(0, 0),
             min_tick: None,
-            rebalance_strategy: None,
         };
 
         let mut statistics = FundManagerStatics::default();
@@ -295,25 +293,14 @@ impl FundManager {
         for action in updated_actions.clone() {
             let mut modified_action = action.clone();
 
-            if self.config.strategy == TradingStrategy::Rebalance
-                && self.state.rebalance_strategy.is_none()
-            {
-                match action {
-                    TradeAction::BuyOpen(_) => {
-                        self.state.rebalance_strategy = Some(RebalanceStrategy::Long)
-                    }
-                    TradeAction::BuyClose => {
-                        self.state.rebalance_strategy = Some(RebalanceStrategy::Short)
-                    }
-                    _ => continue,
+            match action {
+                TradeAction::RebalanceLong => {
+                    modified_action = self.rebalance(current_price, RebalanceStrategy::Long);
                 }
-            }
-
-            if action == TradeAction::Rebalance && self.state.rebalance_strategy.is_some() {
-                modified_action = self.rebalance(
-                    current_price,
-                    self.state.rebalance_strategy.clone().unwrap(),
-                );
+                TradeAction::RebalanceShort => {
+                    modified_action = self.rebalance(current_price, RebalanceStrategy::Short);
+                }
+                _ => {}
             }
 
             if self.config.strategy == TradingStrategy::MarketMake {
@@ -598,7 +585,6 @@ impl FundManager {
                 .await?;
 
             self.state.last_position_close_time = Some(chrono::Utc::now().timestamp());
-            self.state.rebalance_strategy = None;
         }
 
         Ok(())
@@ -1091,8 +1077,10 @@ impl FundManager {
     }
 
     fn rebalance(&self, current_price: Decimal, strategy: RebalanceStrategy) -> TradeAction {
-        if !self.has_open_position() {
-            return TradeAction::None;
+        if let Some(open_position) = self.get_open_position() {
+            if matches!(open_position.state(), State::Opening|State::Closing(_)) {
+                return TradeAction::None;
+            }
         }
 
         let mut position_amount = Decimal::new(0, 0);
@@ -1265,15 +1253,6 @@ impl FundManager {
     fn floor_price(price: Decimal, min_tick: Option<Decimal>) -> Decimal {
         let min_tick = min_tick.unwrap_or(Decimal::new(1, 0));
         (price / min_tick).floor() * min_tick
-    }
-
-    fn has_open_position(&self) -> bool {
-        if let Some(open_position) = self.get_open_position() {
-            if matches!(open_position.state(), State::Open) {
-                return true;
-            }
-        }
-        return false;
     }
 
     async fn close_open_position(&mut self) {
