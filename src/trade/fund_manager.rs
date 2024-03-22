@@ -1057,7 +1057,6 @@ impl FundManager {
                 self.state.amount += position.close_asset_in_usd() + position.pnl();
                 self.state.latest_open_position_id = None;
                 self.state.trade_positions.remove(&position_id);
-                self.state.latest_open_position_id = None;
                 self.statistics.pnl += position.pnl();
             }
 
@@ -1161,8 +1160,8 @@ impl FundManager {
             .get_mut(&position.id().unwrap())
             .unwrap();
 
-        let is_canceled = match position.cancel() {
-            Ok(is_canceled) => is_canceled,
+        let cancel_result = match position.cancel() {
+            Ok(cancel_result) => cancel_result,
             Err(_) => {
                 log::error!("Failed to cancel the position = {:?}", position);
                 return;
@@ -1185,21 +1184,22 @@ impl FundManager {
             }
         };
 
-        if is_canceled {
-            self.state.trade_positions.remove(&position_id);
-            if let Some(open_position_id) = self.state.latest_open_position_id {
-                if open_position_id == position_id {
-                    // Closing --> Closed
-                    self.state.latest_open_position_id = None;
-                }
-            }
-        } else {
-            if self.state.latest_open_position_id.is_none() {
-                // Opening --> Open
-                self.state.latest_open_position_id = Some(position_id);
-            } else {
-                // Ignore the paritally filled position
+        match cancel_result {
+            debot_position_manager::CancelResult::OpeningCanceled => {
+                // Opening --> Canceled
                 self.state.trade_positions.remove(&position_id);
+            }
+            debot_position_manager::CancelResult::ClosingCanceled => {
+                // Closing --> Open
+            }
+            debot_position_manager::CancelResult::PartiallyFilled => {
+                // Opening --> Open
+                if self.state.latest_open_position_id.is_none() {
+                    self.state.latest_open_position_id = Some(position_id);
+                } else {
+                    // Ignore the paritally filled position
+                    self.state.trade_positions.remove(&position_id);
+                }
             }
         }
     }
