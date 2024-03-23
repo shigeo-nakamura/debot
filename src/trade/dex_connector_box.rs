@@ -11,10 +11,10 @@ use lazy_static::lazy_static;
 use std::env;
 
 lazy_static! {
-    static ref FILLED_PROBABILITY_IN_EMULATION: f64 = {
+    static ref FILLED_PROBABILITY_IN_EMULATION: Decimal = {
         match env::var("FILLED_PROBABILITY_IN_EMULATION:") {
-            Ok(val) => val.parse::<f64>().unwrap_or(1.0),
-            Err(_) => 1.0,
+            Ok(val) => val.parse::<Decimal>().unwrap_or(Decimal::new(1, 0)),
+            Err(_) => Decimal::new(1, 0),
         }
     };
 }

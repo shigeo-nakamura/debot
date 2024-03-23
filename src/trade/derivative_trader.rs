@@ -8,7 +8,6 @@ use dex_connector::DexConnector;
 use dex_connector::DexError;
 use futures::future::join_all;
 use futures::FutureExt;
-use num::FromPrimitive;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -285,10 +284,7 @@ impl DerivativeTrader {
         if let Some(price_points_map) = price_market_data.get(trader_name) {
             if let Some(price_points) = price_points_map.get(token_name) {
                 for price_point in price_points {
-                    market_data.add_price(
-                        Decimal::from_f64(price_point.price),
-                        Some(price_point.timestamp),
-                    );
+                    market_data.add_price(Some(price_point.price), Some(price_point.timestamp));
                 }
             }
         }

@@ -6,7 +6,7 @@ use dex_connector::{
     FilledOrdersResponse, LastTradeResponse, OrderSide, TickerResponse,
 };
 use futures::lock::Mutex;
-use num::{FromPrimitive, ToPrimitive};
+use num::FromPrimitive;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use rust_decimal::{Decimal, RoundingStrategy};
 
@@ -24,7 +24,7 @@ struct OrderBooks {
 
 pub struct DexEmulator<T: DexConnector> {
     dex_connector: T,
-    filled_probability: f64,
+    filled_probability: Decimal,
     slippage: Decimal,
     order_books: Arc<Mutex<HashMap<String, OrderBooks>>>,
     order_id_counter: Arc<Mutex<u32>>,
@@ -32,7 +32,7 @@ pub struct DexEmulator<T: DexConnector> {
 }
 
 impl<T: DexConnector> DexEmulator<T> {
-    pub fn new(dex_connector: T, filled_probability: f64, slippage: Decimal) -> Self {
+    pub fn new(dex_connector: T, filled_probability: Decimal, slippage: Decimal) -> Self {
         let mut rng = rand::thread_rng();
         let order_id_counter = rng.gen_range(1..=std::u32::MAX);
 
@@ -52,29 +52,17 @@ impl<T: DexConnector> DexEmulator<T> {
         filled_orders: &mut Vec<(u32, Decimal, Decimal, OrderSide)>,
         is_buy_order: bool,
         rng: &mut impl Rng,
-        filled_probability: f64,
+        filled_probability: Decimal,
         slippage: Decimal,
     ) {
         order_books.retain_mut(|order_book| {
             let fill = if order_book.partially_filled {
                 order_book.size
-            } else if rng.gen::<f64>() < filled_probability {
+            } else if Decimal::from_f64(rng.gen::<f64>()).unwrap() < filled_probability {
                 order_book.size
             } else {
                 order_book.partially_filled = true;
-                let order_book_size = order_book.size.to_f64();
-
-                let filled_size = match order_book_size {
-                    Some(v) => {
-                        let filled_size = rng.gen_range(std::f64::EPSILON..v);
-                        Decimal::from_f64(filled_size)
-                    }
-                    None => None,
-                };
-                match filled_size {
-                    Some(v) => v,
-                    None => order_book.size,
-                }
+                Decimal::from_f64(rng.gen::<f64>()).unwrap_or(Decimal::new(1, 0)) * order_book.size
             };
 
             let always_fill_for_market_order = order_book.price.is_none();
