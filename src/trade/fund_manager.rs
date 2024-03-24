@@ -266,7 +266,7 @@ impl FundManager {
             self.config.strategy,
             TradingStrategy::MarketMake | TradingStrategy::Rebalance
         ) {
-            self.state.latest_open_position_id.is_none()
+            self.state.trade_positions.len() == 0
         } else {
             false
         };
