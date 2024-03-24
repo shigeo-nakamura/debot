@@ -197,6 +197,7 @@ impl DerivativeTrader {
                 |(
                     token_name,
                     strategy,
+                    rebalance_strategy,
                     initial_amount,
                     position_size_ratio,
                     risk_reward,
@@ -245,6 +246,7 @@ impl DerivativeTrader {
                         open_positions_map.get(&fund_name).cloned(),
                         market_data,
                         strategy,
+                        rebalance_strategy,
                         initial_amount * position_size_ratio,
                         initial_amount,
                         risk_reward,

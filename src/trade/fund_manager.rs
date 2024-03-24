@@ -21,8 +21,8 @@ struct TradeChance {
     pub position_id: Option<u32>,
 }
 
-#[derive(Clone)]
-enum RebalanceStrategy {
+#[derive(Clone, PartialEq)]
+pub enum RebalanceStrategy {
     Long,
     Short,
 }
@@ -44,6 +44,7 @@ struct FundManagerConfig {
     index: usize,
     token_name: String,
     strategy: TradingStrategy,
+    rebalance_strategy: Option<RebalanceStrategy>,
     risk_reward: Decimal,
     trading_amount: Decimal,
     initial_amount: Decimal,
@@ -79,6 +80,7 @@ impl FundManager {
         open_positions: Option<HashMap<u32, TradePosition>>,
         market_data: MarketData,
         strategy: TradingStrategy,
+        rebalance_strategy: Option<RebalanceStrategy>,
         trading_amount: Decimal,
         initial_amount: Decimal,
         risk_reward: Decimal,
@@ -95,6 +97,7 @@ impl FundManager {
             index,
             token_name: token_name.to_owned(),
             strategy,
+            rebalance_strategy,
             risk_reward,
             trading_amount,
             initial_amount,
@@ -266,7 +269,7 @@ impl FundManager {
             self.config.strategy,
             TradingStrategy::MarketMake | TradingStrategy::Rebalance
         ) {
-            self.state.latest_open_position_id.is_none()
+            self.state.trade_positions.len() == 0
         } else {
             false
         };
@@ -303,14 +306,31 @@ impl FundManager {
         for action in updated_actions.clone() {
             let mut modified_action = action.clone();
 
-            match action {
-                TradeAction::RebalanceLong => {
-                    modified_action = self.rebalance(current_price, RebalanceStrategy::Long);
+            if self.config.strategy == TradingStrategy::Rebalance {
+                match action {
+                    TradeAction::Rebalance => {
+                        modified_action = self.rebalance(current_price);
+                    }
+                    TradeAction::BuyOpen(_) => {
+                        if self.state.latest_open_position_id.is_some() {
+                            continue;
+                        }
+                        if self.config.rebalance_strategy != Some(RebalanceStrategy::Long) {
+                            continue;
+                        }
+                        order_price = Decimal::ZERO;
+                    }
+                    TradeAction::SellOpen(_) => {
+                        if self.state.latest_open_position_id.is_some() {
+                            continue;
+                        }
+                        if self.config.rebalance_strategy != Some(RebalanceStrategy::Short) {
+                            continue;
+                        }
+                        order_price = Decimal::ZERO;
+                    }
+                    _ => {}
                 }
-                TradeAction::RebalanceShort => {
-                    modified_action = self.rebalance(current_price, RebalanceStrategy::Short);
-                }
-                _ => {}
             }
 
             if self.config.strategy == TradingStrategy::MarketMake {
@@ -667,7 +687,11 @@ impl FundManager {
 
         // Execute the transaction
         let order_price = match reason_for_close {
-            Some(ReasonForClose::Liquidated) | None if self.config.use_market_order => None,
+            Some(ReasonForClose::Liquidated) | None
+                if self.config.use_market_order | order_price.is_zero() =>
+            {
+                None
+            }
             _ => Some(order_price),
         };
 
@@ -1085,11 +1109,13 @@ impl FundManager {
         return Ok(true);
     }
 
-    fn rebalance(&self, current_price: Decimal, strategy: RebalanceStrategy) -> TradeAction {
+    fn rebalance(&self, current_price: Decimal) -> TradeAction {
         if let Some(open_position) = self.get_open_position() {
             if matches!(open_position.state(), State::Opening | State::Closing(_)) {
                 return TradeAction::None;
             }
+        } else {
+            return TradeAction::None;
         }
 
         let mut position_amount = Decimal::new(0, 0);
@@ -1100,9 +1126,10 @@ impl FundManager {
         let amount_in_usd = position_amount * current_price;
         let equity = self.state.amount + amount_in_usd.abs();
 
-        let target_amount_in_usd = match strategy {
-            RebalanceStrategy::Long => self.config.proportion * equity,
-            RebalanceStrategy::Short => -self.config.proportion * equity,
+        let target_amount_in_usd = match self.config.rebalance_strategy {
+            Some(RebalanceStrategy::Long) => self.config.proportion * equity,
+            Some(RebalanceStrategy::Short) => -self.config.proportion * equity,
+            None => panic!("Not reached"),
         };
 
         let rebalance_amount_in_usd = target_amount_in_usd - amount_in_usd;
