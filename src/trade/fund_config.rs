@@ -34,19 +34,19 @@ pub fn get(
                 TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::Rebalance,
                 Some(RebalanceStrategy::Long),
-                Decimal::new(1000, 0), // initial amount (in USD)
+                Decimal::new(2500, 0), // initial amount (in USD)
                 Decimal::new(5, 1),    // position size ratio
                 Decimal::new(2, 0),    // risk reward
-                Decimal::new(5, 4),    // loss cut ratio
+                Decimal::new(1, 3),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::Rebalance,
                 Some(RebalanceStrategy::Short),
-                Decimal::new(1000, 0), // initial amount (in USD)
+                Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(5, 1),    // position size ratio
                 Decimal::new(2, 0),    // risk reward
-                Decimal::new(5, 4),    // loss cut ratio
+                Decimal::new(1, 3),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[0].to_owned(), // BTC
