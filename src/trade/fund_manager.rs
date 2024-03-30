@@ -318,7 +318,6 @@ impl FundManager {
                         if self.config.rebalance_strategy != Some(RebalanceStrategy::Long) {
                             continue;
                         }
-                        order_price = Decimal::ZERO;
                     }
                     TradeAction::SellOpen(_) => {
                         if self.state.latest_open_position_id.is_some() {
@@ -327,7 +326,6 @@ impl FundManager {
                         if self.config.rebalance_strategy != Some(RebalanceStrategy::Short) {
                             continue;
                         }
-                        order_price = Decimal::ZERO;
                     }
                     _ => {}
                 }
@@ -687,11 +685,7 @@ impl FundManager {
 
         // Execute the transaction
         let order_price = match reason_for_close {
-            Some(ReasonForClose::Liquidated) | None
-                if self.config.use_market_order | order_price.is_zero() =>
-            {
-                None
-            }
+            Some(ReasonForClose::Liquidated) | None if self.config.use_market_order => None,
             _ => Some(order_price),
         };
 
