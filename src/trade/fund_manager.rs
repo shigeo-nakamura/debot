@@ -302,6 +302,7 @@ impl FundManager {
 
         let target_price_factor = self.config.loss_cut_ratio * self.config.risk_reward;
         let mut order_price = current_price;
+        let mut use_market_order = self.config.use_market_order;
 
         for action in updated_actions.clone() {
             let mut modified_action = action.clone();
@@ -318,6 +319,7 @@ impl FundManager {
                         if self.config.rebalance_strategy != Some(RebalanceStrategy::Long) {
                             continue;
                         }
+                        use_market_order = true;
                     }
                     TradeAction::SellOpen(_) => {
                         if self.state.latest_open_position_id.is_some() {
@@ -326,6 +328,7 @@ impl FundManager {
                         if self.config.rebalance_strategy != Some(RebalanceStrategy::Short) {
                             continue;
                         }
+                        use_market_order = true;
                     }
                     _ => {}
                 }
@@ -406,6 +409,7 @@ impl FundManager {
                     position_id: None,
                 },
                 None,
+                use_market_order,
             )
             .await?;
         }
@@ -609,8 +613,13 @@ impl FundManager {
         }
 
         if let Some(chance) = chance {
-            self.execute_chances(current_price, chance, reason_for_close.clone())
-                .await?;
+            self.execute_chances(
+                current_price,
+                chance,
+                reason_for_close.clone(),
+                self.config.use_market_order,
+            )
+            .await?;
 
             self.state.last_position_close_time = Some(chrono::Utc::now().timestamp());
         }
@@ -647,6 +656,7 @@ impl FundManager {
         order_price: Decimal,
         chance: TradeChance,
         reason_for_close: Option<ReasonForClose>,
+        use_market_order: bool,
     ) -> Result<(), ()> {
         if chance.amount <= Decimal::new(0, 0) {
             log::error!("execute_chance: wrong amount: {}", chance.amount);
@@ -685,7 +695,7 @@ impl FundManager {
 
         // Execute the transaction
         let order_price = match reason_for_close {
-            Some(ReasonForClose::Liquidated) | None if self.config.use_market_order => None,
+            Some(ReasonForClose::Liquidated) | None if use_market_order => None,
             _ => Some(order_price),
         };
 
@@ -1307,6 +1317,7 @@ impl FundManager {
                             position_id: open_position.id(),
                         },
                         Some(ReasonForClose::Other(String::from("PartialOrderFilled"))),
+                        self.config.use_market_order,
                     )
                     .await;
             }
