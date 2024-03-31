@@ -203,14 +203,6 @@ impl DerivativeTrader {
                     risk_reward,
                     loss_cut_ratio,
                 )| {
-                    let fund_name = format!(
-                        "{:?}-{}-{}-{}",
-                        strategy,
-                        token_name,
-                        config.short_trade_period * config.interval_secs as usize / 60,
-                        config.long_trade_period * config.interval_secs as usize / 60
-                    );
-
                     let execution_interval_secs =
                         config.execution_period as i64 * config.interval_secs;
                     let order_effective_duration_secs = if execution_interval_secs > 0 {
@@ -237,7 +229,9 @@ impl DerivativeTrader {
                     let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
                     *token_name_indices.get_mut(&token_name).unwrap() += 1;
 
-                    log::info!("create {}-{}-{}", fund_name, index, token_name);
+                    let fund_name = format!("{:?}-{}-{}", strategy, token_name, index);
+
+                    log::info!("create {}", fund_name);
 
                     FundManager::new(
                         &fund_name,
