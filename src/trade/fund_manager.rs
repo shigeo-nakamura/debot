@@ -313,7 +313,7 @@ impl FundManager {
                         modified_action = self.rebalance(current_price);
                     }
                     TradeAction::BuyOpen(_) => {
-                        if self.state.latest_open_position_id.is_some() {
+                        if !self.state.trade_positions.is_empty() {
                             continue;
                         }
                         if self.config.rebalance_strategy != Some(RebalanceStrategy::Long) {
@@ -321,7 +321,7 @@ impl FundManager {
                         }
                     }
                     TradeAction::SellOpen(_) => {
-                        if self.state.latest_open_position_id.is_some() {
+                        if !self.state.trade_positions.is_empty() {
                             continue;
                         }
                         if self.config.rebalance_strategy != Some(RebalanceStrategy::Short) {
