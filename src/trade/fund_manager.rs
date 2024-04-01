@@ -319,7 +319,6 @@ impl FundManager {
                         if self.config.rebalance_strategy != Some(RebalanceStrategy::Long) {
                             continue;
                         }
-                        use_market_order = true;
                     }
                     TradeAction::SellOpen(_) => {
                         if self.state.latest_open_position_id.is_some() {
@@ -328,7 +327,6 @@ impl FundManager {
                         if self.config.rebalance_strategy != Some(RebalanceStrategy::Short) {
                             continue;
                         }
-                        use_market_order = true;
                     }
                     _ => {}
                 }
@@ -521,8 +519,8 @@ impl FundManager {
         let atr = self.state.market_data.atr();
 
         log::info!(
-                    "{} pnl: {:.3}/{:.3}/{:.3}({:.3}%) order/fill/profit/loss = {}/{}/{}/{}, min position = {:.1}, current = {:<6.4}({:<6.4}), spread/atr = {:<6.4}({:<1.3}%)/{:.3}",
-                    self.config.token_name,
+                    "{} pnl: {:.3}/{:.3}/{:.3}({:.3}%) order/fill/profit/loss = {}/{}/{}/{}, min position = {:.1}",
+                    self.config.fund_name,
                     self.statistics.pnl,
                     self.pnl_of_open_position(),
                     pnl,
@@ -532,11 +530,6 @@ impl FundManager {
                     self.statistics.take_profit_count,
                     self.statistics.cut_loss_count,
                     self.statistics.min_amount,
-                    current_price,
-                    current_price - self.state.last_price,
-                    spread,
-                    spread_ratio,
-                    atr,
                 );
 
         Ok(())
