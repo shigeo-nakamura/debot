@@ -511,16 +511,12 @@ impl FundManager {
             Some(p) => p.ordered_price(),
             None => current_price,
         };
-        let spread = (max_price - min_price).abs();
-        let spread_ratio = (spread / current_price) * Decimal::new(100, 0);
 
         let (pnl, ratio) = self.unrealized_pnl_of_open_position(current_price);
 
-        let atr = self.state.market_data.atr();
-
         log::info!(
                     "{} pnl: {:.3}/{:.3}/{:.3}({:.3}%) order/fill/profit/loss = {}/{}/{}/{}, min position = {:.1}",
-                    self.config.fund_name,
+                    format!("{}-{}", self.config.token_name, self.config.index),
                     self.statistics.pnl,
                     self.pnl_of_open_position(),
                     pnl,
@@ -674,7 +670,7 @@ impl FundManager {
 
         log::debug!(
             "Execute: {} {} [{}, {}] order_price = {:<6.4?}, size ={:.10}",
-            symbol,
+            format!("{}-{}", self.config.token_name, self.config.index),
             if chance.action.is_open() {
                 "Open"
             } else {
