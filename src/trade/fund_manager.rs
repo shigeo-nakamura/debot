@@ -302,7 +302,7 @@ impl FundManager {
 
         let target_price_factor = self.config.loss_cut_ratio * self.config.risk_reward;
         let mut order_price = current_price;
-        let mut use_market_order = self.config.use_market_order;
+        let use_market_order = self.config.use_market_order;
 
         for action in updated_actions.clone() {
             let mut modified_action = action.clone();
@@ -502,15 +502,6 @@ impl FundManager {
                 }
             }
         }
-
-        let max_price = match positions_vec.first() {
-            Some(p) => p.ordered_price(),
-            None => current_price,
-        };
-        let min_price = match positions_vec.last() {
-            Some(p) => p.ordered_price(),
-            None => current_price,
-        };
 
         let (pnl, ratio) = self.unrealized_pnl_of_open_position(current_price);
 
@@ -982,7 +973,7 @@ impl FundManager {
         let _ = self
             .state
             .dex_connector
-            .clear_filled_order(&self.config.token_name, trade_id)
+            .clear_filled_order(&self.config.token_name, &trade_id)
             .await
             .map_err(|e| {
                 log::error!("{:?}", e);

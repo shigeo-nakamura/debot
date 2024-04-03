@@ -383,6 +383,7 @@ impl DerivativeTrader {
                 }
             }
         }
+        self.state.dex_connector.clear_all_filled_order().await?;
 
         // Find trade chanes
         let find_futures: Vec<_> = self

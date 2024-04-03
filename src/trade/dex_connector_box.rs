@@ -136,6 +136,10 @@ impl DexConnector for DexConnectorBox {
         self.inner.clear_filled_order(symbol, trade_id).await
     }
 
+    async fn clear_all_filled_order(&self) -> Result<(), DexError> {
+        self.inner.clear_all_filled_order().await
+    }
+
     async fn create_order(
         &self,
         symbol: &str,

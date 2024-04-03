@@ -197,6 +197,10 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
         Ok(())
     }
 
+    async fn clear_all_filled_order(&self) -> Result<(), DexError> {
+        Ok(())
+    }
+
     async fn create_order(
         &self,
         symbol: &str,
