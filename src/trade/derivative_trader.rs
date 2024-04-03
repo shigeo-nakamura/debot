@@ -360,13 +360,12 @@ impl DerivativeTrader {
                 .await?;
 
             for order in filled_orders.orders {
-                fund_manager.clear_filled_order(&order.trade_id).await;
                 if order.is_rejected {
                     fund_manager
                         .cancel_order(&order.order_id.clone(), true)
                         .await;
                 } else {
-                    fund_manager
+                    let filled = fund_manager
                         .position_filled(
                             &order.order_id.clone(),
                             order.filled_side.unwrap(),
@@ -378,6 +377,9 @@ impl DerivativeTrader {
                         .map_err(|_| {
                             Box::new(io::Error::new(ErrorKind::Other, "An error occurred"))
                         })?;
+                    if filled {
+                        fund_manager.clear_filled_order(&order.trade_id).await;
+                    }
                 }
             }
         }
