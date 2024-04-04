@@ -147,8 +147,11 @@ impl DexConnector for DexConnectorBox {
         size: Decimal,
         side: OrderSide,
         price: Option<Decimal>,
+        spread: Option<i64>,
     ) -> Result<CreateOrderResponse, DexError> {
-        self.inner.create_order(symbol, size, side, price).await
+        self.inner
+            .create_order(symbol, size, side, price, spread)
+            .await
     }
 
     async fn cancel_order(&self, symbol: &str, order_id: &str) -> Result<(), DexError> {

@@ -207,6 +207,7 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
         size: Decimal,
         side: OrderSide,
         price: Option<Decimal>,
+        _spread: Option<i64>,
     ) -> Result<CreateOrderResponse, DexError> {
         let mut order_id_counter = self.order_id_counter.lock().await;
         *order_id_counter += 1;

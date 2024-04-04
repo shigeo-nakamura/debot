@@ -660,7 +660,7 @@ impl FundManager {
         };
 
         log::debug!(
-            "Execute: {} {} [{}, {}] order_price = {:<6.4?}, size ={:.10}",
+            "Execute: {} {} [{}, {}] order_price = {:<6.4?}, size = {:.10}",
             format!("{}-{}", self.config.token_name, self.config.index),
             if chance.action.is_open() {
                 "Open"
@@ -682,7 +682,7 @@ impl FundManager {
         let res: Result<CreateOrderResponse, DexError> = self
             .state
             .dex_connector
-            .create_order(symbol, size, side.clone(), order_price)
+            .create_order(symbol, size, side.clone(), order_price, Some(1))
             .await;
         match res {
             Ok(res) => {
