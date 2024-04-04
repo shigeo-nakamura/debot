@@ -20,6 +20,7 @@ pub struct RabbitxConfig {
 pub struct HyperliquidConfig {
     pub agent_private_key: String,
     pub evm_wallet_address: String,
+    pub vault_address: Option<String>,
 }
 
 #[derive(Debug)]
@@ -193,6 +194,7 @@ pub async fn get_hyperliquid_config_from_env() -> Result<HyperliquidConfig, Conf
         .expect("HYPERLIQUID_AGENT_PRIVATE_KEY must be set");
     let evm_wallet_address = env::var("HYPERLIQUID_EVM_WALLET_ADDRESS")
         .expect("HYPERLIQUID_EVM_WALLET_ADDRESS must be set");
+    let vault_address = env::var("HYPERLIQUID_VAULT_ADDRESS").ok();
 
     let encrypted_data_key = env::var("ENCRYPTED_DATA_KEY")
         .expect("ENCRYPTED_DATA_KEY must be set")
@@ -206,5 +208,6 @@ pub async fn get_hyperliquid_config_from_env() -> Result<HyperliquidConfig, Conf
     Ok(HyperliquidConfig {
         agent_private_key,
         evm_wallet_address,
+        vault_address,
     })
 }

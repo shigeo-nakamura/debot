@@ -82,6 +82,7 @@ impl DexConnectorBox {
                     web_socket_endpoint,
                     &hyperliquid_config.agent_private_key,
                     &hyperliquid_config.evm_wallet_address,
+                    hyperliquid_config.vault_address,
                     &market_ids,
                 )
                 .await?;
