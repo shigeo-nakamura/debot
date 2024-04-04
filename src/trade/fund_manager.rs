@@ -188,8 +188,9 @@ impl FundManager {
         price: Decimal,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         // Add price
+        let rounded_price = Self::round_price(price, self.state.min_tick);
         let data = &mut self.state.market_data;
-        let price_point = data.add_price(Some(price), None);
+        let price_point = data.add_price(Some(rounded_price), None);
         // Save the price in the DB
         if self.config.index == 0 && self.config.save_prices {
             self.state
@@ -209,8 +210,9 @@ impl FundManager {
                 .await?;
 
             for last_trade in last_trade_prices.last_trades {
-                let floor_price = Self::floor_price(last_trade.price, self.state.min_tick);
-                data.add_transaction_price(floor_price);
+                let rounded_last_trade_price =
+                    Self::round_price(last_trade.price, self.state.min_tick);
+                data.add_transaction_price(rounded_last_trade_price);
             }
 
             self.state
@@ -225,7 +227,7 @@ impl FundManager {
             .await
             .map_err(|_| "Failed to find close chances".to_owned())?;
 
-        self.find_open_chances(price)
+        self.find_open_chances(price, rounded_price)
             .await
             .map_err(|_| "Failed to find open chances".to_owned())?;
         self.state.last_price = price;
@@ -251,7 +253,11 @@ impl FundManager {
         }
     }
 
-    async fn find_open_chances(&mut self, current_price: Decimal) -> Result<(), ()> {
+    async fn find_open_chances(
+        &mut self,
+        current_price: Decimal,
+        rounded_price: Decimal,
+    ) -> Result<(), ()> {
         if self.config.trading_amount == Decimal::new(0, 0) {
             return Ok(());
         }
@@ -277,8 +283,8 @@ impl FundManager {
         let actions: Vec<TradeAction> = self.state.market_data.is_open_signaled(
             self.config.strategy,
             force_open,
-            self.state.min_tick.unwrap_or(Decimal::new(1, 0)),
-            Self::floor_price(current_price, self.state.min_tick),
+            self.state.min_tick.unwrap_or(Decimal::ONE),
+            rounded_price,
         );
 
         self.handle_open_chances(current_price, &actions).await
@@ -1273,9 +1279,9 @@ impl FundManager {
         self.state.trade_positions.clear();
     }
 
-    fn floor_price(price: Decimal, min_tick: Option<Decimal>) -> Decimal {
-        let min_tick = min_tick.unwrap_or(Decimal::new(1, 0));
-        (price / min_tick).floor() * min_tick
+    fn round_price(price: Decimal, min_tick: Option<Decimal>) -> Decimal {
+        let min_tick = min_tick.unwrap_or(Decimal::ONE);
+        (price / min_tick).round() * min_tick
     }
 
     async fn close_open_position(&mut self) {
