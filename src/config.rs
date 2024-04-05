@@ -1,4 +1,5 @@
 use debot_market_analyzer::TradingStrategy;
+use debot_market_analyzer::TrendType;
 use debot_utils::decrypt_data_with_kms;
 use rust_decimal::Decimal;
 use rust_decimal::Error as DecimalParseError;
@@ -127,9 +128,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let leverage = get_env_var("LEVERAGE", "5")?;
 
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
-        "trendfollow-long" => Some(TradingStrategy::TrendFollowLong),
-        "trendfollow-short" => Some(TradingStrategy::TrendFollowShort),
-        "rebalance" => Some(TradingStrategy::Rebalance),
+        "trendfollow" => Some(TradingStrategy::TrendFollow(TrendType::Unknown)),
         "marketmake" => Some(TradingStrategy::MarketMake),
         &_ => None,
     };

@@ -45,7 +45,6 @@ struct DerivativeTraderConfig {
     short_trade_period: usize,
     long_trade_period: usize,
     trade_period: usize,
-    execution_period: usize,
     interval_secs: i64,
     max_price_size: u32,
     initial_balance: Decimal,
@@ -71,7 +70,6 @@ impl DerivativeTrader {
         dry_run: bool,
         trade_interval: usize,
         sample_interval: SampleInterval,
-        execution_interval: Option<usize>,
         interval_msecs: u64,
         max_price_size: u32,
         db_handler: Arc<Mutex<DBHandler>>,
@@ -99,8 +97,6 @@ impl DerivativeTrader {
             long_trade_period: sample_interval.long_term * SECONDS_IN_MINUTE
                 / interval_secs as usize,
             trade_period: trade_interval * SECONDS_IN_MINUTE / interval_secs as usize,
-            execution_period: execution_interval.unwrap_or_default() * SECONDS_IN_MINUTE
-                / interval_secs as usize,
             interval_secs,
             max_price_size: max_price_size,
             initial_balance: Decimal::new(0, 0),
@@ -197,17 +193,15 @@ impl DerivativeTrader {
                 |(
                     token_name,
                     strategy,
-                    rebalance_strategy,
                     initial_amount,
                     position_size_ratio,
                     risk_reward,
                     loss_cut_ratio,
                 )| {
-                    let execution_interval_secs =
-                        config.execution_period as i64 * config.interval_secs;
-                    let order_effective_duration_secs = if execution_interval_secs > 0 {
-                        if order_effective_duration_secs > execution_interval_secs {
-                            execution_interval_secs - 5
+                    let trade_interval_secs = config.trade_period as i64 * config.interval_secs;
+                    let order_effective_duration_secs = if trade_interval_secs > 0 {
+                        if order_effective_duration_secs > trade_interval_secs {
+                            trade_interval_secs - 5
                         } else {
                             order_effective_duration_secs
                         }
@@ -215,7 +209,7 @@ impl DerivativeTrader {
                         order_effective_duration_secs
                     };
 
-                    let mut market_data = Self::create_market_data(config.clone(), strategy);
+                    let mut market_data = Self::create_market_data(config.clone());
 
                     if load_prices {
                         Self::restore_market_data(
@@ -240,14 +234,12 @@ impl DerivativeTrader {
                         open_positions_map.get(&fund_name).cloned(),
                         market_data,
                         strategy,
-                        rebalance_strategy,
                         initial_amount * position_size_ratio,
                         initial_amount,
                         risk_reward,
                         db_handler.clone(),
                         dex_connector.clone(),
                         save_prices,
-                        execution_interval_secs,
                         order_effective_duration_secs,
                         use_market_order,
                         loss_cut_ratio,
@@ -286,16 +278,12 @@ impl DerivativeTrader {
         }
     }
 
-    fn create_market_data(config: DerivativeTraderConfig, strategy: TradingStrategy) -> MarketData {
-        if strategy == TradingStrategy::Rebalance && config.execution_period == 0 {
-            panic!("rebalance period has to be configured");
-        }
+    fn create_market_data(config: DerivativeTraderConfig) -> MarketData {
         MarketData::new(
             config.trader_name.to_owned(),
             config.short_trade_period,
             config.long_trade_period,
             config.trade_period,
-            config.execution_period,
             config.max_price_size as usize,
         )
     }

@@ -2,7 +2,7 @@
 
 use super::dex_connector_box::DexConnectorBox;
 use super::DBHandler;
-use debot_market_analyzer::{MarketData, TradeAction, TradeDetail, TradingStrategy};
+use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
 use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
 use rust_decimal::Decimal;
@@ -19,12 +19,6 @@ struct TradeChance {
     pub amount: Decimal,
     pub atr: Option<Decimal>,
     pub position_id: Option<u32>,
-}
-
-#[derive(Clone, PartialEq)]
-pub enum RebalanceStrategy {
-    Long,
-    Short,
 }
 
 struct FundManagerState {
@@ -44,7 +38,6 @@ struct FundManagerConfig {
     index: usize,
     token_name: String,
     strategy: TradingStrategy,
-    rebalance_strategy: Option<RebalanceStrategy>,
     risk_reward: Decimal,
     trading_amount: Decimal,
     initial_amount: Decimal,
@@ -53,7 +46,6 @@ struct FundManagerConfig {
     execution_delay_secs: i64,
     use_market_order: bool,
     loss_cut_ratio: Decimal,
-    proportion: Decimal,
 }
 
 #[derive(Default)]
@@ -80,14 +72,12 @@ impl FundManager {
         open_positions: Option<HashMap<u32, TradePosition>>,
         market_data: MarketData,
         strategy: TradingStrategy,
-        rebalance_strategy: Option<RebalanceStrategy>,
         trading_amount: Decimal,
         initial_amount: Decimal,
         risk_reward: Decimal,
         db_handler: Arc<Mutex<DBHandler>>,
         dex_connector: Arc<DexConnectorBox>,
         save_prices: bool,
-        execution_interval_secs: i64,
         order_effective_duration_secs: i64,
         use_market_order: bool,
         loss_cut_ratio: Decimal,
@@ -97,7 +87,6 @@ impl FundManager {
             index,
             token_name: token_name.to_owned(),
             strategy,
-            rebalance_strategy,
             risk_reward,
             trading_amount,
             initial_amount,
@@ -105,8 +94,7 @@ impl FundManager {
             order_effective_duration_secs,
             use_market_order,
             loss_cut_ratio,
-            proportion: Decimal::new(1, 0) - trading_amount / initial_amount,
-            execution_delay_secs: execution_interval_secs,
+            execution_delay_secs: order_effective_duration_secs,
         };
 
         let open_positions = match open_positions {
@@ -288,7 +276,7 @@ impl FundManager {
         let actions: Vec<TradeAction> = self
             .state
             .market_data
-            .is_open_signaled(self.config.strategy, rounded_price);
+            .is_open_signaled(self.config.strategy.clone(), rounded_price);
 
         self.handle_open_chances(current_price, &actions).await
     }
@@ -314,35 +302,8 @@ impl FundManager {
         let use_market_order = self.config.use_market_order;
 
         for action in updated_actions.clone() {
-            let mut modified_action = action.clone();
-
-            if self.config.strategy == TradingStrategy::Rebalance {
-                match action {
-                    TradeAction::Rebalance => {
-                        modified_action = self.rebalance(current_price);
-                    }
-                    TradeAction::BuyOpen(_) => {
-                        if !self.state.trade_positions.is_empty() {
-                            continue;
-                        }
-                        if self.config.rebalance_strategy != Some(RebalanceStrategy::Long) {
-                            continue;
-                        }
-                    }
-                    TradeAction::SellOpen(_) => {
-                        if !self.state.trade_positions.is_empty() {
-                            continue;
-                        }
-                        if self.config.rebalance_strategy != Some(RebalanceStrategy::Short) {
-                            continue;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-
             let is_buy;
-            let (target_price, target_amount, confidence) = match modified_action.clone() {
+            let (target_price, target_amount, confidence) = match action.clone() {
                 TradeAction::BuyOpen(detail) => {
                     is_buy = true;
                     (
@@ -408,7 +369,7 @@ impl FundManager {
                     predicted_price: Some(target_price),
                     amount: target_amount * confidence,
                     atr: Some(data.atr()),
-                    action: modified_action,
+                    action,
                     position_id: None,
                 },
                 None,
@@ -546,7 +507,7 @@ impl FundManager {
             let action = self
                 .state
                 .market_data
-                .is_close_signaled(self.config.strategy);
+                .is_close_signaled(self.config.strategy.clone());
 
             self.handle_close_chances(current_price, *position_id, position, &action)
                 .await?;
@@ -1038,7 +999,7 @@ impl FundManager {
         let prev_amount = self.state.amount;
         let distance = (predicted_price - filled_price).abs() / self.config.risk_reward;
         let cut_loss_price = match self.config.strategy {
-            TradingStrategy::Rebalance | TradingStrategy::MarketMake => None,
+            TradingStrategy::TrendFollow(_) | TradingStrategy::MarketMake => None,
             _ => match filled_side {
                 OrderSide::Long => Some(filled_price - distance),
                 _ => Some(filled_price + distance),
@@ -1096,57 +1057,6 @@ impl FundManager {
         );
 
         return Ok(true);
-    }
-
-    fn rebalance(&self, current_price: Decimal) -> TradeAction {
-        if let Some(open_position) = self.get_open_position() {
-            if matches!(open_position.state(), State::Opening | State::Closing(_)) {
-                return TradeAction::None;
-            }
-        } else {
-            return TradeAction::None;
-        }
-
-        let mut position_amount = Decimal::new(0, 0);
-        for (_, position) in &self.state.trade_positions {
-            position_amount += position.amount();
-        }
-
-        let amount_in_usd = position_amount * current_price;
-        let equity = self.state.amount + amount_in_usd.abs();
-
-        let target_amount_in_usd = match self.config.rebalance_strategy {
-            Some(RebalanceStrategy::Long) => self.config.proportion * equity,
-            Some(RebalanceStrategy::Short) => -self.config.proportion * equity,
-            None => panic!("Not reached"),
-        };
-
-        let rebalance_amount_in_usd = target_amount_in_usd - amount_in_usd;
-
-        let is_buy = rebalance_amount_in_usd.is_sign_positive();
-        let trade_amount_in_usd = rebalance_amount_in_usd.abs();
-
-        log::debug!(
-            "Rebalance USD: {:.6} --> {:.6}, {}: {:.6}",
-            self.state.amount,
-            self.state.amount - rebalance_amount_in_usd.abs(),
-            if is_buy { "buy" } else { "sell" },
-            trade_amount_in_usd
-        );
-
-        if is_buy {
-            TradeAction::BuyOpen(TradeDetail::new(
-                None,
-                Some(trade_amount_in_usd),
-                Decimal::new(1, 0),
-            ))
-        } else {
-            TradeAction::SellOpen(TradeDetail::new(
-                None,
-                Some(trade_amount_in_usd),
-                Decimal::new(1, 0),
-            ))
-        }
     }
 
     pub async fn cancel_order(&mut self, order_id: &str, is_already_rejected: bool) {

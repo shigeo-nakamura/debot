@@ -1,9 +1,7 @@
-use debot_market_analyzer::TradingStrategy;
+use debot_market_analyzer::{TradingStrategy, TrendType};
 use lazy_static::lazy_static;
 use rust_decimal::Decimal;
 use std::env;
-
-use super::fund_manager::RebalanceStrategy;
 
 pub const TOKEN_LIST: &[&str] = &[
     "BTC-USD", "ETH-USD", "SOL-USD", "SUI-USD", "APT-USD", "ARB-USD",
@@ -19,21 +17,12 @@ lazy_static! {
 pub fn get(
     dex_name: &str,
     strategy: Option<&TradingStrategy>,
-) -> Vec<(
-    String,
-    TradingStrategy,
-    Option<RebalanceStrategy>,
-    Decimal,
-    Decimal,
-    Decimal,
-    Decimal,
-)> {
+) -> Vec<(String, TradingStrategy, Decimal, Decimal, Decimal, Decimal)> {
     match dex_name {
         "rabbitx" | "hyperliquid" => vec![
             (
                 TOKEN_LIST[0].to_owned(), // BTC
-                TradingStrategy::Rebalance,
-                Some(RebalanceStrategy::Long),
+                TradingStrategy::TrendFollow(TrendType::Up),
                 Decimal::new(10000, 0), // initial amount (in USD)
                 Decimal::new(5, 1),     // position size ratio
                 Decimal::new(2, 0),     // risk reward
@@ -41,17 +30,15 @@ pub fn get(
             ),
             (
                 TOKEN_LIST[0].to_owned(), // BTC
-                TradingStrategy::Rebalance,
-                Some(RebalanceStrategy::Short),
+                TradingStrategy::TrendFollow(TrendType::Down),
                 Decimal::new(10000, 0), // initial amount (in USD)
                 Decimal::new(5, 1),     // position size ratio
                 Decimal::new(2, 0),     // risk reward
                 Decimal::new(1, 3),     // loss cut ratio
             ),
             (
-                TOKEN_LIST[0].to_owned(), // BTC
+                TOKEN_LIST[1].to_owned(), // ETH
                 TradingStrategy::MarketMake,
-                None,
                 Decimal::new(2000, 0), // initial amount (in USD)
                 Decimal::new(25, 2),   // position size ratio
                 Decimal::new(2, 0),    // risk reward
@@ -59,23 +46,14 @@ pub fn get(
             ),
         ]
         .into_iter()
-        .filter(|(_, trading_strategy, _, _, _, _, _)|
+        .filter(|(_, trading_strategy, _, _, _, _)|
                 // Check if strategy is None or if it matches the token's strategy
                 strategy.is_none() || strategy == Some(trading_strategy))
         .map(
-            |(
-                token,
-                trading_strategy,
-                rebalance_strategy,
-                amount,
-                size_ratio,
-                risk_reward,
-                loss_cut_ratio,
-            )| {
+            |(token, trading_strategy, amount, size_ratio, risk_reward, loss_cut_ratio)| {
                 (
                     token,
                     trading_strategy,
-                    rebalance_strategy,
                     amount * *FUND_SCALE_FACTOR,
                     size_ratio,
                     risk_reward,
