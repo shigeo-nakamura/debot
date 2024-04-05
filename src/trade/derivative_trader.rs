@@ -309,7 +309,7 @@ impl DerivativeTrader {
         if lost.is_sign_positive() {
             let dd_ratio = lost / self.config.initial_balance;
             log::info!(
-                "lost = {}, initial_balance = {}, dd_ratio = {}",
+                "lost = {:.3}, initial_balance = {:.3}, dd_ratio = {:.3}",
                 lost,
                 self.config.initial_balance,
                 dd_ratio

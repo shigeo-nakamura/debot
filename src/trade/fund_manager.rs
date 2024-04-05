@@ -262,6 +262,20 @@ impl FundManager {
             return Ok(());
         }
 
+        if self.config.strategy == TradingStrategy::MarketMake {
+            match self.state.trade_positions.len() {
+                0 => {}
+                1 => {
+                    if self.config.strategy == TradingStrategy::MarketMake {
+                        self.close_open_position().await;
+                    }
+                }
+                _ => {
+                    return Ok(());
+                }
+            }
+        }
+
         if let Some(last_close_time) = self.state.last_position_close_time {
             let current_time = chrono::Utc::now().timestamp();
             let delay_secs = self.config.execution_delay_secs;
@@ -271,21 +285,10 @@ impl FundManager {
             }
         }
 
-        let force_open = if matches!(
-            self.config.strategy,
-            TradingStrategy::MarketMake | TradingStrategy::Rebalance
-        ) {
-            self.state.trade_positions.len() == 0
-        } else {
-            false
-        };
-
-        let actions: Vec<TradeAction> = self.state.market_data.is_open_signaled(
-            self.config.strategy,
-            force_open,
-            self.state.min_tick.unwrap_or(Decimal::ONE),
-            rounded_price,
-        );
+        let actions: Vec<TradeAction> = self
+            .state
+            .market_data
+            .is_open_signaled(self.config.strategy, rounded_price);
 
         self.handle_open_chances(current_price, &actions).await
     }
@@ -336,10 +339,6 @@ impl FundManager {
                     }
                     _ => {}
                 }
-            }
-
-            if self.config.strategy == TradingStrategy::MarketMake {
-                self.close_open_position().await;
             }
 
             let is_buy;

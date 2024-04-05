@@ -70,7 +70,9 @@ async fn prepare_trader_instance(
     db_handler: Arc<Mutex<DBHandler>>,
     price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
 ) -> (DerivativeTrader, &EnvConfig, ErrorManager) {
-    let (trading_interval, interval, dex_name, execution_interval) = trader_config::get();
+    // todo: support multiple traders
+    let (trading_interval, interval, dex_name, execution_interval) =
+        &trader_config::get(config.strategy.as_ref())[0];
 
     // Read open positions from the DB
     //let open_positions_map = db_handler.lock().await.get_open_positions_map().await;
@@ -82,9 +84,9 @@ async fn prepare_trader_instance(
     let trader = DerivativeTrader::new(
         &dex_name,
         config.dry_run,
-        trading_interval,
-        interval,
-        execution_interval,
+        *trading_interval,
+        interval.clone(),
+        *execution_interval,
         config.interval_msec,
         config.max_price_size,
         db_handler,
