@@ -108,14 +108,15 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
     let log_limit = get_env_var("LOG_LIMIT", "10000")?;
     let dry_run = get_bool_env_var("DRY_RUN", true);
-    let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "24")?;
-    let max_price_size = max_price_size_hours * 60 * 60;
+    let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
+
+    let max_price_size_days: u32 = get_env_var("MAX_PRICE_SIZE_DAYS", "1")?;
+    let max_price_size = max_price_size_days * 24 * 60 * 60 * 1000 / interval_msec as u32;
 
     let max_error_duration = get_env_var("MAX_ERROR_DURATION", "10")?;
     let save_prices = get_bool_env_var("SAVE_PRICES", false);
     let load_prices = get_bool_env_var("LOAD_PRICES", false);
 
-    let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
     let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
     let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1").map_err(ConfigError::from)?;
     let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_PERIOD_SECS", "300")?;

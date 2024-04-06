@@ -23,18 +23,34 @@ pub fn get(
             (
                 TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(10000, 0), // initial amount (in USD)
-                Decimal::new(5, 1),     // position size ratio
-                Decimal::new(2, 0),     // risk reward
-                Decimal::new(1, 3),     // loss cut ratio
+                Decimal::new(6000, 0), // initial amount (in USD)
+                Decimal::new(8, 1),    // position size ratio
+                Decimal::new(2, 0),    // risk reward
+                Decimal::new(1, 3),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(10000, 0), // initial amount (in USD)
-                Decimal::new(5, 1),     // position size ratio
-                Decimal::new(2, 0),     // risk reward
-                Decimal::new(1, 3),     // loss cut ratio
+                Decimal::new(6000, 0), // initial amount (in USD)
+                Decimal::new(8, 1),    // position size ratio
+                Decimal::new(2, 0),    // risk reward
+                Decimal::new(1, 3),    // loss cut ratio
+            ),
+            (
+                TOKEN_LIST[1].to_owned(), // ETH
+                TradingStrategy::TrendFollow(TrendType::Up),
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(1, 0), // position size ratio
+                Decimal::new(2, 0), // risk reward
+                Decimal::new(1, 3), // loss cut ratio
+            ),
+            (
+                TOKEN_LIST[1].to_owned(), // ETH
+                TradingStrategy::TrendFollow(TrendType::Down),
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(1, 0), // position size ratio
+                Decimal::new(2, 0), // risk reward
+                Decimal::new(1, 3), // loss cut ratio
             ),
             (
                 TOKEN_LIST[1].to_owned(), // ETH

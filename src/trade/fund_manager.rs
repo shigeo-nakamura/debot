@@ -472,8 +472,9 @@ impl FundManager {
         let (pnl, ratio) = self.unrealized_pnl_of_open_position(current_price);
 
         log::info!(
-                    "{} pnl: {:.3}/{:.3}/{:.3}({:.3}%) order/fill/profit/loss = {}/{}/{}/{}, min position = {:.1}",
+                    "{}({:?}) pnl: {:.3}/{:.3}/{:.3}({:.3}%) order/fill/profit/loss = {}/{}/{}/{}, min position = {:.1}",
                     format!("{}-{}", self.config.token_name, self.config.index),
+                    self.state.market_data.trend(),
                     self.statistics.pnl,
                     self.pnl_of_open_position(),
                     pnl,
