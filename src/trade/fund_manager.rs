@@ -254,9 +254,7 @@ impl FundManager {
             match self.state.trade_positions.len() {
                 0 => {}
                 1 => {
-                    if self.config.strategy == TradingStrategy::MarketMake {
-                        self.close_open_position().await;
-                    }
+                    self.close_open_position().await;
                 }
                 _ => {
                     return Ok(());
@@ -483,9 +481,6 @@ impl FundManager {
         let cloned_open_positions = self.state.trade_positions.clone();
 
         for (position_id, position) in cloned_open_positions.iter() {
-            if position.asset_in_usd().abs() < self.config.trading_amount / Decimal::new(2, 0) {
-                continue;
-            }
             match position.state() {
                 State::Opening => {
                     if position.amount() == Decimal::new(0, 0) {
@@ -514,7 +509,7 @@ impl FundManager {
         position: &TradePosition,
         action: &TradeAction,
     ) -> Result<(), ()> {
-        let reason_for_close = match action {
+        let mut reason_for_close = match action {
             TradeAction::BuyClose => {
                 if position.position_type() == PositionType::Short {
                     Some(ReasonForClose::Other("TredeChanged".to_owned()))
@@ -529,8 +524,12 @@ impl FundManager {
                     None
                 }
             }
-            _ => position.should_close(current_price),
+            _ => None,
         };
+
+        if reason_for_close.is_none() {
+            reason_for_close = position.should_close(current_price);
+        }
 
         let mut chance: Option<TradeChance> = None;
 
