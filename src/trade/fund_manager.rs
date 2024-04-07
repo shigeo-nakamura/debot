@@ -295,37 +295,25 @@ impl FundManager {
         const LIGHT_BLUE: &str = "\x1b[1;34m";
 
         let data = self.state.market_data.to_owned();
-        let updated_actions = actions.clone();
 
         let target_price_factor = self.config.loss_cut_ratio * self.config.risk_reward;
         let mut order_price = current_price;
         let use_market_order = self.config.use_market_order;
 
-        for action in updated_actions.clone() {
+        for action in actions.clone() {
             let is_buy;
-            let (target_price, target_amount, confidence) = match action.clone() {
+            let (target_price, confidence) = match action.clone() {
                 TradeAction::BuyOpen(detail) => {
                     is_buy = true;
-                    (
-                        detail.target_price(),
-                        detail.target_amount(),
-                        detail.confidence(),
-                    )
+                    (detail.target_price(), detail.confidence())
                 }
                 TradeAction::SellOpen(detail) => {
                     is_buy = false;
-                    (
-                        detail.target_price(),
-                        detail.target_amount(),
-                        detail.confidence(),
-                    )
+                    (detail.target_price(), detail.confidence())
                 }
                 _ => continue,
             };
-            let mut target_amount = match target_amount {
-                Some(amount) => amount,
-                None => self.config.trading_amount,
-            };
+            let mut target_amount = self.config.trading_amount * confidence;
 
             let decimal_1 = Decimal::new(1, 0);
             let target_price = match self.config.strategy {
@@ -351,14 +339,16 @@ impl FundManager {
             if let Some(open_position) = open_position {
                 let is_long_position = open_position.position_type() == PositionType::Long;
                 if is_buy == is_long_position {
-                    if self.state.amount <= target_amount {
-                        log::warn!("No enough fund left: {:.6}", self.state.amount);
-                        if self.state.amount > Decimal::new(0, 0) {
-                            target_amount = self.state.amount;
-                        } else {
-                            break;
-                        }
-                    }
+                    break;
+                }
+            }
+
+            if self.state.amount <= target_amount {
+                log::warn!("No enough fund left: {:.6}", self.state.amount);
+                if self.state.amount > Decimal::new(0, 0) {
+                    target_amount = self.state.amount;
+                } else {
+                    break;
                 }
             }
 
@@ -367,7 +357,7 @@ impl FundManager {
                 TradeChance {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(target_price),
-                    amount: target_amount * confidence,
+                    amount: target_amount,
                     atr: Some(data.atr()),
                     action,
                     position_id: None,
@@ -424,7 +414,7 @@ impl FundManager {
                         color = GREY;
                     }
 
-                    let is_updated = updated_actions
+                    let is_updated = actions
                         .iter()
                         .any(|a| a.target_price().unwrap_or_default() == position.ordered_price());
 
