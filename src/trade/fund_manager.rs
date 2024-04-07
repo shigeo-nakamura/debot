@@ -334,13 +334,13 @@ impl FundManager {
                 }
             };
 
-            let open_position = self.get_open_position();
-
-            if let Some(open_position) = open_position {
-                let is_long_position = open_position.position_type() == PositionType::Long;
-                if is_buy == is_long_position {
-                    break;
+            match self.config.strategy {
+                TradingStrategy::TrendFollow(_) => {
+                    if !self.state.trade_positions.is_empty() {
+                        break;
+                    }
                 }
+                TradingStrategy::MarketMake => {}
             }
 
             if self.state.amount <= target_amount {
