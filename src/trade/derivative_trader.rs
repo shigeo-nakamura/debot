@@ -275,6 +275,7 @@ impl DerivativeTrader {
                     market_data.add_price(Some(price_point.price), Some(price_point.timestamp));
                 }
             }
+            market_data.init_crossover_state();
         }
     }
 
