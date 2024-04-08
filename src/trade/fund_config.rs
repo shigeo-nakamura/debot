@@ -53,7 +53,23 @@ pub fn get(
                 Decimal::new(1, 3), // loss cut ratio
             ),
             (
-                TOKEN_LIST[1].to_owned(), // ETH
+                TOKEN_LIST[2].to_owned(), // SOL
+                TradingStrategy::TrendFollow(TrendType::Up),
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(1, 0), // position size ratio
+                Decimal::new(2, 0), // risk reward
+                Decimal::new(1, 3), // loss cut ratio
+            ),
+            (
+                TOKEN_LIST[2].to_owned(), // SOL
+                TradingStrategy::TrendFollow(TrendType::Down),
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(1, 0), // position size ratio
+                Decimal::new(2, 0), // risk reward
+                Decimal::new(1, 3), // loss cut ratio
+            ),
+            (
+                TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::MarketMake,
                 Decimal::new(2000, 0), // initial amount (in USD)
                 Decimal::new(25, 2),   // position size ratio
