@@ -1,7 +1,6 @@
 // db_operations.rs
 
-use debot_db::{CounterType, PnlLog, PriceLog, TransactionLog};
-use debot_market_analyzer::PricePoint;
+use debot_db::{CounterType, PnlLog, PriceLog, PricePoint, TransactionLog};
 use debot_position_manager::{State, TradePosition};
 use debot_utils::DateTimeUtils;
 use lazy_static::lazy_static;

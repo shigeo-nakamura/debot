@@ -1,7 +1,8 @@
 // main.rs
 
 use config::EnvConfig;
-use debot_market_analyzer::{PricePoint, TradingStrategy};
+use debot_db::PricePoint;
+use debot_market_analyzer::TradingStrategy;
 use debot_utils::DateTimeUtils;
 use error_manager::ErrorManager;
 use rust_decimal::Decimal;

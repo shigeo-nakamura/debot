@@ -1,7 +1,7 @@
 // derivative_trader.rs
 
+use debot_db::PricePoint;
 use debot_market_analyzer::MarketData;
-use debot_market_analyzer::PricePoint;
 use debot_market_analyzer::TradingStrategy;
 use debot_position_manager::TradePosition;
 use dex_connector::DexConnector;
