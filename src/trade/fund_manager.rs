@@ -250,8 +250,20 @@ impl FundManager {
             return Ok(());
         }
 
-        if self.config.strategy == TradingStrategy::MarketMake {
-            match self.state.trade_positions.len() {
+        match self.config.strategy {
+            TradingStrategy::TrendFollow(_) => {
+                if let Some(last_close_time) = self.state.last_position_close_time {
+                    let current_time = chrono::Utc::now().timestamp();
+                    let delay_secs = self.config.execution_delay_secs;
+                    if current_time - last_close_time < delay_secs {
+                        log::info!(
+                            "Waiting for delay period to pass before executing new chances."
+                        );
+                        return Ok(());
+                    }
+                }
+            }
+            TradingStrategy::MarketMake => match self.state.trade_positions.len() {
                 0 => {}
                 1 => {
                     self.close_open_position().await;
@@ -259,16 +271,7 @@ impl FundManager {
                 _ => {
                     return Ok(());
                 }
-            }
-        }
-
-        if let Some(last_close_time) = self.state.last_position_close_time {
-            let current_time = chrono::Utc::now().timestamp();
-            let delay_secs = self.config.execution_delay_secs;
-            if current_time - last_close_time < delay_secs {
-                log::info!("Waiting for delay period to pass before executing new chances.");
-                return Ok(());
-            }
+            },
         }
 
         let actions: Vec<TradeAction> = self
