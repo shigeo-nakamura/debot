@@ -179,8 +179,16 @@ impl FundManager {
         let rounded_price = Self::round_price(price, self.state.min_tick);
         let data = &mut self.state.market_data;
         let price_point = data.add_price(Some(rounded_price), None);
+
         // Save the price in the DB
         if self.config.index == 0 && self.config.save_prices {
+            log::trace!(
+                "price = {:.5}, min_tick = {:.5?}, rounded_price = {:.5}",
+                price,
+                self.state.min_tick,
+                price_point.price
+            );
+
             self.state
                 .db_handler
                 .lock()
