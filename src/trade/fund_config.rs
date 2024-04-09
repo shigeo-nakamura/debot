@@ -39,24 +39,24 @@ pub fn get(
             (
                 TOKEN_LIST[1].to_owned(), // ETH
                 TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(1, 0), // position size ratio
-                Decimal::new(2, 0), // risk reward
-                Decimal::new(1, 3), // loss cut ratio
+                Decimal::new(3000, 0), // initial amount (in USD)
+                Decimal::new(8, 1),    // position size ratio
+                Decimal::new(2, 0),    // risk reward
+                Decimal::new(1, 3),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[1].to_owned(), // ETH
                 TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(1, 0), // position size ratio
-                Decimal::new(2, 0), // risk reward
-                Decimal::new(1, 3), // loss cut ratio
+                Decimal::new(3000, 0), // initial amount (in USD)
+                Decimal::new(8, 1),    // position size ratio
+                Decimal::new(2, 0),    // risk reward
+                Decimal::new(1, 3),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[2].to_owned(), // SOL
                 TradingStrategy::TrendFollow(TrendType::Up),
                 Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(1, 0), // position size ratio
+                Decimal::new(8, 1), // position size ratio
                 Decimal::new(2, 0), // risk reward
                 Decimal::new(1, 3), // loss cut ratio
             ),
@@ -64,7 +64,7 @@ pub fn get(
                 TOKEN_LIST[2].to_owned(), // SOL
                 TradingStrategy::TrendFollow(TrendType::Down),
                 Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(1, 0), // position size ratio
+                Decimal::new(8, 1), // position size ratio
                 Decimal::new(2, 0), // risk reward
                 Decimal::new(1, 3), // loss cut ratio
             ),
