@@ -151,7 +151,9 @@ impl FundManager {
         &self.config.token_name
     }
 
-    pub async fn get_token_price(&mut self) -> Result<Decimal, Box<dyn Error + Send + Sync>> {
+    pub async fn get_token_price(
+        &mut self,
+    ) -> Result<(Decimal, Decimal), Box<dyn Error + Send + Sync>> {
         let token_name = &self.config.token_name;
 
         // Get the token price
@@ -162,13 +164,19 @@ impl FundManager {
             .get_ticker(token_name)
             .await
             .map_err(|e| format!("Failed to get price of {}: {:?}", token_name, e).to_owned())?;
-        log::trace!("{}: {:?}", token_name, res.price);
+        log::trace!("{}: {:?}, {:?}", token_name, res.price, res.min_tick);
 
-        if self.state.min_tick.is_none() {
-            self.state.min_tick = res.min_tick;
+        if res.min_tick.is_none() {
+            return Err(format!("min_tick is not available").into());
         }
 
-        Ok(res.price)
+        Ok((res.price, res.min_tick.unwrap()))
+    }
+
+    pub fn set_min_tick(&mut self, min_tick: Decimal) {
+        if self.state.min_tick.is_none() {
+            self.state.min_tick = Some(min_tick);
+        }
     }
 
     pub async fn find_chances(

@@ -334,10 +334,10 @@ impl DerivativeTrader {
 
         let price_results = join_all(price_futures).await;
 
-        let mut prices: HashMap<String, Option<Decimal>> = HashMap::new();
+        let mut prices: HashMap<String, Option<(Decimal, Decimal)>> = HashMap::new();
         for result in price_results {
-            let (token_name, price) = result?;
-            prices.insert(token_name.to_owned(), price);
+            let (token_name, price_min_tick) = result?;
+            prices.insert(token_name.to_owned(), price_min_tick);
         }
 
         // 2. Check newly filled orders after the new price is queried; otherwise DexEmulator can't fill any orders
@@ -381,7 +381,8 @@ impl DerivativeTrader {
             .values_mut()
             .filter_map(|fund_manager| {
                 let token_name = fund_manager.token_name();
-                if let Some(price) = prices.get(token_name).and_then(|p| *p) {
+                if let Some((price, min_tick)) = prices.get(token_name).and_then(|p| *p) {
+                    fund_manager.set_min_tick(min_tick);
                     Some(fund_manager.find_chances(price))
                 } else {
                     None
