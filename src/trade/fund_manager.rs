@@ -54,6 +54,8 @@ struct FundManagerStatics {
     fill_count: u32,
     take_profit_count: u32,
     cut_loss_count: u32,
+    market_make_count: u32,
+    market_make_fail_count: u32,
     pnl: Decimal,
     min_amount: Decimal,
 }
@@ -164,7 +166,6 @@ impl FundManager {
             .get_ticker(token_name)
             .await
             .map_err(|e| format!("Failed to get price of {}: {:?}", token_name, e).to_owned())?;
-        log::trace!("{}: {:?}, {:?}", token_name, res.price, res.min_tick);
 
         if res.min_tick.is_none() {
             return Err(format!("min_tick is not available").into());
@@ -284,9 +285,11 @@ impl FundManager {
                 0 => {}
                 1 => {
                     self.close_open_position().await;
+                    self.statistics.market_make_fail_count += 1;
                 }
                 _ => {
-                    return Ok(());
+                    let actions: Vec<TradeAction> = vec![];
+                    return self.handle_open_chances(current_price, &actions).await;
                 }
             },
         }
@@ -479,20 +482,33 @@ impl FundManager {
 
         let (pnl, ratio) = self.unrealized_pnl_of_open_position(current_price);
 
-        log::info!(
-                    "{}({:?}) pnl: {:.3}/{:.3}/{:.3}({:.3}%) order/fill/profit/loss = {}/{}/{}/{}, min position = {:.1}",
+        match self.config.strategy {
+            TradingStrategy::TrendFollow(_) => {
+                log::info!(
+                    "{} pnl: {:.3}/{:.3}({:.3}%) order/fill/profit = {}/{}/{}, min position = {:.1}, trend = {:?}",
                     format!("{}-{}", self.config.token_name, self.config.index),
-                    self.state.market_data.trend(),
                     self.statistics.pnl,
-                    self.pnl_of_open_position(),
                     pnl,
                     ratio * Decimal::new(100, 0),
                     self.statistics.order_count,
                     self.statistics.fill_count,
                     self.statistics.take_profit_count,
-                    self.statistics.cut_loss_count,
                     self.statistics.min_amount,
+                    self.state.market_data.trend()
                 );
+            }
+            TradingStrategy::MarketMake => {
+                log::info!(
+                    "{} pnl: {:.3}/{:.3}({:.3}%) make/fail = {}/{}",
+                    format!("{}-{}", self.config.token_name, self.config.index),
+                    self.statistics.pnl,
+                    pnl,
+                    ratio * Decimal::new(100, 0),
+                    self.statistics.market_make_count / 2,
+                    self.statistics.market_make_fail_count,
+                );
+            }
+        }
 
         Ok(())
     }
@@ -770,6 +786,10 @@ impl FundManager {
 
         self.statistics.order_count += 1;
 
+        if self.config.strategy == TradingStrategy::MarketMake {
+            self.statistics.market_make_count += 1;
+        }
+
         // Save the position in the DB
         self.state
             .db_handler
@@ -800,6 +820,7 @@ impl FundManager {
         }
     }
 
+    #[allow(dead_code)]
     fn pnl_of_open_position(&self) -> Decimal {
         match self.get_open_position() {
             Some(position) => position.pnl(),
@@ -862,7 +883,7 @@ impl FundManager {
                 })?;
 
             log::debug!(
-                "process_trade_position: on_filled for order_position: {}",
+                "step 1: process_trade_position: on_filled for order_position: {}",
                 position_id
             );
 
@@ -889,7 +910,7 @@ impl FundManager {
             Some(open_position_id) => match self.state.trade_positions.get_mut(&open_position_id) {
                 Some(open_position) => {
                     log::debug!(
-                        "process_trade_position: on_filled for open_position: {}",
+                        "step 2: process_trade_position: on_filled for open_position: {}",
                         open_position_id
                     );
 
@@ -1010,6 +1031,7 @@ impl FundManager {
         let distance = (predicted_price - filled_price).abs() / self.config.risk_reward;
         let cut_loss_price = match self.config.strategy {
             TradingStrategy::TrendFollow(_) | TradingStrategy::MarketMake => None,
+            #[allow(unreachable_patterns)]
             _ => match filled_side {
                 OrderSide::Long => Some(filled_price - distance),
                 _ => Some(filled_price + distance),
@@ -1040,7 +1062,9 @@ impl FundManager {
             if matches!(position.state(), State::Closed(_)) {
                 self.state.amount += position.close_asset_in_usd() + position.pnl();
                 self.state.latest_open_position_id = None;
-                self.state.trade_positions.remove(&position_id);
+                self.state
+                    .trade_positions
+                    .remove(&position.id().unwrap_or_default());
                 self.statistics.pnl += position.pnl();
             }
 
@@ -1140,6 +1164,7 @@ impl FundManager {
         }
     }
 
+    #[allow(dead_code)]
     async fn cancel_all_orders(&mut self) {
         let _ = self
             .state

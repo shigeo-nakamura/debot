@@ -137,8 +137,8 @@ pub fn get(
                 TradingStrategy::MarketMake,
                 Decimal::new(2000, 0), // initial amount (in USD)
                 Decimal::new(25, 2),   // position size ratio
-                Decimal::new(2, 0),    // risk reward
-                Decimal::new(1, 3),    // loss cut ratio
+                Decimal::new(1, 0),    // risk reward
+                Decimal::new(5, 4),    // loss cut ratio
             ),
         ]
         .into_iter()
