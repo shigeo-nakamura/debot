@@ -191,7 +191,8 @@ impl FundManager {
         // Save the price in the DB
         if self.config.index == 0 && self.config.save_prices {
             log::trace!(
-                "price = {:.5}, min_tick = {:.5?}, rounded_price = {:.5}",
+                "{}: price = {:.5}, min_tick = {:.5?}, rounded_price = {:.5}",
+                self.config.token_name,
                 price,
                 self.state.min_tick,
                 price_point.price
