@@ -2,7 +2,7 @@
 
 use super::dex_connector_box::DexConnectorBox;
 use super::DBHandler;
-use debot_market_analyzer::{MarketData, TradeAction, TradingStrategy};
+use debot_market_analyzer::{MarketData, TradeAction, TradeDetail, TradingStrategy};
 use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
 use rust_decimal::Decimal;
@@ -548,16 +548,19 @@ impl FundManager {
         position: &TradePosition,
         action: &TradeAction,
     ) -> Result<(), ()> {
+        let mut confidence = Decimal::ONE;
         let mut reason_for_close = match action {
-            TradeAction::BuyClose => {
+            TradeAction::BuyClose(_) => {
                 if position.position_type() == PositionType::Short {
+                    confidence = action.confidence().unwrap_or_default();
                     Some(ReasonForClose::Other("TredeChanged".to_owned()))
                 } else {
                     None
                 }
             }
-            TradeAction::SellClose => {
+            TradeAction::SellClose(_) => {
                 if position.position_type() == PositionType::Long {
+                    confidence = action.confidence().unwrap_or_default();
                     Some(ReasonForClose::Other("TrendChanged".to_owned()))
                 } else {
                     None
@@ -576,12 +579,12 @@ impl FundManager {
             chance = Some(TradeChance {
                 token_name: self.config.token_name.clone(),
                 predicted_price: None,
-                token_amount: position.amount().abs(),
+                token_amount: position.amount().abs() * confidence,
                 atr: None,
                 action: if position.position_type() == PositionType::Long {
-                    TradeAction::SellClose
+                    TradeAction::SellClose(TradeDetail::new(None, None, Decimal::ONE))
                 } else {
-                    TradeAction::BuyClose
+                    TradeAction::BuyClose(TradeDetail::new(None, None, Decimal::ONE))
                 },
                 position_id: Some(position_id),
             });
@@ -1242,9 +1245,9 @@ impl FundManager {
                             token_amount: open_position.amount().abs(),
                             atr: None,
                             action: if open_position.position_type() == PositionType::Long {
-                                TradeAction::SellClose
+                                TradeAction::SellClose(TradeDetail::new(None, None, Decimal::ONE))
                             } else {
-                                TradeAction::BuyClose
+                                TradeAction::BuyClose(TradeDetail::new(None, None, Decimal::ONE))
                             },
                             position_id: open_position.id(),
                         },
