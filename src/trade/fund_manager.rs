@@ -367,15 +367,6 @@ impl FundManager {
                 }
             };
 
-            match self.config.strategy {
-                TradingStrategy::TrendFollow(_) => {
-                    if !self.state.trade_positions.is_empty() {
-                        break;
-                    }
-                }
-                TradingStrategy::MarketMake => {}
-            }
-
             if self.state.amount <= token_amount * order_price {
                 log::warn!("No enough fund left: {:.6}", self.state.amount);
                 if self.state.amount > Decimal::new(0, 0) {
