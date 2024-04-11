@@ -16,7 +16,7 @@ struct TradeChance {
     pub action: TradeAction,
     pub token_name: String,
     pub predicted_price: Option<Decimal>,
-    pub amount: Decimal,
+    pub token_amount: Decimal,
     pub atr: Option<Decimal>,
     pub position_id: Option<u32>,
 }
@@ -294,10 +294,11 @@ impl FundManager {
             },
         }
 
-        let actions: Vec<TradeAction> = self
-            .state
-            .market_data
-            .is_open_signaled(self.config.strategy.clone(), rounded_price);
+        let actions: Vec<TradeAction> = self.state.market_data.is_open_signaled(
+            self.config.strategy.clone(),
+            rounded_price,
+            self.config.trading_amount,
+        );
 
         self.handle_open_chances(current_price, &actions).await
     }
@@ -323,18 +324,29 @@ impl FundManager {
 
         for action in actions.clone() {
             let is_buy;
-            let (target_price, confidence) = match action.clone() {
+            let (target_price, token_amount, confidence) = match action.clone() {
                 TradeAction::BuyOpen(detail) => {
                     is_buy = true;
-                    (detail.target_price(), detail.confidence())
+                    (
+                        detail.target_price(),
+                        detail.token_amount(),
+                        detail.confidence(),
+                    )
                 }
                 TradeAction::SellOpen(detail) => {
                     is_buy = false;
-                    (detail.target_price(), detail.confidence())
+                    (
+                        detail.target_price(),
+                        detail.token_amount(),
+                        detail.confidence(),
+                    )
                 }
                 _ => continue,
             };
-            let mut target_amount = self.config.trading_amount * confidence;
+            let mut token_amount = match token_amount {
+                Some(token_amount) => token_amount * confidence,
+                None => self.config.trading_amount * confidence,
+            };
 
             let decimal_1 = Decimal::new(1, 0);
             let target_price = match self.config.strategy {
@@ -364,10 +376,10 @@ impl FundManager {
                 TradingStrategy::MarketMake => {}
             }
 
-            if self.state.amount <= target_amount {
+            if self.state.amount <= token_amount * order_price {
                 log::warn!("No enough fund left: {:.6}", self.state.amount);
                 if self.state.amount > Decimal::new(0, 0) {
-                    target_amount = self.state.amount;
+                    token_amount = self.state.amount / order_price;
                 } else {
                     break;
                 }
@@ -378,7 +390,7 @@ impl FundManager {
                 TradeChance {
                     token_name: self.config.token_name.clone(),
                     predicted_price: Some(target_price),
-                    amount: target_amount,
+                    token_amount,
                     atr: Some(data.atr()),
                     action,
                     position_id: None,
@@ -573,7 +585,7 @@ impl FundManager {
             chance = Some(TradeChance {
                 token_name: self.config.token_name.clone(),
                 predicted_price: None,
-                amount: position.amount().abs(),
+                token_amount: position.amount().abs(),
                 atr: None,
                 action: if position.position_type() == PositionType::Long {
                     TradeAction::SellClose
@@ -630,17 +642,16 @@ impl FundManager {
         reason_for_close: Option<ReasonForClose>,
         use_market_order: bool,
     ) -> Result<(), ()> {
-        if chance.amount <= Decimal::new(0, 0) {
-            log::error!("execute_chance: wrong amount: {}", chance.amount);
+        if chance.token_amount <= Decimal::new(0, 0) {
+            log::error!(
+                "execute_chance: wrong token amount: {}",
+                chance.token_amount
+            );
             return Err(());
         }
 
         let symbol = &self.config.token_name;
-        let size = if chance.action.is_open() {
-            chance.amount / order_price
-        } else {
-            chance.amount
-        };
+        let size = chance.token_amount;
         let side = if chance.action.is_buy() {
             OrderSide::Long
         } else {
@@ -1237,7 +1248,7 @@ impl FundManager {
                         TradeChance {
                             token_name: self.config.token_name.clone(),
                             predicted_price: None,
-                            amount: open_position.amount().abs(),
+                            token_amount: open_position.amount().abs(),
                             atr: None,
                             action: if open_position.position_type() == PositionType::Long {
                                 TradeAction::SellClose
@@ -1246,7 +1257,9 @@ impl FundManager {
                             },
                             position_id: open_position.id(),
                         },
-                        Some(ReasonForClose::Other(String::from("PartialOrderFilled"))),
+                        Some(ReasonForClose::Other(String::from(
+                            "OnlyOneSideOrderFilled",
+                        ))),
                         self.config.use_market_order,
                     )
                     .await;
