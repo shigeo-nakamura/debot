@@ -254,6 +254,12 @@ impl FundManager {
 
         // Cancel the exipired orders
         for position in &positions_to_cancel {
+            match self.config.strategy {
+                TradingStrategy::TrendFollow(_, _) => {}
+                TradingStrategy::MarketMake => {
+                    self.statistics.market_make_fail_count += 1;
+                }
+            }
             log::debug!("Canceling expired order: order_id:{}", position.order_id());
             self.cancel_order(position.order_id(), false).await;
         }
@@ -285,7 +291,6 @@ impl FundManager {
                 0 => {}
                 1 => {
                     self.close_open_position().await;
-                    self.statistics.market_make_fail_count += 1;
                 }
                 _ => {
                     let actions: Vec<TradeAction> = vec![];
@@ -438,14 +443,13 @@ impl FundManager {
                         .iter()
                         .any(|a| a.target_price().unwrap_or_default() == position.ordered_price());
 
-                    let amount = format!(
-                        "{:6.6}",
-                        if position.state() == State::Open {
-                            position.amount()
-                        } else {
-                            position.unfilled_amount()
-                        }
-                    );
+                    let amount_value = if position.state() == State::Opening {
+                        position.unfilled_amount()
+                    } else {
+                        position.amount()
+                    };
+
+                    let amount = format!("{:6.6}", amount_value);
 
                     log::debug!(
                         "{:<5}: {}{:<4.4}{}({}){:1} {}",
