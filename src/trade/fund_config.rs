@@ -4,7 +4,7 @@ use rust_decimal::Decimal;
 use std::env;
 
 pub const TOKEN_LIST: &[&str] = &[
-    "BTC-USD", "ETH-USD", "SOL-USD", "ARB-USD", "BNB-USD", "SUI-USD", "APT-USD",
+    "BTC-USD", "ETH-USD", "SOL-USD", "ARB-USD", "BNB-USD", "SUI-USD", "APT-USD", "OP-USD",
 ];
 
 lazy_static! {
@@ -72,66 +72,82 @@ pub fn get(
             (
                 TOKEN_LIST[3].to_owned(), // ARB
                 TradingStrategy::TrendFollow(TrendType::Up, is_trim_position),
-                Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(8, 1), // position size ratio
-                Decimal::new(2, 0), // risk reward
-                Decimal::new(1, 3), // loss cut ratio
+                Decimal::new(600, 0), // initial amount (in USD)
+                Decimal::new(8, 1),   // position size ratio
+                Decimal::new(2, 0),   // risk reward
+                Decimal::new(1, 3),   // loss cut ratio
             ),
             (
                 TOKEN_LIST[3].to_owned(), // ARB
                 TradingStrategy::TrendFollow(TrendType::Down, is_trim_position),
-                Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(8, 1), // position size ratio
-                Decimal::new(2, 0), // risk reward
-                Decimal::new(1, 3), // loss cut ratio
+                Decimal::new(600, 0), // initial amount (in USD)
+                Decimal::new(8, 1),   // position size ratio
+                Decimal::new(2, 0),   // risk reward
+                Decimal::new(1, 3),   // loss cut ratio
             ),
             (
                 TOKEN_LIST[4].to_owned(), // BNB
                 TradingStrategy::TrendFollow(TrendType::Up, is_trim_position),
-                Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(8, 1), // position size ratio
-                Decimal::new(2, 0), // risk reward
-                Decimal::new(1, 3), // loss cut ratio
+                Decimal::new(600, 0), // initial amount (in USD)
+                Decimal::new(8, 1),   // position size ratio
+                Decimal::new(2, 0),   // risk reward
+                Decimal::new(1, 3),   // loss cut ratio
             ),
             (
                 TOKEN_LIST[4].to_owned(), // BNB
                 TradingStrategy::TrendFollow(TrendType::Down, is_trim_position),
-                Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(8, 1), // position size ratio
-                Decimal::new(2, 0), // risk reward
-                Decimal::new(1, 3), // loss cut ratio
+                Decimal::new(600, 0), // initial amount (in USD)
+                Decimal::new(8, 1),   // position size ratio
+                Decimal::new(2, 0),   // risk reward
+                Decimal::new(1, 3),   // loss cut ratio
             ),
             (
                 TOKEN_LIST[5].to_owned(), // SUI
                 TradingStrategy::TrendFollow(TrendType::Up, is_trim_position),
-                Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(8, 1), // position size ratio
-                Decimal::new(2, 0), // risk reward
-                Decimal::new(1, 3), // loss cut ratio
+                Decimal::new(600, 0), // initial amount (in USD)
+                Decimal::new(8, 1),   // position size ratio
+                Decimal::new(2, 0),   // risk reward
+                Decimal::new(1, 3),   // loss cut ratio
             ),
             (
                 TOKEN_LIST[5].to_owned(), // SUI
                 TradingStrategy::TrendFollow(TrendType::Down, is_trim_position),
-                Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(8, 1), // position size ratio
-                Decimal::new(2, 0), // risk reward
-                Decimal::new(1, 3), // loss cut ratio
+                Decimal::new(600, 0), // initial amount (in USD)
+                Decimal::new(8, 1),   // position size ratio
+                Decimal::new(2, 0),   // risk reward
+                Decimal::new(1, 3),   // loss cut ratio
             ),
             (
                 TOKEN_LIST[6].to_owned(), // APT
                 TradingStrategy::TrendFollow(TrendType::Up, is_trim_position),
-                Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(8, 1), // position size ratio
-                Decimal::new(2, 0), // risk reward
-                Decimal::new(1, 3), // loss cut ratio
+                Decimal::new(600, 0), // initial amount (in USD)
+                Decimal::new(8, 1),   // position size ratio
+                Decimal::new(2, 0),   // risk reward
+                Decimal::new(1, 3),   // loss cut ratio
             ),
             (
                 TOKEN_LIST[6].to_owned(), // APT
                 TradingStrategy::TrendFollow(TrendType::Down, is_trim_position),
-                Decimal::new(0, 0), // initial amount (in USD)
-                Decimal::new(8, 1), // position size ratio
-                Decimal::new(2, 0), // risk reward
-                Decimal::new(1, 3), // loss cut ratio
+                Decimal::new(600, 0), // initial amount (in USD)
+                Decimal::new(8, 1),   // position size ratio
+                Decimal::new(2, 0),   // risk reward
+                Decimal::new(1, 3),   // loss cut ratio
+            ),
+            (
+                TOKEN_LIST[7].to_owned(), // OP
+                TradingStrategy::TrendFollow(TrendType::Up, is_trim_position),
+                Decimal::new(600, 0), // initial amount (in USD)
+                Decimal::new(8, 1),   // position size ratio
+                Decimal::new(2, 0),   // risk reward
+                Decimal::new(1, 3),   // loss cut ratio
+            ),
+            (
+                TOKEN_LIST[7].to_owned(), // OP
+                TradingStrategy::TrendFollow(TrendType::Down, is_trim_position),
+                Decimal::new(600, 0), // initial amount (in USD)
+                Decimal::new(8, 1),   // position size ratio
+                Decimal::new(2, 0),   // risk reward
+                Decimal::new(1, 3),   // loss cut ratio
             ),
             (
                 TOKEN_LIST[0].to_owned(), // BTC
