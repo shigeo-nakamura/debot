@@ -269,7 +269,7 @@ impl FundManager {
         }
 
         match self.config.strategy {
-            TradingStrategy::TrendFollow(_) => {
+            TradingStrategy::TrendFollow(_, _) => {
                 if let Some(last_close_time) = self.state.last_position_close_time {
                     let current_time = chrono::Utc::now().timestamp();
                     let delay_secs = self.config.execution_delay_secs;
@@ -482,7 +482,7 @@ impl FundManager {
         let (pnl, ratio) = self.unrealized_pnl_of_open_position(current_price);
 
         match self.config.strategy {
-            TradingStrategy::TrendFollow(_) => {
+            TradingStrategy::TrendFollow(_, _) => {
                 log::info!(
                     "{} pnl: {:.3}/{:.3}({:.3}%) order/fill/profit = {}/{}/{}, min position = {:.1}, trend = {:?}",
                     format!("{}-{}", self.config.token_name, self.config.index),
@@ -1031,7 +1031,7 @@ impl FundManager {
         let prev_amount = self.state.amount;
         let distance = (predicted_price - filled_price).abs() / self.config.risk_reward;
         let cut_loss_price = match self.config.strategy {
-            TradingStrategy::TrendFollow(_) | TradingStrategy::MarketMake => None,
+            TradingStrategy::TrendFollow(_, _) | TradingStrategy::MarketMake => None,
             #[allow(unreachable_patterns)]
             _ => match filled_side {
                 OrderSide::Long => Some(filled_price - distance),

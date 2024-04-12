@@ -9,7 +9,7 @@ pub fn get(strategy: Option<&TradingStrategy>) -> Vec<(usize, SampleInterval, St
 
     vec![
         (
-            TradingStrategy::TrendFollow(TrendType::Unknown),
+            TradingStrategy::TrendFollow(TrendType::Unknown, false),
             60,
             SampleInterval::new(30, 240),
             dex_name.to_owned(),
