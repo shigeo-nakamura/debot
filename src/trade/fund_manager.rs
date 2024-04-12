@@ -343,7 +343,7 @@ impl FundManager {
                 }
                 _ => continue,
             };
-            let mut token_amount = match token_amount {
+            let token_amount = match token_amount {
                 Some(token_amount) => token_amount * confidence,
                 None => self.config.trading_amount * confidence,
             };
@@ -369,11 +369,7 @@ impl FundManager {
 
             if self.state.amount <= token_amount * order_price {
                 log::warn!("No enough fund left: {:.6}", self.state.amount);
-                if self.state.amount > Decimal::new(0, 0) {
-                    token_amount = self.state.amount / order_price;
-                } else {
-                    break;
-                }
+                continue;
             }
 
             self.execute_chances(
