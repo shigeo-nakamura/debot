@@ -28,7 +28,7 @@ struct FundManagerState {
     db_handler: Arc<Mutex<DBHandler>>,
     dex_connector: Arc<DexConnectorBox>,
     market_data: MarketData,
-    last_position_close_time: Option<i64>,
+    last_trade_time: Option<i64>,
     last_price: Decimal,
     min_tick: Option<Decimal>,
 }
@@ -117,7 +117,7 @@ impl FundManager {
             db_handler,
             dex_connector,
             market_data,
-            last_position_close_time: None,
+            last_trade_time: None,
             latest_open_position_id: None,
             last_price: Decimal::new(0, 0),
             min_tick: None,
@@ -270,7 +270,7 @@ impl FundManager {
 
         match self.config.strategy {
             TradingStrategy::TrendFollow(_, _) => {
-                if let Some(last_close_time) = self.state.last_position_close_time {
+                if let Some(last_close_time) = self.state.last_trade_time {
                     let current_time = chrono::Utc::now().timestamp();
                     let delay_secs = self.config.execution_delay_secs;
                     if current_time - last_close_time < delay_secs {
@@ -594,8 +594,6 @@ impl FundManager {
                 self.config.use_market_order,
             )
             .await?;
-
-            self.state.last_position_close_time = Some(chrono::Utc::now().timestamp());
         }
 
         Ok(())
@@ -698,6 +696,8 @@ impl FundManager {
                     )
                     .await?;
                 }
+
+                self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
             }
             Err(e) => {
                 log::info!(
