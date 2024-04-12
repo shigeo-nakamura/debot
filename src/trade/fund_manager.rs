@@ -345,7 +345,7 @@ impl FundManager {
             };
             let token_amount = match token_amount {
                 Some(token_amount) => token_amount * confidence,
-                None => self.config.trading_amount * confidence,
+                None => self.config.trading_amount / order_price * confidence,
             };
 
             let decimal_1 = Decimal::new(1, 0);
