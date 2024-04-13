@@ -353,33 +353,33 @@ mod tests {
 
     lazy_static! {
         static ref DEX_TEST_CONFIG: Vec<(&'static str, &'static str)> =
-            // vec![("hyperliquid", "BTC-USD")];
-            vec![("rabbitx", "BTC-USD")];
-    }
-
-    #[tokio::test]
-    async fn get_last_trades() {
-        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
-            let client = init_connector(dex_name).await;
-            let response = client.get_last_trades(symbol).await;
-            log::info!("{:?}", response);
-            assert!(response.is_ok());
-
-            let response = client.clear_last_trades(symbol).await;
-            log::info!("{:?}", response);
-            assert!(response.is_ok());
-        }
+            vec![("hyperliquid", "BTC-USD")];
+            // vec![("rabbitx", "BTC-USD")];
     }
 
     // #[tokio::test]
-    // async fn test_set_leverage() {
+    // async fn get_last_trades() {
     //     for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
     //         let client = init_connector(dex_name).await;
-    //         let response = client.set_leverage(symbol, 1).await;
+    //         let response = client.get_last_trades(symbol).await;
+    //         log::info!("{:?}", response);
+    //         assert!(response.is_ok());
+
+    //         let response = client.clear_last_trades(symbol).await;
     //         log::info!("{:?}", response);
     //         assert!(response.is_ok());
     //     }
     // }
+
+    #[tokio::test]
+    async fn test_set_leverage() {
+        for (dex_name, symbol) in DEX_TEST_CONFIG.iter() {
+            let client = init_connector(dex_name).await;
+            let response = client.set_leverage(symbol, 11).await;
+            log::info!("{:?}", response);
+            assert!(response.is_ok());
+        }
+    }
 
     // #[tokio::test]
     // async fn test_get_balance() {
@@ -408,7 +408,7 @@ mod tests {
     //         let price = Decimal::new(30000, 0);
     //         let size = Decimal::new(5, 4);
     //         let response = client
-    //             .create_order(symbol, size, OrderSide::Long, Some(price))
+    //             .create_order(symbol, size, OrderSide::Long, Some(price), None)
     //             .await
     //             .unwrap();
 
@@ -429,7 +429,7 @@ mod tests {
     //         let price = Decimal::new(900000, 0);
     //         let size = Decimal::new(5, 4);
     //         let response = client
-    //             .create_order(symbol, size, OrderSide::Short, Some(price))
+    //             .create_order(symbol, size, OrderSide::Short, Some(price), None)
     //             .await
     //             .unwrap();
 
