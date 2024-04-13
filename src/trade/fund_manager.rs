@@ -1133,14 +1133,6 @@ impl FundManager {
             }
         };
 
-        // Save the position in the DB
-        self.state
-            .db_handler
-            .lock()
-            .await
-            .log_position(&position)
-            .await;
-
         let position_id = match position.id() {
             Some(id) => id,
             None => {
@@ -1148,6 +1140,8 @@ impl FundManager {
                 return;
             }
         };
+
+        let mut position_cloned = position.clone();
 
         match cancel_result {
             debot_position_manager::CancelResult::OpeningCanceled => {
@@ -1163,10 +1157,20 @@ impl FundManager {
                     self.state.latest_open_position_id = Some(position_id);
                 } else {
                     // Ignore the paritally filled position
+                    position.ignore();
+                    position_cloned = position.clone();
                     self.state.trade_positions.remove(&position_id);
                 }
             }
         }
+
+        // Save the position in the DB
+        self.state
+            .db_handler
+            .lock()
+            .await
+            .log_position(&position_cloned)
+            .await;
     }
 
     #[allow(dead_code)]
