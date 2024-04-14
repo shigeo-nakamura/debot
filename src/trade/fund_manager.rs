@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 struct TradeChance {
     pub action: TradeAction,
     pub token_name: String,
-    pub predicted_price: Option<Decimal>,
+    pub target_price: Option<Decimal>,
     pub token_amount: Decimal,
     pub atr: Option<Decimal>,
     pub position_id: Option<u32>,
@@ -249,8 +249,14 @@ impl FundManager {
         current_price: Decimal,
         action: &TradeAction,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let side: OrderSide;
         let token_amount = match action {
-            TradeAction::BuyHedge(detail) | TradeAction::SellHedge(detail) => {
+            TradeAction::BuyHedge(detail) => {
+                side = OrderSide::Long;
+                detail.token_amount().unwrap_or_default()
+            }
+            TradeAction::SellHedge(detail) => {
+                side = OrderSide::Short;
                 detail.token_amount().unwrap_or_default()
             }
             _ => {
@@ -259,9 +265,11 @@ impl FundManager {
             }
         };
 
+        let target_price = self.target_price(current_price, side, true);
+
         let chance = TradeChance {
             token_name: self.config.token_name.clone(),
-            predicted_price: None,
+            target_price,
             token_amount,
             atr: None,
             action: action.clone(),
@@ -362,9 +370,6 @@ impl FundManager {
 
         let data = self.state.market_data.to_owned();
 
-        let target_price_factor = self.config.take_profit_ratio;
-        let mut order_price = current_price;
-
         for action in actions.clone() {
             let is_buy;
             let (target_price, token_amount, confidence) = match action.clone() {
@@ -386,29 +391,21 @@ impl FundManager {
                 }
                 _ => continue,
             };
+
+            let side = if is_buy {
+                OrderSide::Long
+            } else {
+                OrderSide::Short
+            };
+            let order_price = match self.config.strategy {
+                TradingStrategy::TrendFollow(_, _) => current_price,
+                TradingStrategy::MarketMake => target_price.unwrap(),
+            };
             let token_amount = match token_amount {
                 Some(token_amount) => token_amount * confidence,
                 None => self.config.trading_amount / order_price * confidence,
             };
-
-            let decimal_1 = Decimal::new(1, 0);
-            let target_price = match self.config.strategy {
-                TradingStrategy::MarketMake => {
-                    order_price = target_price.unwrap();
-                    if is_buy {
-                        order_price * (decimal_1 + target_price_factor)
-                    } else {
-                        order_price * (decimal_1 - target_price_factor)
-                    }
-                }
-                _ => {
-                    if is_buy {
-                        current_price * (decimal_1 + target_price_factor)
-                    } else {
-                        current_price * (decimal_1 - target_price_factor)
-                    }
-                }
-            };
+            let target_price = self.target_price(current_price, side, false);
 
             if self.state.amount <= token_amount * order_price {
                 log::warn!("No enough fund left: {:.6}", self.state.amount);
@@ -419,7 +416,7 @@ impl FundManager {
                 order_price,
                 TradeChance {
                     token_name: self.config.token_name.clone(),
-                    predicted_price: Some(target_price),
+                    target_price,
                     token_amount,
                     atr: Some(data.atr()),
                     action,
@@ -646,7 +643,7 @@ impl FundManager {
         if reason_for_close.is_some() {
             chance = Some(TradeChance {
                 token_name: self.config.token_name.clone(),
-                predicted_price: None,
+                target_price: None,
                 token_amount: position.amount().abs() * confidence,
                 atr: None,
                 action: if position.position_type() == PositionType::Long {
@@ -754,7 +751,7 @@ impl FundManager {
                         },
                         res.ordered_size,
                         chance.action,
-                        chance.predicted_price,
+                        chance.target_price,
                         reason_for_close,
                         &chance.token_name,
                         chance.atr,
@@ -785,7 +782,7 @@ impl FundManager {
         ordered_price: Option<Decimal>,
         ordered_amount: Decimal,
         trade_action: TradeAction,
-        predicted_price: Option<Decimal>,
+        target_price: Option<Decimal>,
         reason_for_close: Option<ReasonForClose>,
         token_name: &str,
         atr: Option<Decimal>,
@@ -820,7 +817,7 @@ impl FundManager {
                 token_name,
                 &self.config.fund_name,
                 position_type,
-                predicted_price.unwrap(),
+                target_price.unwrap(),
                 atr,
             );
 
@@ -1067,7 +1064,7 @@ impl FundManager {
             }
         };
 
-        let predicted_price = position.predicted_price();
+        let target_price = position.predicted_price();
         let position_type = match filled_side {
             OrderSide::Long => PositionType::Long,
             OrderSide::Short => PositionType::Short,
@@ -1094,20 +1091,8 @@ impl FundManager {
             filled_price,
         );
 
-        let prev_amount = self.state.amount;
-        let distance = predicted_price * self.config.loss_cut_ratio;
-        let cut_loss_price = match self.config.strategy {
-            TradingStrategy::MarketMake => None,
-            TradingStrategy::TrendFollow(_, _) => match filled_side {
-                OrderSide::Long => Some(filled_price - distance),
-                _ => Some(filled_price + distance),
-            },
-        };
-        let take_profit_price = match self.config.strategy {
-            TradingStrategy::MarketMake => None,
-            _ => Some(predicted_price),
-        };
-
+        let cut_loss_price = self.cut_loss_price(filled_price, filled_side);
+        let take_profit_price = self.take_profit_price(target_price);
         let open_position_id = self.state.latest_open_position_id;
 
         self.process_trade_position(
@@ -1123,6 +1108,8 @@ impl FundManager {
         )?;
 
         self.update_state_after_trade(filled_value);
+
+        let prev_amount = self.state.amount;
 
         if let Some(position) = self.get_open_position() {
             if matches!(position.state(), State::Closed(_)) {
@@ -1157,6 +1144,45 @@ impl FundManager {
         );
 
         return Ok(true);
+    }
+
+    fn target_price(
+        &self,
+        current_price: Decimal,
+        side: OrderSide,
+        is_hedge: bool,
+    ) -> Option<Decimal> {
+        let take_profit_distance = if is_hedge {
+            current_price * self.config.loss_cut_ratio
+        } else {
+            current_price * self.config.take_profit_ratio
+        };
+
+        match self.config.strategy {
+            TradingStrategy::MarketMake => None,
+            TradingStrategy::TrendFollow(_, _) => match side {
+                OrderSide::Long => Some(current_price + take_profit_distance),
+                _ => Some(current_price - take_profit_distance),
+            },
+        }
+    }
+
+    fn take_profit_price(&self, target_price: Decimal) -> Option<Decimal> {
+        match self.config.strategy {
+            TradingStrategy::MarketMake => None,
+            TradingStrategy::TrendFollow(_, _) => Some(target_price),
+        }
+    }
+
+    fn cut_loss_price(&self, filled_price: Decimal, side: OrderSide) -> Option<Decimal> {
+        let cut_loss_distance = filled_price * self.config.loss_cut_ratio;
+        match self.config.strategy {
+            TradingStrategy::MarketMake => None,
+            TradingStrategy::TrendFollow(_, _) => match side {
+                OrderSide::Long => Some(filled_price - cut_loss_distance),
+                _ => Some(filled_price + cut_loss_distance),
+            },
+        }
     }
 
     pub async fn cancel_order(&mut self, order_id: &str, is_already_rejected: bool) {
@@ -1306,7 +1332,7 @@ impl FundManager {
                         self.state.market_data.last_price(),
                         TradeChance {
                             token_name: self.config.token_name.clone(),
-                            predicted_price: None,
+                            target_price: None,
                             token_amount: open_position.amount().abs(),
                             atr: None,
                             action: if open_position.position_type() == PositionType::Long {
