@@ -424,6 +424,8 @@ impl DerivativeTrader {
             })
             .collect();
 
+        self.state.hedge_requests.lock().await.clear();
+
         let hedge_results = join_all(hedge_futures).await;
 
         for result in hedge_results {
