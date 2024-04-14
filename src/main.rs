@@ -331,7 +331,6 @@ mod tests {
             }
             "hyperliquid" => {
                 let hyperliquid_config = get_hyperliquid_config_from_env().await.unwrap();
-                let market_ids: Vec<String> = TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
                 Arc::new(
                     HyperliquidConnector::new(
                         &rest_endpoint,
@@ -339,7 +338,6 @@ mod tests {
                         &hyperliquid_config.agent_private_key,
                         &hyperliquid_config.evm_wallet_address,
                         hyperliquid_config.vault_address,
-                        &market_ids,
                     )
                     .await
                     .expect("Failed to initialize DexConnector"),

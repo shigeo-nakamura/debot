@@ -76,14 +76,12 @@ impl DexConnectorBox {
                     }
                 };
 
-                let market_ids: Vec<String> = TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
                 let connector = HyperliquidConnector::new(
                     rest_endpoint,
                     web_socket_endpoint,
                     &hyperliquid_config.agent_private_key,
                     &hyperliquid_config.evm_wallet_address,
                     hyperliquid_config.vault_address,
-                    &market_ids,
                 )
                 .await?;
 
