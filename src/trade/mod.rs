@@ -10,5 +10,6 @@ pub mod trader_config;
 
 pub use db_handler::DBHandler;
 pub use derivative_trader::DerivativeTrader;
-pub use fund_config::TOKEN_LIST;
+pub use fund_config::RABBITX_TOKEN_LIST;
+pub use fund_config::TOKEN_LIST_SIZE;
 pub use fund_manager::FundManager;

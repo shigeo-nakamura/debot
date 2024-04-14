@@ -197,6 +197,7 @@ impl DerivativeTrader {
             .map(
                 |(
                     token_name,
+                    pair_token_name,
                     strategy,
                     initial_amount,
                     position_size_ratio,
@@ -236,6 +237,7 @@ impl DerivativeTrader {
                         &fund_name,
                         index,
                         &token_name,
+                        pair_token_name.as_deref(),
                         open_positions_map.get(&fund_name).cloned(),
                         market_data,
                         strategy,

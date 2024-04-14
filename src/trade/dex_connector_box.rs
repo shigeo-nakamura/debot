@@ -5,7 +5,7 @@ use dex_connector::{
 };
 use rust_decimal::Decimal;
 
-use super::{dex_emulator::DexEmulator, fund_config::TOKEN_LIST};
+use super::{dex_emulator::DexEmulator, fund_config::RABBITX_TOKEN_LIST};
 use crate::config::{get_hyperliquid_config_from_env, get_rabbitx_config_from_env};
 use lazy_static::lazy_static;
 use std::env;
@@ -39,7 +39,8 @@ impl DexConnectorBox {
                     }
                 };
 
-                let market_ids: Vec<String> = TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
+                let market_ids: Vec<String> =
+                    RABBITX_TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
                 let connector = RabbitxConnector::new(
                     rest_endpoint,
                     web_socket_endpoint,

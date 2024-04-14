@@ -41,7 +41,7 @@ async fn main() -> std::io::Result<()> {
     let db_handler = Arc::new(Mutex::new(
         DBHandler::new(
             max_position_counter,
-            config.max_price_size * trade::TOKEN_LIST.len() as u32,
+            config.max_price_size * trade::TOKEN_LIST_SIZE,
             config.log_limit,
             &config.mongodb_uri,
             &config.db_name,
@@ -296,7 +296,7 @@ mod tests {
 
     use crate::{
         config::{get_hyperliquid_config_from_env, get_rabbitx_config_from_env},
-        trade::fund_config::TOKEN_LIST,
+        trade::RABBITX_TOKEN_LIST,
     };
 
     #[ctor::ctor]
@@ -312,7 +312,8 @@ mod tests {
         let connector: Arc<dyn DexConnector> = match dex_name {
             "rabbitx" => {
                 let rabbitx_config = get_rabbitx_config_from_env().await.unwrap();
-                let market_ids: Vec<String> = TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
+                let market_ids: Vec<String> =
+                    RABBITX_TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
                 Arc::new(
                     RabbitxConnector::new(
                         &rest_endpoint,

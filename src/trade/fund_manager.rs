@@ -2,7 +2,7 @@
 
 use super::dex_connector_box::DexConnectorBox;
 use super::DBHandler;
-use debot_market_analyzer::{MarketData, TradeAction, TradeDetail, TradingStrategy};
+use debot_market_analyzer::{MarketData, TradeAction, TradeDetail, TradingStrategy, TrendType};
 use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
 use rust_decimal::Decimal;
@@ -37,6 +37,7 @@ struct FundManagerConfig {
     fund_name: String,
     index: usize,
     token_name: String,
+    pair_token_name: Option<String>,
     strategy: TradingStrategy,
     trading_amount: Decimal,
     initial_amount: Decimal,
@@ -71,6 +72,7 @@ impl FundManager {
         fund_name: &str,
         index: usize,
         token_name: &str,
+        pair_token_name: Option<&str>,
         open_positions: Option<HashMap<u32, TradePosition>>,
         market_data: MarketData,
         strategy: TradingStrategy,
@@ -88,6 +90,7 @@ impl FundManager {
             fund_name: fund_name.to_owned(),
             index,
             token_name: token_name.to_owned(),
+            pair_token_name: pair_token_name.map(|s| s.to_string()),
             strategy,
             trading_amount,
             initial_amount,
@@ -249,23 +252,30 @@ impl FundManager {
         current_price: Decimal,
         action: &TradeAction,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let side: OrderSide;
+        let target_price;
+
         let token_amount = match action {
             TradeAction::BuyHedge(detail) => {
-                side = OrderSide::Long;
-                detail.token_amount().unwrap_or_default()
+                if self.config.strategy == TradingStrategy::TrendFollow(TrendType::Up, true) {
+                    target_price = self.target_price(current_price, OrderSide::Long, true);
+                    detail.amount_in_usd().unwrap_or_default() / target_price.unwrap()
+                } else {
+                    return Ok(());
+                }
             }
             TradeAction::SellHedge(detail) => {
-                side = OrderSide::Short;
-                detail.token_amount().unwrap_or_default()
+                if self.config.strategy == TradingStrategy::TrendFollow(TrendType::Down, true) {
+                    target_price = self.target_price(current_price, OrderSide::Short, true);
+                    detail.amount_in_usd().unwrap_or_default() / target_price.unwrap()
+                } else {
+                    return Ok(());
+                }
             }
             _ => {
                 log::warn!("Invalid hedge action: {:?}", action);
                 return Ok(());
             }
         };
-
-        let target_price = self.target_price(current_price, side, true);
 
         let chance = TradeChance {
             token_name: self.config.token_name.clone(),
@@ -276,12 +286,7 @@ impl FundManager {
             position_id: None,
         };
 
-        if self.state.amount <= token_amount * current_price {
-            log::warn!("No enough fund left: {:.6}", self.state.amount);
-            return Ok(());
-        }
-
-        log::info!("hedge position: {:?}", chance);
+        log::info!("{} hedge position: {:?}", self.config.fund_name, chance);
 
         self.execute_chances(current_price, chance, None)
             .await
@@ -321,17 +326,12 @@ impl FundManager {
             return Ok(());
         }
 
+        let mut actions: Vec<TradeAction> = vec![];
+
         match self.config.strategy {
             TradingStrategy::TrendFollow(_, _) => {
-                if let Some(last_close_time) = self.state.last_trade_time {
-                    let current_time = chrono::Utc::now().timestamp();
-                    let delay_secs = self.config.execution_delay_secs;
-                    if current_time - last_close_time < delay_secs {
-                        log::info!(
-                            "Waiting for delay period to pass before executing new chances."
-                        );
-                        return Ok(());
-                    }
+                if !self.can_execute_new_trade() {
+                    return self.handle_open_chances(current_price, &actions).await;
                 }
             }
             TradingStrategy::MarketMake => match self.state.trade_positions.len() {
@@ -340,13 +340,12 @@ impl FundManager {
                     self.close_open_position().await;
                 }
                 _ => {
-                    let actions: Vec<TradeAction> = vec![];
                     return self.handle_open_chances(current_price, &actions).await;
                 }
             },
         }
 
-        let actions: Vec<TradeAction> = self.state.market_data.is_open_signaled(
+        actions = self.state.market_data.is_open_signaled(
             self.config.strategy.clone(),
             rounded_price,
             self.config.trading_amount,
@@ -377,7 +376,7 @@ impl FundManager {
                     is_buy = true;
                     (
                         detail.target_price(),
-                        detail.token_amount(),
+                        detail.amount_in_usd(),
                         detail.confidence(),
                     )
                 }
@@ -385,7 +384,7 @@ impl FundManager {
                     is_buy = false;
                     (
                         detail.target_price(),
-                        detail.token_amount(),
+                        detail.amount_in_usd(),
                         detail.confidence(),
                     )
                 }
@@ -405,10 +404,17 @@ impl FundManager {
                 Some(token_amount) => token_amount * confidence,
                 None => self.config.trading_amount / order_price * confidence,
             };
-            let target_price = self.target_price(current_price, side, false);
+            let target_price = match target_price {
+                Some(v) => Some(v),
+                None => self.target_price(current_price, side, false),
+            };
 
             if self.state.amount <= token_amount * order_price {
-                log::warn!("No enough fund left: {:.6}", self.state.amount);
+                log::warn!(
+                    "{} does not have enough fund: {:.6}",
+                    self.config.fund_name,
+                    self.state.amount
+                );
                 continue;
             }
 
@@ -567,10 +573,11 @@ impl FundManager {
                 State::Open => {}
                 _ => continue,
             }
-            let action = self
-                .state
-                .market_data
-                .is_close_signaled(self.config.strategy.clone(), position.amount().abs());
+            let action = self.state.market_data.is_close_signaled(
+                self.config.strategy.clone(),
+                position.asset_in_usd().abs(),
+                self.is_profitable_position(*position_id, current_price),
+            );
 
             self.handle_close_chances(
                 current_price,
@@ -611,23 +618,57 @@ impl FundManager {
                     None
                 }
             }
-            TradeAction::BuyHedge(_) => {
+            TradeAction::BuyTrim(_) => {
                 if position.position_type() == PositionType::Short {
-                    hedge_requests
-                        .lock()
-                        .await
-                        .insert(self.config.token_name.clone(), action.clone());
-                    log::info!("request hedge position: {:?}", action);
+                    confidence = action.confidence().unwrap_or_default();
+                    log::info!("trim position: {:?}", action);
+                    Some(ReasonForClose::Other("TrimPosition".to_owned()))
+                } else {
+                    None
+                }
+            }
+            TradeAction::SellTrim(_) => {
+                if position.position_type() == PositionType::Long {
+                    confidence = action.confidence().unwrap_or_default();
+                    log::info!("trim position: {:?}", action);
+                    Some(ReasonForClose::Other("TrimPosition".to_owned()))
+                } else {
+                    None
+                }
+            }
+            TradeAction::BuyHedge(_) => {
+                if self.can_execute_new_trade() {
+                    if position.position_type() == PositionType::Short {
+                        if let Some(pair_token_name) = self.config.pair_token_name.clone() {
+                            hedge_requests
+                                .lock()
+                                .await
+                                .insert(pair_token_name, action.clone());
+                            log::info!(
+                                "{} requests hedge position: {:?}",
+                                self.config.fund_name,
+                                action
+                            );
+                        }
+                    }
                 }
                 return Ok(());
             }
             TradeAction::SellHedge(_) => {
-                if position.position_type() == PositionType::Long {
-                    hedge_requests
-                        .lock()
-                        .await
-                        .insert(self.config.token_name.clone(), action.clone());
-                    log::info!("request hedge position: {:?}", action);
+                if self.can_execute_new_trade() {
+                    if position.position_type() == PositionType::Long {
+                        if let Some(pair_token_name) = self.config.pair_token_name.clone() {
+                            hedge_requests
+                                .lock()
+                                .await
+                                .insert(pair_token_name, action.clone());
+                            log::info!(
+                                "{} requests hedge position: {:?}",
+                                self.config.fund_name,
+                                action
+                            );
+                        }
+                    }
                 }
                 return Ok(());
             }
@@ -663,28 +704,25 @@ impl FundManager {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    fn is_single_order_type(&self) -> bool {
-        let filtered_positions: Vec<_> = self
-            .state
-            .trade_positions
-            .values()
-            .filter(|p| !matches!(p.state(), State::Closing(_)))
-            .filter(|p| {
-                p.asset_in_usd() == Decimal::new(0, 0)
-                    || p.asset_in_usd().abs() >= self.config.trading_amount / Decimal::new(2, 0)
-            })
-            .collect();
-
-        if filtered_positions.is_empty() {
-            return false;
+    fn can_execute_new_trade(&self) -> bool {
+        match self.config.strategy {
+            TradingStrategy::TrendFollow(_, _) => {
+                if let Some(last_trade_time) = self.state.last_trade_time {
+                    let current_time = chrono::Utc::now().timestamp();
+                    let delay_secs = self.config.execution_delay_secs;
+                    if current_time - last_trade_time < delay_secs {
+                        log::info!(
+                            "{}: Waiting for delay period to pass before executing new trades",
+                            self.config.fund_name
+                        );
+                        return false;
+                    }
+                }
+            }
+            _ => {}
         }
 
-        let first_position_type = filtered_positions[0].position_type();
-
-        filtered_positions
-            .iter()
-            .all(|p| p.position_type() == first_position_type)
+        true
     }
 
     async fn execute_chances(
@@ -1015,7 +1053,8 @@ impl FundManager {
         Ok(())
     }
 
-    fn update_state_after_trade(&mut self, filled_value: Decimal) {
+    fn update_state_after_trade(&mut self, filled_value: Decimal) -> Decimal {
+        let prev_amount = self.state.amount;
         match self.state.latest_open_position_id {
             Some(position_id) => {
                 let position = self.state.trade_positions.get(&position_id).unwrap();
@@ -1028,6 +1067,7 @@ impl FundManager {
             }
             None => self.state.amount -= filled_value,
         }
+        prev_amount
     }
 
     pub async fn clear_filled_order(&self, trade_id: &str) {
@@ -1059,7 +1099,10 @@ impl FundManager {
                 p
             }
             None => {
-                log::warn!("Filled position not found: order_id = {}", order_id,);
+                log::debug!(
+                    "Filled position not found(this is possible): order_id = {}",
+                    order_id,
+                );
                 return Ok(false);
             }
         };
@@ -1107,9 +1150,7 @@ impl FundManager {
             cut_loss_price,
         )?;
 
-        self.update_state_after_trade(filled_value);
-
-        let prev_amount = self.state.amount;
+        let prev_amount = self.update_state_after_trade(filled_value);
 
         if let Some(position) = self.get_open_position() {
             if matches!(position.state(), State::Closed(_)) {
@@ -1347,6 +1388,22 @@ impl FundManager {
                         ))),
                     )
                     .await;
+            }
+        }
+    }
+
+    fn is_profitable_position(&self, position_id: u32, current_price: Decimal) -> bool {
+        match self.state.trade_positions.get(&position_id) {
+            Some(position) => {
+                if position.position_type() == PositionType::Long {
+                    position.average_open_price() < current_price
+                } else {
+                    position.average_open_price() > current_price
+                }
+            }
+            None => {
+                log::warn!("Open position not found: id = {}", position_id);
+                false
             }
         }
     }
