@@ -133,22 +133,22 @@ pub fn get(
                 Decimal::new(2, 0),    // risk reward
                 Decimal::new(1, 3),    // loss cut ratio
             ),
-            (
-                TOKEN_LIST[7].to_owned(), // OP
-                TradingStrategy::TrendFollow(TrendType::Up, true),
-                Decimal::new(1500, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(2, 0),    // risk reward
-                Decimal::new(1, 3),    // loss cut ratio
-            ),
-            (
-                TOKEN_LIST[7].to_owned(), // OP
-                TradingStrategy::TrendFollow(TrendType::Down, true),
-                Decimal::new(1500, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(2, 0),    // risk reward
-                Decimal::new(1, 3),    // loss cut ratio
-            ),
+            // (
+            //     TOKEN_LIST[7].to_owned(), // OP
+            //     TradingStrategy::TrendFollow(TrendType::Up, true),
+            //     Decimal::new(1500, 0), // initial amount (in USD)
+            //     Decimal::new(8, 1),    // position size ratio
+            //     Decimal::new(2, 0),    // risk reward
+            //     Decimal::new(1, 3),    // loss cut ratio
+            // ),
+            // (
+            //     TOKEN_LIST[7].to_owned(), // OP
+            //     TradingStrategy::TrendFollow(TrendType::Down, true),
+            //     Decimal::new(1500, 0), // initial amount (in USD)
+            //     Decimal::new(8, 1),    // position size ratio
+            //     Decimal::new(2, 0),    // risk reward
+            //     Decimal::new(1, 3),    // loss cut ratio
+            // ),
             (
                 TOKEN_LIST[0].to_owned(), // BTC
                 TradingStrategy::MarketMake,
