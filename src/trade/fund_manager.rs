@@ -38,13 +38,13 @@ struct FundManagerConfig {
     index: usize,
     token_name: String,
     strategy: TradingStrategy,
-    risk_reward: Decimal,
     trading_amount: Decimal,
     initial_amount: Decimal,
     save_prices: bool,
     order_effective_duration_secs: i64,
     execution_delay_secs: i64,
     use_market_order: bool,
+    take_profit_ratio: Decimal,
     loss_cut_ratio: Decimal,
 }
 
@@ -76,12 +76,12 @@ impl FundManager {
         strategy: TradingStrategy,
         trading_amount: Decimal,
         initial_amount: Decimal,
-        risk_reward: Decimal,
         db_handler: Arc<Mutex<DBHandler>>,
         dex_connector: Arc<DexConnectorBox>,
         save_prices: bool,
         order_effective_duration_secs: i64,
         use_market_order: bool,
+        take_profit_ratio: Decimal,
         loss_cut_ratio: Decimal,
     ) -> Self {
         let config = FundManagerConfig {
@@ -89,12 +89,12 @@ impl FundManager {
             index,
             token_name: token_name.to_owned(),
             strategy,
-            risk_reward,
             trading_amount,
             initial_amount,
             save_prices,
             order_effective_duration_secs,
             use_market_order,
+            take_profit_ratio,
             loss_cut_ratio,
             execution_delay_secs: order_effective_duration_secs,
         };
@@ -362,7 +362,7 @@ impl FundManager {
 
         let data = self.state.market_data.to_owned();
 
-        let target_price_factor = self.config.loss_cut_ratio * self.config.risk_reward;
+        let target_price_factor = self.config.take_profit_ratio;
         let mut order_price = current_price;
 
         for action in actions.clone() {
@@ -1095,11 +1095,10 @@ impl FundManager {
         );
 
         let prev_amount = self.state.amount;
-        let distance = (predicted_price - filled_price).abs() / self.config.risk_reward;
+        let distance = predicted_price * self.config.loss_cut_ratio;
         let cut_loss_price = match self.config.strategy {
-            TradingStrategy::TrendFollow(_, _) | TradingStrategy::MarketMake => None,
-            #[allow(unreachable_patterns)]
-            _ => match filled_side {
+            TradingStrategy::MarketMake => None,
+            TradingStrategy::TrendFollow(_, _) => match filled_side {
                 OrderSide::Long => Some(filled_price - distance),
                 _ => Some(filled_price + distance),
             },

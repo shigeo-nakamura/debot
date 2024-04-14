@@ -200,7 +200,7 @@ impl DerivativeTrader {
                     strategy,
                     initial_amount,
                     position_size_ratio,
-                    risk_reward,
+                    take_profit_ratio,
                     loss_cut_ratio,
                 )| {
                     let trade_interval_secs = config.trade_period as i64 * config.interval_secs;
@@ -241,12 +241,12 @@ impl DerivativeTrader {
                         strategy,
                         initial_amount * position_size_ratio,
                         initial_amount,
-                        risk_reward,
                         db_handler.clone(),
                         dex_connector.clone(),
                         save_prices,
                         order_effective_duration_secs,
                         use_market_order,
+                        take_profit_ratio,
                         loss_cut_ratio,
                     )
                 },
