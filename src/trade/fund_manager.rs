@@ -183,6 +183,7 @@ impl FundManager {
     pub async fn find_chances(
         &mut self,
         price: Decimal,
+        hedge_requests: Arc<Mutex<HashMap<String, TradeAction>>>,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         // Add price
         let rounded_price = Self::round_price(price, self.state.min_tick);
@@ -229,7 +230,7 @@ impl FundManager {
 
         self.find_expired_orders().await;
 
-        self.find_close_chances(price)
+        self.find_close_chances(price, hedge_requests)
             .await
             .map_err(|_| "Failed to find close chances".to_owned())?;
 
@@ -239,6 +240,44 @@ impl FundManager {
         self.state.last_price = price;
 
         self.check_positions(price);
+
+        Ok(())
+    }
+
+    pub async fn hedge_position(
+        &mut self,
+        current_price: Decimal,
+        action: &TradeAction,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let token_amount = match action {
+            TradeAction::BuyHedge(detail) | TradeAction::SellHedge(detail) => {
+                detail.token_amount().unwrap_or_default()
+            }
+            _ => {
+                log::warn!("Invalid hedge action: {:?}", action);
+                return Ok(());
+            }
+        };
+
+        let chance = TradeChance {
+            token_name: self.config.token_name.clone(),
+            predicted_price: None,
+            token_amount,
+            atr: None,
+            action: action.clone(),
+            position_id: None,
+        };
+
+        if self.state.amount <= token_amount * current_price {
+            log::warn!("No enough fund left: {:.6}", self.state.amount);
+            return Ok(());
+        }
+
+        log::info!("hedge position: {:?}", chance);
+
+        self.execute_chances(current_price, chance, None)
+            .await
+            .map_err(|_| "Failed to hedge positions".to_owned())?;
 
         Ok(())
     }
@@ -325,7 +364,6 @@ impl FundManager {
 
         let target_price_factor = self.config.loss_cut_ratio * self.config.risk_reward;
         let mut order_price = current_price;
-        let use_market_order = self.config.use_market_order;
 
         for action in actions.clone() {
             let is_buy;
@@ -388,7 +426,6 @@ impl FundManager {
                     position_id: None,
                 },
                 None,
-                use_market_order,
             )
             .await?;
         }
@@ -516,7 +553,11 @@ impl FundManager {
         Ok(())
     }
 
-    async fn find_close_chances(&mut self, current_price: Decimal) -> Result<(), ()> {
+    async fn find_close_chances(
+        &mut self,
+        current_price: Decimal,
+        hedge_requests: Arc<Mutex<HashMap<String, TradeAction>>>,
+    ) -> Result<(), ()> {
         let cloned_open_positions = self.state.trade_positions.clone();
 
         for (position_id, position) in cloned_open_positions.iter() {
@@ -532,10 +573,16 @@ impl FundManager {
             let action = self
                 .state
                 .market_data
-                .is_close_signaled(self.config.strategy.clone());
+                .is_close_signaled(self.config.strategy.clone(), position.amount().abs());
 
-            self.handle_close_chances(current_price, *position_id, position, &action)
-                .await?;
+            self.handle_close_chances(
+                current_price,
+                *position_id,
+                position,
+                &action,
+                hedge_requests.clone(),
+            )
+            .await?;
         }
 
         Ok(())
@@ -547,6 +594,7 @@ impl FundManager {
         position_id: u32,
         position: &TradePosition,
         action: &TradeAction,
+        hedge_requests: Arc<Mutex<HashMap<String, TradeAction>>>,
     ) -> Result<(), ()> {
         let mut confidence = Decimal::ONE;
         let mut reason_for_close = match action {
@@ -565,6 +613,26 @@ impl FundManager {
                 } else {
                     None
                 }
+            }
+            TradeAction::BuyHedge(_) => {
+                if position.position_type() == PositionType::Short {
+                    hedge_requests
+                        .lock()
+                        .await
+                        .insert(self.config.token_name.clone(), action.clone());
+                    log::info!("request hedge position: {:?}", action);
+                }
+                return Ok(());
+            }
+            TradeAction::SellHedge(_) => {
+                if position.position_type() == PositionType::Long {
+                    hedge_requests
+                        .lock()
+                        .await
+                        .insert(self.config.token_name.clone(), action.clone());
+                    log::info!("request hedge position: {:?}", action);
+                }
+                return Ok(());
             }
             _ => None,
         };
@@ -591,13 +659,8 @@ impl FundManager {
         }
 
         if let Some(chance) = chance {
-            self.execute_chances(
-                current_price,
-                chance,
-                reason_for_close.clone(),
-                self.config.use_market_order,
-            )
-            .await?;
+            self.execute_chances(current_price, chance, reason_for_close.clone())
+                .await?;
         }
 
         Ok(())
@@ -632,7 +695,6 @@ impl FundManager {
         order_price: Decimal,
         chance: TradeChance,
         reason_for_close: Option<ReasonForClose>,
-        use_market_order: bool,
     ) -> Result<(), ()> {
         if chance.token_amount <= Decimal::new(0, 0) {
             log::error!(
@@ -670,7 +732,7 @@ impl FundManager {
 
         // Execute the transaction
         let order_price = match reason_for_close {
-            Some(ReasonForClose::Liquidated) | None if use_market_order => None,
+            Some(ReasonForClose::Liquidated) | None if self.config.use_market_order => None,
             _ => Some(order_price),
         };
 
@@ -1258,7 +1320,6 @@ impl FundManager {
                         Some(ReasonForClose::Other(String::from(
                             "OnlyOneSideOrderFilled",
                         ))),
-                        self.config.use_market_order,
                     )
                     .await;
             }

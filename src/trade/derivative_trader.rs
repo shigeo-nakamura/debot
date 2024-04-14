@@ -2,6 +2,7 @@
 
 use debot_db::PricePoint;
 use debot_market_analyzer::MarketData;
+use debot_market_analyzer::TradeAction;
 use debot_market_analyzer::TradingStrategy;
 use debot_position_manager::TradePosition;
 use dex_connector::DexConnector;
@@ -58,6 +59,7 @@ struct DerivativeTraderState {
     db_handler: Arc<Mutex<DBHandler>>,
     dex_connector: Arc<DexConnectorBox>,
     fund_manager_map: HashMap<String, FundManager>,
+    hedge_requests: Arc<Mutex<HashMap<String, TradeAction>>>,
 }
 
 pub struct DerivativeTrader {
@@ -162,6 +164,7 @@ impl DerivativeTrader {
             db_handler,
             dex_connector,
             fund_manager_map: HashMap::new(),
+            hedge_requests: Arc::new(Mutex::new(HashMap::new())),
         };
 
         for fund_manager in fund_managers {
@@ -377,7 +380,7 @@ impl DerivativeTrader {
         }
         self.state.dex_connector.clear_all_filled_order().await?;
 
-        // Find trade chanes
+        // 3. Find trade chanes
         let find_futures: Vec<_> = self
             .state
             .fund_manager_map
@@ -386,7 +389,7 @@ impl DerivativeTrader {
                 let token_name = fund_manager.token_name();
                 if let Some((price, min_tick)) = prices.get(token_name).and_then(|p| *p) {
                     fund_manager.set_min_tick(min_tick);
-                    Some(fund_manager.find_chances(price))
+                    Some(fund_manager.find_chances(price, self.state.hedge_requests.clone()))
                 } else {
                     None
                 }
@@ -396,6 +399,34 @@ impl DerivativeTrader {
         let find_results = join_all(find_futures).await;
 
         for result in find_results {
+            if result.is_err() {
+                return result;
+            }
+        }
+
+        // 4. Hedge positions
+        let hedge_requests = self.state.hedge_requests.lock().await.clone();
+        let hedge_futures: Vec<_> = self
+            .state
+            .fund_manager_map
+            .values_mut()
+            .filter_map(|fund_manager| {
+                let token_name = fund_manager.token_name();
+                if let Some(hedge_detail) = hedge_requests.get(token_name) {
+                    if let Some((price, _)) = prices.get(token_name).and_then(|p| *p) {
+                        Some(fund_manager.hedge_position(price, hedge_detail))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let hedge_results = join_all(hedge_futures).await;
+
+        for result in hedge_results {
             if result.is_err() {
                 return result;
             }
