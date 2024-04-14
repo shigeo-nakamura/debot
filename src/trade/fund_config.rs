@@ -27,7 +27,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[0].to_owned(), // BTC
@@ -35,7 +35,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[1].to_owned(), // ETH
@@ -43,7 +43,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[1].to_owned(), // ETH
@@ -51,7 +51,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[2].to_owned(), // SOL
@@ -59,7 +59,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[2].to_owned(), // SOL
@@ -67,7 +67,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[3].to_owned(), // ARB
@@ -75,7 +75,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[3].to_owned(), // ARB
@@ -83,7 +83,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[4].to_owned(), // BNB
@@ -91,7 +91,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[4].to_owned(), // BNB
@@ -99,7 +99,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[5].to_owned(), // SUI
@@ -107,7 +107,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[5].to_owned(), // SUI
@@ -115,7 +115,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[6].to_owned(), // APT
@@ -123,7 +123,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[6].to_owned(), // APT
@@ -131,7 +131,7 @@ pub fn get(
                 Decimal::new(1500, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(2, 2),    // loss cut ratio
+                Decimal::new(3, 2),    // loss cut ratio
             ),
             (
                 TOKEN_LIST[0].to_owned(), // BTC
