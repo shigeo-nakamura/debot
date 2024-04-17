@@ -254,6 +254,10 @@ impl FundManager {
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let target_price;
 
+        if !self.can_execute_new_trade() {
+            return Ok(());
+        }
+
         let token_amount = match action {
             TradeAction::BuyHedge(detail) => {
                 if self.config.strategy == TradingStrategy::TrendFollow(TrendType::Up, true) {
@@ -637,37 +641,33 @@ impl FundManager {
                 }
             }
             TradeAction::BuyHedge(_) => {
-                if self.can_execute_new_trade() {
-                    if position.position_type() == PositionType::Short {
-                        if let Some(pair_token_name) = self.config.pair_token_name.clone() {
-                            hedge_requests
-                                .lock()
-                                .await
-                                .insert(pair_token_name, action.clone());
-                            log::info!(
-                                "{} requests hedge position: {:?}",
-                                self.config.fund_name,
-                                action
-                            );
-                        }
+                if position.position_type() == PositionType::Short {
+                    if let Some(pair_token_name) = self.config.pair_token_name.clone() {
+                        hedge_requests
+                            .lock()
+                            .await
+                            .insert(pair_token_name, action.clone());
+                        log::debug!(
+                            "{} requests hedge position: {:?}",
+                            self.config.fund_name,
+                            action
+                        );
                     }
                 }
                 return Ok(());
             }
             TradeAction::SellHedge(_) => {
-                if self.can_execute_new_trade() {
-                    if position.position_type() == PositionType::Long {
-                        if let Some(pair_token_name) = self.config.pair_token_name.clone() {
-                            hedge_requests
-                                .lock()
-                                .await
-                                .insert(pair_token_name, action.clone());
-                            log::info!(
-                                "{} requests hedge position: {:?}",
-                                self.config.fund_name,
-                                action
-                            );
-                        }
+                if position.position_type() == PositionType::Long {
+                    if let Some(pair_token_name) = self.config.pair_token_name.clone() {
+                        hedge_requests
+                            .lock()
+                            .await
+                            .insert(pair_token_name, action.clone());
+                        log::debug!(
+                            "{} requests hedge position: {:?}",
+                            self.config.fund_name,
+                            action
+                        );
                     }
                 }
                 return Ok(());
