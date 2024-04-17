@@ -204,7 +204,7 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[6].to_owned(),       // SUI
                 Some(HYPERLIQUID_TOKEN_LIST[7].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up, false),
+                TradingStrategy::TrendFollow(TrendType::Up, true),
                 Decimal::new(1000, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
@@ -213,7 +213,7 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[6].to_owned(),       // SUI
                 Some(HYPERLIQUID_TOKEN_LIST[7].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down, false),
+                TradingStrategy::TrendFollow(TrendType::Down, true),
                 Decimal::new(1000, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
@@ -222,7 +222,7 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[7].to_owned(),       // APT
                 Some(HYPERLIQUID_TOKEN_LIST[6].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up, false),
+                TradingStrategy::TrendFollow(TrendType::Up, true),
                 Decimal::new(1000, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
@@ -231,7 +231,7 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[7].to_owned(),       // APT
                 Some(HYPERLIQUID_TOKEN_LIST[6].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down, false),
+                TradingStrategy::TrendFollow(TrendType::Down, true),
                 Decimal::new(1000, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
@@ -240,7 +240,7 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[8].to_owned(),       // ARB
                 Some(HYPERLIQUID_TOKEN_LIST[9].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up, false),
+                TradingStrategy::TrendFollow(TrendType::Up, true),
                 Decimal::new(1000, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
@@ -249,7 +249,7 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[8].to_owned(),       // ARB
                 Some(HYPERLIQUID_TOKEN_LIST[9].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down, false),
+                TradingStrategy::TrendFollow(TrendType::Down, true),
                 Decimal::new(1000, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
@@ -258,7 +258,7 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[9].to_owned(),       // OP
                 Some(HYPERLIQUID_TOKEN_LIST[8].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up, false),
+                TradingStrategy::TrendFollow(TrendType::Up, true),
                 Decimal::new(1000, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
@@ -267,7 +267,7 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[9].to_owned(),       // OP
                 Some(HYPERLIQUID_TOKEN_LIST[8].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down, false),
+                TradingStrategy::TrendFollow(TrendType::Down, true),
                 Decimal::new(1000, 0), // initial amount (in USD)
                 Decimal::new(8, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
