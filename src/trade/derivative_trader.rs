@@ -87,6 +87,7 @@ impl DerivativeTrader {
         web_socket_endpoint: &str,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
+        take_profit_by_atr: bool,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let interval_secs = interval_msecs as i64 / 1000;
@@ -120,6 +121,7 @@ impl DerivativeTrader {
             use_market_order,
             leverage,
             strategy,
+            take_profit_by_atr,
         )
         .await;
 
@@ -142,6 +144,7 @@ impl DerivativeTrader {
         use_market_order: bool,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
+        take_profit_by_atr: bool,
     ) -> DerivativeTraderState {
         let dex_connector = Self::create_dex_connector(config)
             .await
@@ -158,6 +161,7 @@ impl DerivativeTrader {
             order_effective_duration_secs,
             use_market_order,
             strategy,
+            take_profit_by_atr,
         );
 
         let mut state = DerivativeTraderState {
@@ -188,6 +192,7 @@ impl DerivativeTrader {
         order_effective_duration_secs: i64,
         use_market_order: bool,
         strategy: Option<&TradingStrategy>,
+        take_profit_by_atr: bool,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
@@ -250,6 +255,7 @@ impl DerivativeTrader {
                         use_market_order,
                         take_profit_ratio,
                         loss_cut_ratio,
+                        take_profit_by_atr,
                     )
                 },
             )
