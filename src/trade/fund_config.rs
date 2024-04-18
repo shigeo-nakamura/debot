@@ -7,11 +7,11 @@ pub const TOKEN_LIST_SIZE: u32 = 12;
 
 pub const HYPERLIQUID_TOKEN_LIST: &[&str] = &[
     "BTC-USD",
-    "BCH-USD",
     "ETH-USD",
     "BNB-USD",
     "SOL-USD",
     "AVAX-USD",
+    "BCH-USD",
     "SUI-USD",
     "APT-USD",
     "ARB-USD",
@@ -20,9 +20,7 @@ pub const HYPERLIQUID_TOKEN_LIST: &[&str] = &[
     "NEAR-USD",
 ];
 
-pub const RABBITX_TOKEN_LIST: &[&str] = &[
-    "BTC-USD", "BCH-USD", "ETH-USD", "BNB-USD", "SOL-USD", "SUI-USD", "APT-USD", "ARB-USD",
-];
+pub const RABBITX_TOKEN_LIST: &[&str] = &["BTC-USD", "ETH-USD"];
 
 lazy_static! {
     static ref FUND_SCALE_FACTOR: Decimal = env::var("FUND_SCALE_FACTOR")
@@ -66,24 +64,6 @@ pub fn get(
                 loss_cut_ratio,        // loss cut ratio
             ),
             (
-                RABBITX_TOKEN_LIST[1].to_owned(),       // BCH
-                Some(RABBITX_TOKEN_LIST[0].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(1500, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
-            ),
-            (
-                RABBITX_TOKEN_LIST[1].to_owned(),       // BCH
-                Some(RABBITX_TOKEN_LIST[0].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(1500, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
-            ),
-            (
                 RABBITX_TOKEN_LIST[0].to_owned(), // BTC
                 None,
                 TradingStrategy::MarketMake,
@@ -97,218 +77,218 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[0].to_owned(),   // BTC
                 Some(RABBITX_TOKEN_LIST[1].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(2000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                TradingStrategy::TrendFollow(TrendType::Up, true),
+                Decimal::new(10000, 0), // initial amount (in USD)
+                Decimal::new(4, 1),     // position size ratio
+                Decimal::new(1, 3),     // take profit ratio
+                loss_cut_ratio,         // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
                 Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(2000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                TradingStrategy::TrendFollow(TrendType::Down, true),
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // BCH
+                HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
                 Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(2000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                TradingStrategy::TrendFollow(TrendType::Up, true),
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // BCH
+                HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
                 Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(2000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                TradingStrategy::TrendFollow(TrendType::Down, true),
+                Decimal::new(10000, 0), // initial amount (in USD)
+                Decimal::new(4, 1),     // position size ratio
+                Decimal::new(1, 3),     // take profit ratio
+                loss_cut_ratio,         // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[2].to_owned(),       // ETH
+                HYPERLIQUID_TOKEN_LIST[2].to_owned(),       // BNB
                 Some(HYPERLIQUID_TOKEN_LIST[3].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(2000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[2].to_owned(),       // ETH
+                HYPERLIQUID_TOKEN_LIST[2].to_owned(),       // BNB
                 Some(HYPERLIQUID_TOKEN_LIST[3].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(2000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[3].to_owned(),       // BNB
+                HYPERLIQUID_TOKEN_LIST[3].to_owned(),       // SOL
                 Some(HYPERLIQUID_TOKEN_LIST[2].to_owned()), // pair token SUI
                 TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(2000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[3].to_owned(),       // BNB
+                HYPERLIQUID_TOKEN_LIST[3].to_owned(),       // SOL
                 Some(HYPERLIQUID_TOKEN_LIST[2].to_owned()), // pair token SUI
                 TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(2000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[4].to_owned(),       // SOL
+                HYPERLIQUID_TOKEN_LIST[4].to_owned(),       // AVAX
                 Some(HYPERLIQUID_TOKEN_LIST[5].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(1500, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[4].to_owned(),       // SOL
+                HYPERLIQUID_TOKEN_LIST[4].to_owned(),       // AVAX
                 Some(HYPERLIQUID_TOKEN_LIST[5].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(1500, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[5].to_owned(),       // AVAX
+                HYPERLIQUID_TOKEN_LIST[5].to_owned(),       // BCH
                 Some(HYPERLIQUID_TOKEN_LIST[4].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(1500, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[5].to_owned(),       // AVAX
+                HYPERLIQUID_TOKEN_LIST[5].to_owned(),       // BCH
                 Some(HYPERLIQUID_TOKEN_LIST[4].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(1500, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[6].to_owned(),       // SUI
                 Some(HYPERLIQUID_TOKEN_LIST[7].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[6].to_owned(),       // SUI
                 Some(HYPERLIQUID_TOKEN_LIST[7].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[7].to_owned(),       // APT
                 Some(HYPERLIQUID_TOKEN_LIST[6].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[7].to_owned(),       // APT
                 Some(HYPERLIQUID_TOKEN_LIST[6].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[8].to_owned(),       // ARB
                 Some(HYPERLIQUID_TOKEN_LIST[9].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[8].to_owned(),       // ARB
                 Some(HYPERLIQUID_TOKEN_LIST[9].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[9].to_owned(),       // OP
                 Some(HYPERLIQUID_TOKEN_LIST[8].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[9].to_owned(),       // OP
                 Some(HYPERLIQUID_TOKEN_LIST[8].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[10].to_owned(),       // MATIC
                 Some(HYPERLIQUID_TOKEN_LIST[11].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[10].to_owned(),       // MATIC
                 Some(HYPERLIQUID_TOKEN_LIST[11].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[11].to_owned(),       // NEAR
                 Some(HYPERLIQUID_TOKEN_LIST[10].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[11].to_owned(),       // NEAR
                 Some(HYPERLIQUID_TOKEN_LIST[10].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
-                Decimal::new(1000, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                Decimal::new(0, 0), // initial amount (in USD)
+                Decimal::new(8, 1), // position size ratio
+                Decimal::new(1, 3), // take profit ratio
+                loss_cut_ratio,     // loss cut ratio
             ),
         ],
         _ => panic!("Unsupported dex"),
