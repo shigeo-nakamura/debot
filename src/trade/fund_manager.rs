@@ -1160,6 +1160,7 @@ impl FundManager {
                     .trade_positions
                     .remove(&position.id().unwrap_or_default());
                 self.statistics.pnl += position.pnl();
+                self.state.last_trade_time = None;
             }
 
             // Save the position in the DB
