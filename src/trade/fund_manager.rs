@@ -1200,7 +1200,15 @@ impl FundManager {
             current_price * self.config.loss_cut_ratio
         } else {
             if self.config.take_profit_by_atr {
-                self.state.market_data.atr()
+                let (min, max) = match self.state.market_data.get_min_max_price() {
+                    Some((min, max)) => (min, max),
+                    None => (current_price, current_price),
+                };
+                let min_distance = current_price * self.config.take_profit_ratio;
+                match side {
+                    OrderSide::Long => (max - current_price).abs() + min_distance,
+                    OrderSide::Short => (min - current_price).abs() + min_distance,
+                }
             } else {
                 current_price * self.config.take_profit_ratio
             }
