@@ -611,6 +611,7 @@ impl FundManager {
             TradeAction::BuyClose(_) => {
                 if position.position_type() == PositionType::Short {
                     confidence = action.confidence().unwrap_or_default();
+                    self.cancel_all_orders().await;
                     Some(ReasonForClose::Other("TredeChanged".to_owned()))
                 } else {
                     None
@@ -619,6 +620,7 @@ impl FundManager {
             TradeAction::SellClose(_) => {
                 if position.position_type() == PositionType::Long {
                     confidence = action.confidence().unwrap_or_default();
+                    self.cancel_all_orders().await;
                     Some(ReasonForClose::Other("TrendChanged".to_owned()))
                 } else {
                     None
@@ -627,7 +629,7 @@ impl FundManager {
             TradeAction::BuyTrim(_) => {
                 if position.position_type() == PositionType::Short {
                     confidence = action.confidence().unwrap_or_default();
-                    log::info!("trim position: {:?}", action);
+                    self.cancel_all_orders().await;
                     Some(ReasonForClose::Other("TrimPosition".to_owned()))
                 } else {
                     None
@@ -636,7 +638,7 @@ impl FundManager {
             TradeAction::SellTrim(_) => {
                 if position.position_type() == PositionType::Long {
                     confidence = action.confidence().unwrap_or_default();
-                    log::info!("trim position: {:?}", action);
+                    self.cancel_all_orders().await;
                     Some(ReasonForClose::Other("TrimPosition".to_owned()))
                 } else {
                     None
@@ -1316,26 +1318,18 @@ impl FundManager {
             .await;
     }
 
-    #[allow(dead_code)]
     async fn cancel_all_orders(&mut self) {
-        let _ = self
+        let positions_to_cancel: Vec<TradePosition> = self
             .state
-            .dex_connector
-            .cancel_all_orders(Some(self.config.token_name.clone()))
-            .await
-            .map_err(|e| {
-                log::error!("cancel_all_orders: {:?}", e);
-            });
+            .trade_positions
+            .iter()
+            .filter(|(_k, v)| matches!(v.state(), State::Opening))
+            .map(|(_k, v)| v.clone())
+            .collect();
 
-        match self.state.latest_open_position_id {
-            Some(open_position_id) => {
-                self.state
-                    .trade_positions
-                    .retain(|position_id, _| *position_id == open_position_id);
-            }
-            None => {
-                self.state.trade_positions.clear();
-            }
+        for position in &positions_to_cancel {
+            log::debug!("Canceling order: order_id:{}", position.order_id());
+            self.cancel_order(position.order_id(), false).await;
         }
     }
 
