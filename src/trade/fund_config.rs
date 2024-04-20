@@ -76,72 +76,36 @@ pub fn get(
         "hyperliquid" => vec![
             (
                 HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[2].to_owned()), // pair token
+                Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, true),
-                Decimal::new(5000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[2].to_owned(), // BNB
-                None,
-                TradingStrategy::TrendFollow(TrendType::Down, no_hedge),
-                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(8000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
                 loss_cut_ratio,        // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[3].to_owned()), // pair token
+                Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, true),
-                Decimal::new(5000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[3].to_owned(), // SOL
-                None,
-                TradingStrategy::TrendFollow(TrendType::Up, no_hedge),
-                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(8000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
                 loss_cut_ratio,        // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
-                Some(HYPERLIQUID_TOKEN_LIST[4].to_owned()), // pair token
+                Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, true),
-                Decimal::new(5000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[4].to_owned(), // AVAX
-                None,
-                TradingStrategy::TrendFollow(TrendType::Down, no_hedge),
-                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(8000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
                 loss_cut_ratio,        // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
-                Some(HYPERLIQUID_TOKEN_LIST[5].to_owned()), // pair token
+                Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, true),
-                Decimal::new(5000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[5].to_owned(), // BCH
-                None,
-                TradingStrategy::TrendFollow(TrendType::Up, no_hedge),
-                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(8000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),    // position size ratio
                 Decimal::new(1, 3),    // take profit ratio
                 loss_cut_ratio,        // loss cut ratio
