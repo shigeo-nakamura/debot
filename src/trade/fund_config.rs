@@ -77,38 +77,38 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
                 Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up, true),
-                Decimal::new(8000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                TradingStrategy::TrendFollow(TrendType::Up, no_hedge),
+                Decimal::new(10000, 0), // initial amount (in USD)
+                Decimal::new(4, 1),     // position size ratio
+                Decimal::new(1, 3),     // take profit ratio
+                loss_cut_ratio,         // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
                 Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down, true),
-                Decimal::new(8000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                TradingStrategy::TrendFollow(TrendType::Down, no_hedge),
+                Decimal::new(10000, 0), // initial amount (in USD)
+                Decimal::new(4, 1),     // position size ratio
+                Decimal::new(1, 3),     // take profit ratio
+                loss_cut_ratio,         // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
                 Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up, true),
-                Decimal::new(8000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                TradingStrategy::TrendFollow(TrendType::Up, no_hedge),
+                Decimal::new(10000, 0), // initial amount (in USD)
+                Decimal::new(4, 1),     // position size ratio
+                Decimal::new(1, 3),     // take profit ratio
+                loss_cut_ratio,         // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
                 Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down, true),
-                Decimal::new(8000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                loss_cut_ratio,        // loss cut ratio
+                TradingStrategy::TrendFollow(TrendType::Down, no_hedge),
+                Decimal::new(10000, 0), // initial amount (in USD)
+                Decimal::new(4, 1),     // position size ratio
+                Decimal::new(1, 3),     // take profit ratio
+                loss_cut_ratio,         // loss cut ratio
             ),
         ],
         _ => panic!("Unsupported dex"),
