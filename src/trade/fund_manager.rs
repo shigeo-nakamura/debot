@@ -1206,11 +1206,8 @@ impl FundManager {
                     Some((min, max)) => (min, max),
                     None => (current_price, current_price),
                 };
-                let min_distance = current_price * self.config.take_profit_ratio;
-                match side {
-                    OrderSide::Long => (max - current_price).abs() + min_distance,
-                    OrderSide::Short => (min - current_price).abs() + min_distance,
-                }
+                current_price * self.config.take_profit_ratio
+                    + (max - min).abs() / Decimal::new(3, 0)
             } else {
                 current_price * self.config.take_profit_ratio
             }
