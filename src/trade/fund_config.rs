@@ -42,6 +42,7 @@ pub fn get(
     Decimal,
 )> {
     let no_hedge = false;
+    let hedge_position = true;
     let loss_cut_ratio = Decimal::new(3, 2);
     let strategy_list = match dex_name {
         "rabbitx" => vec![
@@ -77,7 +78,7 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
                 Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up, no_hedge),
+                TradingStrategy::TrendFollow(TrendType::Up, hedge_position),
                 Decimal::new(10000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),     // position size ratio
                 Decimal::new(1, 3),     // take profit ratio
@@ -86,25 +87,16 @@ pub fn get(
             (
                 HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
                 Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down, no_hedge),
+                TradingStrategy::TrendFollow(TrendType::Down, hedge_position),
                 Decimal::new(10000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),     // position size ratio
                 Decimal::new(1, 3),     // take profit ratio
                 loss_cut_ratio,         // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
-                Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up, no_hedge),
-                Decimal::new(10000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),     // position size ratio
-                Decimal::new(1, 3),     // take profit ratio
-                loss_cut_ratio,         // loss cut ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
-                Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down, no_hedge),
+                HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
+                None,
+                TradingStrategy::PassiveTrade,
                 Decimal::new(10000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),     // position size ratio
                 Decimal::new(1, 3),     // take profit ratio

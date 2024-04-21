@@ -413,7 +413,10 @@ impl DerivativeTrader {
         }
 
         // 4. Hedge positions
-        let hedge_requests = self.state.hedge_requests.lock().await.clone();
+        let hedge_requests_lock = self.state.hedge_requests.lock().await;
+        let hedge_requests = hedge_requests_lock.clone();
+        drop(hedge_requests_lock);
+
         let hedge_futures: Vec<_> = self
             .state
             .fund_manager_map
@@ -432,9 +435,9 @@ impl DerivativeTrader {
             })
             .collect();
 
-        self.state.hedge_requests.lock().await.clear();
-
         let hedge_results = join_all(hedge_futures).await;
+
+        self.state.hedge_requests.lock().await.clear();
 
         for result in hedge_results {
             if result.is_err() {
