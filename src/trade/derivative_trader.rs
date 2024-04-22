@@ -7,6 +7,7 @@ use debot_market_analyzer::TradingStrategy;
 use debot_position_manager::TradePosition;
 use dex_connector::DexConnector;
 use dex_connector::DexError;
+use dex_connector::FilledOrdersResponse;
 use futures::future::join_all;
 use futures::FutureExt;
 use rust_decimal::Decimal;
@@ -355,14 +356,26 @@ impl DerivativeTrader {
         }
 
         // 2. Check newly filled orders after the new price is queried; otherwise DexEmulator can't fill any orders
+        let mut filled_orders_map: HashMap<String, FilledOrdersResponse> = HashMap::new();
         for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
-            let filled_orders = self
-                .state
-                .dex_connector
-                .get_filled_orders(fund_manager.token_name())
-                .await?;
+            let token_name = fund_manager.token_name();
+            if filled_orders_map.get(token_name).is_none() {
+                let filled_orders = self
+                    .state
+                    .dex_connector
+                    .get_filled_orders(fund_manager.token_name())
+                    .await?;
+                filled_orders_map.insert(token_name.to_owned(), filled_orders);
+            }
+        }
 
-            for order in filled_orders.orders {
+        for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
+            let filled_orders = filled_orders_map.get(fund_manager.token_name());
+            if filled_orders.is_none() {
+                log::error!("filled_orders is none");
+                continue;
+            }
+            for order in filled_orders.unwrap().orders.iter() {
                 if order.is_rejected {
                     fund_manager
                         .cancel_order(&order.order_id.clone(), true)
@@ -371,7 +384,7 @@ impl DerivativeTrader {
                     let filled = fund_manager
                         .position_filled(
                             &order.order_id.clone(),
-                            order.filled_side.unwrap(),
+                            order.filled_side.clone().unwrap(),
                             order.filled_value.unwrap(),
                             order.filled_size.unwrap(),
                             order.filled_fee.unwrap(),
