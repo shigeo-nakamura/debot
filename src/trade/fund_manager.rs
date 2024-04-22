@@ -254,7 +254,7 @@ impl FundManager {
         current_price: Decimal,
         action: &TradeAction,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        if self.config.strategy != TradingStrategy::PassiveTrade {
+        if self.config.strategy != TradingStrategy::PassiveTrade || !self.can_execute_new_trade() {
             return Ok(());
         }
 
@@ -263,10 +263,12 @@ impl FundManager {
             TradeAction::BuyHedge(detail) => {
                 target_price = self.target_price(current_price, OrderSide::Long, true);
                 detail.amount_in_usd().unwrap_or_default() / target_price.unwrap()
+                    * detail.confidence()
             }
             TradeAction::SellHedge(detail) => {
                 target_price = self.target_price(current_price, OrderSide::Short, true);
                 detail.amount_in_usd().unwrap_or_default() / target_price.unwrap()
+                    * detail.confidence()
             }
             _ => {
                 log::warn!("Invalid hedge action: {:?}", action);
@@ -698,7 +700,7 @@ impl FundManager {
 
     fn can_execute_new_trade(&self) -> bool {
         match self.config.strategy {
-            TradingStrategy::TrendFollow(_, _) => {
+            TradingStrategy::TrendFollow(_, _) | TradingStrategy::PassiveTrade => {
                 if let Some(last_trade_time) = self.state.last_trade_time {
                     let current_time = chrono::Utc::now().timestamp();
                     let delay_secs = self.config.execution_delay_secs;
