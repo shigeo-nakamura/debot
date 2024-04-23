@@ -158,6 +158,31 @@ impl FundManager {
         &self.config.token_name
     }
 
+    pub fn pair_token_name(&self) -> Option<&str> {
+        self.config.pair_token_name.as_deref()
+    }
+
+    pub fn delta_position(&self) -> Option<Decimal> {
+        match self.config.strategy {
+            TradingStrategy::TrendFollow(_, is_hedge) => {
+                if is_hedge {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+
+        if self.state.trade_positions.len() == 1 {
+            Some(self.get_open_position().unwrap().asset_in_usd())
+        } else {
+            None
+        }
+    }
+
+    pub fn strategy(&self) -> TradingStrategy {
+        self.config.strategy
+    }
+
     pub async fn get_token_price(
         &mut self,
     ) -> Result<(Decimal, Decimal), Box<dyn Error + Send + Sync>> {
@@ -252,7 +277,7 @@ impl FundManager {
     pub async fn hedge_position(
         &mut self,
         current_price: Decimal,
-        action: &TradeAction,
+        action: TradeAction,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         if self.config.strategy != TradingStrategy::PassiveTrade || !self.can_execute_new_trade() {
             return Ok(());
@@ -909,7 +934,7 @@ impl FundManager {
         }
     }
 
-    fn get_open_position(&self) -> Option<TradePosition> {
+    pub fn get_open_position(&self) -> Option<TradePosition> {
         match self.state.latest_open_position_id {
             Some(id) => self.state.trade_positions.get(&id).cloned(),
             None => None,
@@ -1307,7 +1332,7 @@ impl FundManager {
             .await;
     }
 
-    async fn cancel_all_orders(&mut self) {
+    pub async fn cancel_all_orders(&mut self) {
         let positions_to_cancel: Vec<TradePosition> = self
             .state
             .trade_positions
@@ -1363,7 +1388,7 @@ impl FundManager {
         (price / min_tick).round() * min_tick
     }
 
-    async fn close_open_position(&mut self) {
+    pub async fn close_open_position(&mut self) {
         if let Some(open_position) = self.get_open_position() {
             if matches!(open_position.state(), State::Open) {
                 let _ = self
@@ -1390,7 +1415,7 @@ impl FundManager {
         }
     }
 
-    fn is_profitable_position(&self, position_id: u32, current_price: Decimal) -> bool {
+    pub fn is_profitable_position(&self, position_id: u32, current_price: Decimal) -> bool {
         match self.state.trade_positions.get(&position_id) {
             Some(position) => {
                 if position.position_type() == PositionType::Long {

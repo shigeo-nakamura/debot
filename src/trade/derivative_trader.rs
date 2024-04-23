@@ -3,6 +3,7 @@
 use debot_db::PricePoint;
 use debot_market_analyzer::MarketData;
 use debot_market_analyzer::TradeAction;
+use debot_market_analyzer::TradeDetail;
 use debot_market_analyzer::TradingStrategy;
 use debot_position_manager::TradePosition;
 use dex_connector::DexConnector;
@@ -436,9 +437,9 @@ impl DerivativeTrader {
             .values_mut()
             .filter_map(|fund_manager| {
                 let token_name = fund_manager.token_name();
-                if let Some(hedge_detail) = hedge_requests.get(token_name) {
+                if let Some(hedge_action) = hedge_requests.get(token_name) {
                     if let Some((price, _)) = prices.get(token_name).and_then(|p| *p) {
-                        Some(fund_manager.hedge_position(price, hedge_detail))
+                        Some(fund_manager.hedge_position(price, hedge_action.clone()))
                     } else {
                         None
                     }
@@ -458,7 +459,86 @@ impl DerivativeTrader {
             }
         }
 
+        // 5. Do delta neutral
+        self.do_delta_neutral(&prices).await?;
+
         Ok(())
+    }
+
+    async fn do_delta_neutral(
+        &mut self,
+        prices: &HashMap<String, Option<(Decimal, Decimal)>>,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let mut delta_map: HashMap<String, Decimal> = HashMap::new();
+
+        for (_, fund_manager) in &self.state.fund_manager_map {
+            if let Some(delta_position) = fund_manager.delta_position() {
+                let token_name = fund_manager.token_name();
+                delta_map
+                    .entry(token_name.to_owned())
+                    .or_insert(Decimal::ZERO);
+                delta_map
+                    .entry(token_name.to_owned())
+                    .and_modify(|v| *v += delta_position);
+            }
+        }
+
+        let mut hedge_futures = vec![];
+        for fund_manager in self.state.fund_manager_map.values_mut() {
+            let pair_token_name = fund_manager.pair_token_name().unwrap_or_default();
+            let mut price = None;
+            if fund_manager.strategy() == TradingStrategy::PassiveTrade {
+                if let Some(delta_position) = delta_map.get(pair_token_name) {
+                    let current_position = match fund_manager.get_open_position() {
+                        Some(v) => v.asset_in_usd(),
+                        None => Decimal::ZERO,
+                    };
+                    let position_diff = delta_position - current_position;
+                    if position_diff.abs() / (current_position.abs() + Decimal::ONE)
+                        < Decimal::new(1, 1)
+                    {
+                        continue;
+                    }
+                    if let Some((p, _)) = prices.get(fund_manager.token_name()).and_then(|p| *p) {
+                        price = Some(p);
+                        let hedge_action = Self::create_hedge_action(position_diff);
+                        hedge_futures
+                            .push(fund_manager.hedge_position(price.unwrap(), hedge_action));
+                    }
+                } else {
+                    if let Some(hedge_position) = fund_manager.get_open_position() {
+                        if price.is_some() {
+                            if fund_manager.is_profitable_position(
+                                hedge_position.id().unwrap_or_default(),
+                                price.unwrap(),
+                            ) {
+                                fund_manager.cancel_all_orders().await;
+                                fund_manager.close_open_position().await;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let hedge_results = join_all(hedge_futures).await;
+
+        for result in hedge_results {
+            if result.is_err() {
+                return result;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn create_hedge_action(amount_in_usd: Decimal) -> TradeAction {
+        let confidence = Decimal::ONE;
+        if amount_in_usd.is_sign_positive() {
+            TradeAction::SellHedge(TradeDetail::new(None, Some(amount_in_usd), confidence))
+        } else {
+            TradeAction::BuyHedge(TradeDetail::new(None, Some(amount_in_usd), confidence))
+        }
     }
 
     pub async fn reset_dex_client(&mut self) -> bool {
