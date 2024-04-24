@@ -1219,12 +1219,8 @@ impl FundManager {
             current_price * self.config.loss_cut_ratio
         } else {
             if self.config.take_profit_by_atr {
-                let (min, max) = match self.state.market_data.get_min_max_price() {
-                    Some((min, max)) => (min, max),
-                    None => (current_price, current_price),
-                };
-                current_price * self.config.take_profit_ratio
-                    + (max - min).abs() / Decimal::new(3, 0)
+                let atr = self.state.market_data.atr();
+                current_price * self.config.take_profit_ratio + atr * Decimal::new(5, 1)
             } else {
                 current_price * self.config.take_profit_ratio
             }
