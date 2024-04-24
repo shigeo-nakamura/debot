@@ -493,7 +493,13 @@ impl DerivativeTrader {
                         Some(v) => v.asset_in_usd(),
                         None => Decimal::ZERO,
                     };
-                    let position_diff = delta_position - current_position;
+                    if current_position.is_sign_positive() != delta_position.is_sign_positive() {
+                        if current_position.abs() > delta_position.abs() {
+                            continue;
+                        }
+                    }
+
+                    let position_diff = delta_position + current_position;
                     if position_diff.abs() / (current_position.abs() + Decimal::ONE)
                         < Decimal::new(1, 1)
                     {
@@ -535,9 +541,9 @@ impl DerivativeTrader {
     fn create_hedge_action(amount_in_usd: Decimal) -> TradeAction {
         let confidence = Decimal::ONE;
         if amount_in_usd.is_sign_positive() {
-            TradeAction::SellHedge(TradeDetail::new(None, Some(amount_in_usd), confidence))
-        } else {
             TradeAction::BuyHedge(TradeDetail::new(None, Some(amount_in_usd), confidence))
+        } else {
+            TradeAction::SellHedge(TradeDetail::new(None, Some(amount_in_usd), confidence))
         }
     }
 

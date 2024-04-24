@@ -173,10 +173,12 @@ impl FundManager {
         }
 
         if self.state.trade_positions.len() == 1 {
-            Some(self.get_open_position().unwrap().asset_in_usd())
-        } else {
-            None
+            if let Some(position) = self.get_open_position() {
+                return Some(position.asset_in_usd());
+            }
         }
+
+        None
     }
 
     pub fn strategy(&self) -> TradingStrategy {
