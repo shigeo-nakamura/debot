@@ -289,12 +289,12 @@ impl FundManager {
         let token_amount = match action {
             TradeAction::BuyHedge(detail) => {
                 target_price = self.target_price(current_price, OrderSide::Long, true);
-                detail.amount_in_usd().unwrap_or_default() / target_price.unwrap()
+                detail.amount_in_usd().unwrap_or_default().abs() / target_price.unwrap()
                     * detail.confidence()
             }
             TradeAction::SellHedge(detail) => {
                 target_price = self.target_price(current_price, OrderSide::Short, true);
-                detail.amount_in_usd().unwrap_or_default() / target_price.unwrap()
+                detail.amount_in_usd().unwrap_or_default().abs() / target_price.unwrap()
                     * detail.confidence()
             }
             _ => {
@@ -1257,7 +1257,9 @@ impl FundManager {
     }
 
     pub fn clean_canceled_position(&mut self) {
-        self.state.trade_positions.retain(|_, position|!position.is_cancel_expired());
+        self.state
+            .trade_positions
+            .retain(|_, position| !position.is_cancel_expired());
     }
 
     pub async fn cancel_order(&mut self, order_id: &str, is_already_rejected: bool) {
