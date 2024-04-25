@@ -5,6 +5,7 @@ use debot_market_analyzer::MarketData;
 use debot_market_analyzer::TradeAction;
 use debot_market_analyzer::TradeDetail;
 use debot_market_analyzer::TradingStrategy;
+use debot_position_manager::State;
 use debot_position_manager::TradePosition;
 use dex_connector::DexConnector;
 use dex_connector::DexError;
@@ -486,7 +487,7 @@ impl DerivativeTrader {
         let mut hedge_futures = vec![];
         for fund_manager in self.state.fund_manager_map.values_mut() {
             let pair_token_name = fund_manager.pair_token_name().unwrap_or_default();
-            let mut price = None;
+            let price = prices.get(fund_manager.token_name()).and_then(|p| *p);
             if fund_manager.strategy() == TradingStrategy::PassiveTrade {
                 if let Some(delta_position) = delta_map.get(pair_token_name) {
                     let current_position = match fund_manager.get_open_position() {
@@ -505,21 +506,21 @@ impl DerivativeTrader {
                     {
                         continue;
                     }
-                    if let Some((p, _)) = prices.get(fund_manager.token_name()).and_then(|p| *p) {
-                        price = Some(p);
+                    if let Some((p, _)) = price {
                         let hedge_action = Self::create_hedge_action(position_diff);
-                        hedge_futures
-                            .push(fund_manager.hedge_position(price.unwrap(), hedge_action));
+                        hedge_futures.push(fund_manager.hedge_position(p, hedge_action));
                     }
                 } else {
                     if let Some(hedge_position) = fund_manager.get_open_position() {
-                        if price.is_some() {
-                            if fund_manager.is_profitable_position(
-                                hedge_position.id().unwrap_or_default(),
-                                price.unwrap(),
-                            ) {
-                                fund_manager.cancel_all_orders().await;
-                                fund_manager.close_open_position().await;
+                        if matches!(hedge_position.state(), State::Open) {
+                            if let Some((p, _)) = price {
+                                if fund_manager.is_profitable_position(
+                                    hedge_position.id().unwrap_or_default(),
+                                    p,
+                                ) {
+                                    fund_manager.cancel_all_orders().await;
+                                    fund_manager.close_open_position().await;
+                                }
                             }
                         }
                     }

@@ -1120,9 +1120,10 @@ impl FundManager {
                 p
             }
             None => {
-                log::debug!(
-                    "Filled position not found(this is possible): order_id = {}",
-                    order_id,
+                log::warn!(
+                    "Filled position not found: token = {}, order_id = {}",
+                    self.config.token_name,
+                    order_id
                 );
                 return Ok(false);
             }
@@ -1303,7 +1304,8 @@ impl FundManager {
         match cancel_result {
             debot_position_manager::CancelResult::OpeningCanceled => {
                 // Opening --> Canceled
-                self.state.trade_positions.remove(&position_id);
+                // Don't remove the position immediately but do lazily as it might have been filled at the samt time
+                //self.state.trade_positions.remove(&position_id);
             }
             debot_position_manager::CancelResult::ClosingCanceled => {
                 // Closing --> Open
