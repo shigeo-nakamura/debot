@@ -1256,6 +1256,10 @@ impl FundManager {
         }
     }
 
+    pub fn clean_canceled_position(&mut self) {
+        self.state.trade_positions.retain(|_, position|!position.is_cancel_expired());
+    }
+
     pub async fn cancel_order(&mut self, order_id: &str, is_already_rejected: bool) {
         if !is_already_rejected {
             if let Err(e) = self

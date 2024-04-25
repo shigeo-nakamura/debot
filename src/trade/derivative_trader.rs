@@ -23,6 +23,7 @@ use tokio::sync::Mutex;
 
 use super::dex_connector_box::DexConnectorBox;
 use super::fund_config;
+use super::fund_manager;
 use super::DBHandler;
 use super::FundManager;
 
@@ -462,6 +463,11 @@ impl DerivativeTrader {
 
         // 5. Do delta neutral
         self.do_delta_neutral(&prices).await?;
+
+        // 6. Clean up the canceled positions
+        for fund_manager in self.state.fund_manager_map.values_mut() {
+            fund_manager.clean_canceled_position();
+        }
 
         Ok(())
     }
