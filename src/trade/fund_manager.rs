@@ -1114,7 +1114,7 @@ impl FundManager {
         let position = match self.find_position_from_order_id(order_id) {
             Some(p) => {
                 if matches!(p.state(), State::Open) {
-                    log::info!("Ignore already filled order: {:?}", p);
+                    log::info!("Ignore already filled order for the position: {:?}", p);
                     return Ok(false);
                 }
                 p
@@ -1270,7 +1270,7 @@ impl FundManager {
                 .cancel_order(&self.config.token_name, order_id)
                 .await
             {
-                log::error!("{:?}", e);
+                log::error!("cancel_order: {}: order_id = {}", e, order_id);
                 return;
             }
         }
@@ -1329,6 +1329,8 @@ impl FundManager {
             }
         }
 
+        log::info!("cancel_order succeeded: order_id = {}", order_id);
+
         // Save the position in the DB
         self.state
             .db_handler
@@ -1348,7 +1350,6 @@ impl FundManager {
             .collect();
 
         for position in &positions_to_cancel {
-            log::debug!("Canceling order: order_id:{}", position.order_id());
             self.cancel_order(position.order_id(), false).await;
         }
     }

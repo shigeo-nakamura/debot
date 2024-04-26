@@ -398,6 +398,8 @@ impl DerivativeTrader {
                         })?;
                     if filled {
                         fund_manager.clear_filled_order(&order.trade_id).await;
+                    } else {
+                        log::warn!("An filled order is not handled: order = {:?}", order);
                     }
                 }
             }
