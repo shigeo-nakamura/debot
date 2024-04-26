@@ -1324,7 +1324,8 @@ impl FundManager {
                     // Ignore the paritally filled position
                     position.ignore();
                     position_cloned = position.clone();
-                    self.state.trade_positions.remove(&position_id);
+                    // dito
+                    //self.state.trade_positions.remove(&position_id);
                 }
             }
         }
