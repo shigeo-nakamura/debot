@@ -1425,9 +1425,13 @@ impl FundManager {
         match self.state.trade_positions.get(&position_id) {
             Some(position) => {
                 if position.position_type() == PositionType::Long {
-                    position.average_open_price() < current_price
+                    current_price
+                        > position.average_open_price()
+                            * (Decimal::ONE + self.config.take_profit_ratio)
                 } else {
-                    position.average_open_price() > current_price
+                    current_price
+                        < position.average_open_price()
+                            * (Decimal::ONE - self.config.take_profit_ratio)
                 }
             }
             None => {
