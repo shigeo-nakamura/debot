@@ -1120,7 +1120,7 @@ impl FundManager {
                 p
             }
             None => {
-                log::warn!(
+                log::debug!(
                     "Filled position not found: token = {}, order_id = {}",
                     self.config.token_name,
                     order_id

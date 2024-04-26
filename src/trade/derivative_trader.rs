@@ -9,7 +9,7 @@ use debot_position_manager::State;
 use debot_position_manager::TradePosition;
 use dex_connector::DexConnector;
 use dex_connector::DexError;
-use dex_connector::FilledOrdersResponse;
+use dex_connector::FilledOrder;
 use futures::future::join_all;
 use futures::FutureExt;
 use rust_decimal::Decimal;
@@ -23,7 +23,6 @@ use tokio::sync::Mutex;
 
 use super::dex_connector_box::DexConnectorBox;
 use super::fund_config;
-use super::fund_manager;
 use super::DBHandler;
 use super::FundManager;
 
@@ -359,7 +358,7 @@ impl DerivativeTrader {
         }
 
         // 2. Check newly filled orders after the new price is queried; otherwise DexEmulator can't fill any orders
-        let mut filled_orders_map: HashMap<String, FilledOrdersResponse> = HashMap::new();
+        let mut filled_orders_map: HashMap<String, FilledOrder> = HashMap::new();
         for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
             let token_name = fund_manager.token_name();
             if filled_orders_map.get(token_name).is_none() {
@@ -368,17 +367,16 @@ impl DerivativeTrader {
                     .dex_connector
                     .get_filled_orders(fund_manager.token_name())
                     .await?;
-                filled_orders_map.insert(token_name.to_owned(), filled_orders);
+                for filled_order in filled_orders.orders {
+                    filled_orders_map.insert(filled_order.trade_id.to_owned(), filled_order);
+                }
             }
         }
 
+        let mut filled_orders_map_clone = filled_orders_map.clone();
+
         for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
-            let filled_orders = filled_orders_map.get(fund_manager.token_name());
-            if filled_orders.is_none() {
-                log::error!("filled_orders is none");
-                continue;
-            }
-            for order in filled_orders.unwrap().orders.iter() {
+            for order in filled_orders_map.values() {
                 if order.is_rejected {
                     fund_manager
                         .cancel_order(&order.order_id.clone(), true)
@@ -398,13 +396,19 @@ impl DerivativeTrader {
                         })?;
                     if filled {
                         fund_manager.clear_filled_order(&order.trade_id).await;
-                    } else {
-                        log::warn!("An filled order is not handled: order = {:?}", order);
+                        filled_orders_map_clone.remove(&order.trade_id);
                     }
                 }
             }
         }
         self.state.dex_connector.clear_all_filled_order().await?;
+
+        if !filled_orders_map_clone.is_empty() {
+            log::warn!(
+                "Some filled orders are not handled: {:?}",
+                filled_orders_map_clone
+            );
+        }
 
         // 3. Find trade chanes
         let find_futures: Vec<_> = self
