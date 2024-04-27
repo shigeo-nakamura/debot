@@ -94,8 +94,8 @@ pub fn get(
                 loss_cut_ratio,         // loss cut ratio
             ),
             (
-                HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
-                Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token
+                HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
+                None,                                 // pair token
                 TradingStrategy::PassiveTrade,
                 Decimal::new(10000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),     // position size ratio

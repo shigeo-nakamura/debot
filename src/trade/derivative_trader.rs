@@ -487,22 +487,21 @@ impl DerivativeTrader {
 
         for (_, fund_manager) in &self.state.fund_manager_map {
             if let Some(delta_position) = fund_manager.delta_position() {
-                let token_name = fund_manager.token_name();
+                let pair_token_name = fund_manager.pair_token_name().unwrap_or_default();
                 delta_map
-                    .entry(token_name.to_owned())
+                    .entry(pair_token_name.to_owned())
                     .or_insert(Decimal::ZERO);
                 delta_map
-                    .entry(token_name.to_owned())
+                    .entry(pair_token_name.to_owned())
                     .and_modify(|v| *v += delta_position);
             }
         }
 
         let mut hedge_futures = vec![];
         for fund_manager in self.state.fund_manager_map.values_mut() {
-            let pair_token_name = fund_manager.pair_token_name().unwrap_or_default();
             let price = prices.get(fund_manager.token_name()).and_then(|p| *p);
             if fund_manager.strategy() == TradingStrategy::PassiveTrade {
-                if let Some(delta_position) = delta_map.get(pair_token_name) {
+                if let Some(delta_position) = delta_map.get(fund_manager.token_name()) {
                     let current_position = match fund_manager.get_open_position() {
                         Some(v) => v.asset_in_usd(),
                         None => Decimal::ZERO,
