@@ -499,42 +499,51 @@ impl DerivativeTrader {
 
         let mut hedge_futures = vec![];
         for fund_manager in self.state.fund_manager_map.values_mut() {
-            let price = prices.get(fund_manager.token_name()).and_then(|p| *p);
+            let price = match prices.get(fund_manager.token_name()).and_then(|p| *p) {
+                Some((p, _)) => p,
+                None => continue,
+            };
+
             if fund_manager.strategy() == TradingStrategy::PassiveTrade {
-                if let Some(delta_position) = delta_map.get(fund_manager.token_name()) {
-                    let current_position = match fund_manager.get_open_position() {
+                if let Some(delta_position_amount) = delta_map.get(fund_manager.token_name()) {
+                    let current_position_amount = match fund_manager.get_open_position() {
                         Some(v) => v.asset_in_usd(),
                         None => Decimal::ZERO,
                     };
-                    if current_position.is_sign_positive() != delta_position.is_sign_positive() {
-                        if current_position.abs() > delta_position.abs() {
-                            continue;
+                    if current_position_amount.is_sign_positive()
+                        != delta_position_amount.is_sign_positive()
+                    {
+                        if current_position_amount.abs() > delta_position_amount.abs() {
+                            if let Some(current_position) = fund_manager.get_open_position() {
+                                if !fund_manager.is_profitable_position(
+                                    current_position.id().unwrap_or_default(),
+                                    price,
+                                ) {
+                                    continue;
+                                }
+                            } else {
+                                continue;
+                            }
                         }
                     }
-
-                    let position_diff = delta_position + current_position;
-                    if position_diff.abs() / (current_position.abs() + Decimal::ONE)
+                    let position_diff = delta_position_amount + current_position_amount;
+                    if position_diff.abs() / (current_position_amount.abs() + Decimal::ONE)
                         < Decimal::new(1, 1)
                     {
                         continue;
                     }
-                    if let Some((p, _)) = price {
-                        let hedge_action = Self::create_hedge_action(position_diff);
-                        hedge_futures.push(fund_manager.hedge_position(p, hedge_action));
-                    }
+                    let hedge_action = Self::create_hedge_action(position_diff);
+                    hedge_futures.push(fund_manager.hedge_position(price, hedge_action));
                 } else {
                     if let Some(hedge_position) = fund_manager.get_open_position() {
                         if matches!(hedge_position.state(), State::Open) {
-                            if let Some((p, _)) = price {
-                                if fund_manager.is_profitable_position(
-                                    hedge_position.id().unwrap_or_default(),
-                                    p,
-                                ) {
-                                    fund_manager.cancel_all_orders().await;
-                                    let reason =
-                                        ReasonForClose::Other("TrimHedgedPosition".to_owned());
-                                    fund_manager.close_open_position(Some(reason)).await;
-                                }
+                            if fund_manager.is_profitable_position(
+                                hedge_position.id().unwrap_or_default(),
+                                price,
+                            ) {
+                                fund_manager.cancel_all_orders().await;
+                                let reason = ReasonForClose::Other("TrimHedgedPosition".to_owned());
+                                fund_manager.close_open_position(Some(reason)).await;
                             }
                         }
                     }
