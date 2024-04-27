@@ -5,6 +5,7 @@ use debot_market_analyzer::MarketData;
 use debot_market_analyzer::TradeAction;
 use debot_market_analyzer::TradeDetail;
 use debot_market_analyzer::TradingStrategy;
+use debot_position_manager::ReasonForClose;
 use debot_position_manager::State;
 use debot_position_manager::TradePosition;
 use dex_connector::DexConnector;
@@ -531,7 +532,9 @@ impl DerivativeTrader {
                                     p,
                                 ) {
                                     fund_manager.cancel_all_orders().await;
-                                    fund_manager.close_open_position().await;
+                                    let reason =
+                                        ReasonForClose::Other("TrimHedgedPosition".to_owned());
+                                    fund_manager.close_open_position(Some(reason)).await;
                                 }
                             }
                         }

@@ -366,7 +366,8 @@ impl FundManager {
             TradingStrategy::MarketMake => match self.state.trade_positions.len() {
                 0 => {}
                 1 => {
-                    self.close_open_position().await;
+                    let reason = ReasonForClose::Other("MarketMakeFailed".to_owned());
+                    self.close_open_position(Some(reason)).await;
                 }
                 _ => {
                     return self
@@ -1396,7 +1397,7 @@ impl FundManager {
         (price / min_tick).round() * min_tick
     }
 
-    pub async fn close_open_position(&mut self) {
+    pub async fn close_open_position(&mut self, reason_for_close: Option<ReasonForClose>) {
         if let Some(open_position) = self.get_open_position() {
             if matches!(open_position.state(), State::Open) {
                 let _ = self
@@ -1414,9 +1415,7 @@ impl FundManager {
                             },
                             position_id: open_position.id(),
                         },
-                        Some(ReasonForClose::Other(String::from(
-                            "OnlyOneSideOrderFilled",
-                        ))),
+                        reason_for_close,
                     )
                     .await;
             }
