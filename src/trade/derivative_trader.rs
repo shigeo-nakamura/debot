@@ -525,8 +525,6 @@ impl DerivativeTrader {
                                 {
                                     continue;
                                 }
-                            } else {
-                                continue;
                             }
                         }
                     }
