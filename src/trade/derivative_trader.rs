@@ -513,12 +513,16 @@ impl DerivativeTrader {
                     if current_position_amount.is_sign_positive()
                         != delta_position_amount.is_sign_positive()
                     {
-                        if current_position_amount.abs() > delta_position_amount.abs() {
+                        let excessed_hedged_amount =
+                            current_position_amount.abs() - delta_position_amount.abs();
+                        if excessed_hedged_amount < fund_manager.trading_amount() {
                             if let Some(current_position) = fund_manager.get_open_position() {
-                                if !fund_manager.is_profitable_position(
-                                    current_position.id().unwrap_or_default(),
-                                    price,
-                                ) {
+                                if excessed_hedged_amount.is_sign_positive()
+                                    && !fund_manager.is_profitable_position(
+                                        current_position.id().unwrap_or_default(),
+                                        price,
+                                    )
+                                {
                                     continue;
                                 }
                             } else {
