@@ -8,8 +8,8 @@ pub const TOKEN_LIST_SIZE: u32 = 12;
 pub const HYPERLIQUID_TOKEN_LIST: &[&str] = &[
     "BTC-USD",
     "ETH-USD",
-    "BNB-USD",
     "SOL-USD",
+    "BNB-USD",
     "AVAX-USD",
     "BCH-USD",
     "SUI-USD",
@@ -42,7 +42,6 @@ pub fn get(
     Decimal,
 )> {
     let no_hedge = false;
-    let hedge_position = true;
     let loss_cut_ratio = Decimal::new(3, 2);
     let strategy_list = match dex_name {
         "rabbitx" => vec![
@@ -86,7 +85,7 @@ pub fn get(
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
-                Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token
+                Some(HYPERLIQUID_TOKEN_LIST[2].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Up, no_hedge),
                 Decimal::new(5000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),    // position size ratio
@@ -104,7 +103,7 @@ pub fn get(
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
-                Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token
+                Some(HYPERLIQUID_TOKEN_LIST[2].to_owned()), // pair token
                 TradingStrategy::TrendFollow(TrendType::Down, no_hedge),
                 Decimal::new(5000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),    // position size ratio
@@ -115,10 +114,19 @@ pub fn get(
                 HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
                 None,                                 // pair token
                 TradingStrategy::PassiveTrade,
-                Decimal::new(10000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),     // position size ratio
-                Decimal::new(1, 3),     // take profit ratio
-                loss_cut_ratio,         // loss cut ratio
+                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(4, 1),    // position size ratio
+                Decimal::new(1, 3),    // take profit ratio
+                loss_cut_ratio,        // loss cut ratio
+            ),
+            (
+                HYPERLIQUID_TOKEN_LIST[2].to_owned(), // SOL
+                None,                                 // pair token
+                TradingStrategy::PassiveTrade,
+                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(4, 1),    // position size ratio
+                Decimal::new(1, 3),    // take profit ratio
+                loss_cut_ratio,        // loss cut ratio
             ),
         ],
         _ => panic!("Unsupported dex"),
