@@ -116,7 +116,7 @@ pub fn get(
                 Decimal::new(5000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),    // position size ratio
                 Decimal::new(3, 2),    // take profit ratio
-                Decimal::new(1, 2),    // loss cut ratio
+                Decimal::new(15, 3),   // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[2].to_owned(), // SOL
@@ -125,7 +125,7 @@ pub fn get(
                 Decimal::new(5000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),    // position size ratio
                 Decimal::new(3, 2),    // take profit ratio
-                Decimal::new(1, 2),    // loss cut ratio
+                Decimal::new(15, 3),   // loss cut ratio
             ),
         ],
         _ => panic!("Unsupported dex"),

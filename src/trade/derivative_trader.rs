@@ -486,7 +486,10 @@ impl DerivativeTrader {
         let mut delta_map: HashMap<String, Decimal> = HashMap::new();
 
         for (_, fund_manager) in &self.state.fund_manager_map {
-            if let Some(delta_position) = fund_manager.delta_position() {
+            if let Some((delta_position, is_profitable)) = fund_manager.delta_position() {
+                if is_profitable {
+                    continue;
+                }
                 let pair_token_name = fund_manager.pair_token_name().unwrap_or_default();
                 delta_map
                     .entry(pair_token_name.to_owned())
@@ -520,7 +523,6 @@ impl DerivativeTrader {
                                 if excessed_hedged_amount.is_sign_positive()
                                     && !fund_manager.is_profitable_position(
                                         current_position.id().unwrap_or_default(),
-                                        price,
                                     )
                                 {
                                     continue;
@@ -539,10 +541,9 @@ impl DerivativeTrader {
                 } else {
                     if let Some(hedge_position) = fund_manager.get_open_position() {
                         if matches!(hedge_position.state(), State::Open) {
-                            if fund_manager.is_profitable_position(
-                                hedge_position.id().unwrap_or_default(),
-                                price,
-                            ) {
+                            if fund_manager
+                                .is_profitable_position(hedge_position.id().unwrap_or_default())
+                            {
                                 fund_manager.cancel_all_orders().await;
                                 let reason = ReasonForClose::Other("TrimHedgedPosition".to_owned());
                                 fund_manager.close_open_position(Some(reason)).await;

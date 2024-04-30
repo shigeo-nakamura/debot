@@ -162,25 +162,6 @@ impl FundManager {
         self.config.pair_token_name.as_deref()
     }
 
-    pub fn delta_position(&self) -> Option<Decimal> {
-        match self.config.strategy {
-            TradingStrategy::TrendFollow(_, is_hedge) => {
-                if is_hedge {
-                    return None;
-                }
-            }
-            _ => return None,
-        }
-
-        if self.state.trade_positions.len() == 1 {
-            if let Some(position) = self.get_open_position() {
-                return Some(position.asset_in_usd());
-            }
-        }
-
-        None
-    }
-
     pub fn strategy(&self) -> TradingStrategy {
         self.config.strategy
     }
@@ -643,7 +624,7 @@ impl FundManager {
             let action = self.state.market_data.is_close_signaled(
                 self.config.strategy.clone(),
                 position.asset_in_usd().abs(),
-                self.is_profitable_position(*position_id, current_price),
+                self.is_profitable_position(*position_id),
             );
 
             self.handle_close_chances(current_price, *position_id, position, &action)
@@ -1426,10 +1407,35 @@ impl FundManager {
         }
     }
 
-    pub fn is_profitable_position(&self, position_id: u32, current_price: Decimal) -> bool {
+    pub fn delta_position(&self) -> Option<(Decimal, bool)> {
+        match self.config.strategy {
+            TradingStrategy::TrendFollow(_, is_hedge) => {
+                if is_hedge {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+
+        if self.state.trade_positions.len() == 1 {
+            if let Some(position) = self.get_open_position() {
+                if position.is_open_long_enough() {
+                    return Some((
+                        position.asset_in_usd(),
+                        self.is_profitable_position(position.id().unwrap_or_default()),
+                    ));
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn is_profitable_position(&self, position_id: u32) -> bool {
         let min_profit_ratio = Decimal::new(1, 3);
         match self.state.trade_positions.get(&position_id) {
             Some(position) => {
+                let current_price = self.state.market_data.last_price();
                 if position.position_type() == PositionType::Long {
                     current_price
                         > position.average_open_price() * (Decimal::ONE + min_profit_ratio)
