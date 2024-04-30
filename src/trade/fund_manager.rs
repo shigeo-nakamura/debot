@@ -1222,7 +1222,7 @@ impl FundManager {
         is_hedge: bool,
     ) -> Option<Decimal> {
         let take_profit_distance = if is_hedge {
-            current_price * self.config.loss_cut_ratio
+            current_price * self.config.take_profit_ratio
         } else {
             if self.config.take_profit_by_atr {
                 let atr = self.state.market_data.atr();
