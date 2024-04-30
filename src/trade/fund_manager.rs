@@ -1427,16 +1427,15 @@ impl FundManager {
     }
 
     pub fn is_profitable_position(&self, position_id: u32, current_price: Decimal) -> bool {
+        let min_profit_ratio = Decimal::new(1, 3);
         match self.state.trade_positions.get(&position_id) {
             Some(position) => {
                 if position.position_type() == PositionType::Long {
                     current_price
-                        > position.average_open_price()
-                            * (Decimal::ONE + self.config.take_profit_ratio)
+                        > position.average_open_price() * (Decimal::ONE + min_profit_ratio)
                 } else {
                     current_price
-                        < position.average_open_price()
-                            * (Decimal::ONE - self.config.take_profit_ratio)
+                        < position.average_open_price() * (Decimal::ONE - min_profit_ratio)
                 }
             }
             None => {
