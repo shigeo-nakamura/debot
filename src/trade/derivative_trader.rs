@@ -495,10 +495,10 @@ impl DerivativeTrader {
 
         let mut hedge_futures = vec![];
         for fund_manager in self.state.fund_manager_map.values_mut() {
-            if fund_manager.strategy() == TradingStrategy::PassiveTrade {
+            if let TradingStrategy::PassiveTrade(hedge_ratio) = fund_manager.strategy() {
                 if let Some(delta_position_amount) = delta_map.get(fund_manager.token_name()) {
                     let current_position_amount = match fund_manager.get_open_position() {
-                        Some(v) => v.asset_in_usd(),
+                        Some(v) => v.asset_in_usd() * hedge_ratio,
                         None => Decimal::ZERO,
                     };
                     if current_position_amount.is_sign_positive()
