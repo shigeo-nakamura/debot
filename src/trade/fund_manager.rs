@@ -318,7 +318,7 @@ impl FundManager {
         // Cancel the exipired orders
         for position in &positions_to_cancel {
             match self.config.strategy {
-                TradingStrategy::TrendFollow(_, _) | TradingStrategy::PassiveTrade(_) => {}
+                TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => {}
                 TradingStrategy::MarketMake => {
                     self.statistics.market_make_fail_count += 1;
                 }
@@ -341,7 +341,7 @@ impl FundManager {
         let mut actions: Vec<TradeAction> = vec![];
 
         match self.config.strategy {
-            TradingStrategy::TrendFollow(_, _) => {
+            TradingStrategy::TrendFollow(_) => {
                 if !self.can_execute_new_trade() {
                     return self
                         .handle_open_chances(current_price, &actions, hedge_requests)
@@ -449,9 +449,7 @@ impl FundManager {
                 OrderSide::Short
             };
             let order_price = match self.config.strategy {
-                TradingStrategy::TrendFollow(_, _) | TradingStrategy::PassiveTrade(_) => {
-                    current_price
-                }
+                TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => current_price,
                 TradingStrategy::MarketMake => target_price.unwrap(),
             };
             let token_amount = match token_amount {
@@ -580,7 +578,7 @@ impl FundManager {
         let (pnl, ratio) = self.unrealized_pnl_of_open_position(current_price);
 
         match self.config.strategy {
-            TradingStrategy::TrendFollow(_, _) | TradingStrategy::PassiveTrade(_) => {
+            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => {
                 log::info!(
                     "{} pnl: {:.3}/{:.3}({:.3}%) order/fill/profit = {}/{}/{}, min position = {:.1}, trend = {:?}",
                     format!("{}-{}", self.config.token_name, self.config.index),
@@ -715,7 +713,7 @@ impl FundManager {
 
     fn can_execute_new_trade(&self) -> bool {
         match self.config.strategy {
-            TradingStrategy::TrendFollow(_, _) | TradingStrategy::PassiveTrade(_) => {
+            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => {
                 if let Some(last_trade_time) = self.state.last_trade_time {
                     let current_time = chrono::Utc::now().timestamp();
                     let delay_secs = self.config.execution_delay_secs;
@@ -1217,7 +1215,7 @@ impl FundManager {
 
         match self.config.strategy {
             TradingStrategy::MarketMake => None,
-            TradingStrategy::TrendFollow(_, _) | TradingStrategy::PassiveTrade(_) => match side {
+            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => match side {
                 OrderSide::Long => Some(current_price + take_profit_distance),
                 _ => Some(current_price - take_profit_distance),
             },
@@ -1227,7 +1225,7 @@ impl FundManager {
     fn take_profit_price(&self, target_price: Decimal) -> Option<Decimal> {
         match self.config.strategy {
             TradingStrategy::MarketMake => None,
-            TradingStrategy::TrendFollow(_, _) | TradingStrategy::PassiveTrade(_) => {
+            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => {
                 Some(target_price)
             }
         }
@@ -1237,7 +1235,7 @@ impl FundManager {
         let cut_loss_distance = filled_price * self.config.loss_cut_ratio;
         match self.config.strategy {
             TradingStrategy::MarketMake => None,
-            TradingStrategy::TrendFollow(_, _) | TradingStrategy::PassiveTrade(_) => match side {
+            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => match side {
                 OrderSide::Long => Some(filled_price - cut_loss_distance),
                 _ => Some(filled_price + cut_loss_distance),
             },
@@ -1411,11 +1409,7 @@ impl FundManager {
 
     pub fn delta_position(&self) -> Option<(Decimal, bool)> {
         match self.config.strategy {
-            TradingStrategy::TrendFollow(_, is_hedge) => {
-                if is_hedge {
-                    return None;
-                }
-            }
+            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => {}
             _ => return None,
         }
 

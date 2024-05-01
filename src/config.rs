@@ -131,7 +131,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let take_profit_by_atr = get_bool_env_var("TAKE_PROFIT_BY_ATR", true);
 
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
-        "trendfollow" => Some(TradingStrategy::TrendFollow(TrendType::Unknown, false)),
+        "trendfollow" => Some(TradingStrategy::TrendFollow(TrendType::Unknown)),
         "marketmake" => Some(TradingStrategy::MarketMake),
         &_ => None,
     };

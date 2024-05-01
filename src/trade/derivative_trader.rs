@@ -483,13 +483,14 @@ impl DerivativeTrader {
                 if !should_hedge_position {
                     continue;
                 }
-                let pair_token_name = fund_manager.pair_token_name().unwrap_or_default();
-                delta_map
-                    .entry(pair_token_name.to_owned())
-                    .or_insert(Decimal::ZERO);
-                delta_map
-                    .entry(pair_token_name.to_owned())
-                    .and_modify(|v| *v += delta_position);
+                if let Some(pair_token_name) = fund_manager.pair_token_name() {
+                    delta_map
+                        .entry(pair_token_name.to_owned())
+                        .or_insert(Decimal::ZERO);
+                    delta_map
+                        .entry(pair_token_name.to_owned())
+                        .and_modify(|v| *v += delta_position);
+                }
             }
         }
 
@@ -497,8 +498,9 @@ impl DerivativeTrader {
         for fund_manager in self.state.fund_manager_map.values_mut() {
             if let TradingStrategy::PassiveTrade(hedge_ratio) = fund_manager.strategy() {
                 if let Some(delta_position_amount) = delta_map.get(fund_manager.token_name()) {
+                    let delta_position_amount = delta_position_amount * hedge_ratio;
                     let current_position_amount = match fund_manager.get_open_position() {
-                        Some(v) => v.asset_in_usd() * hedge_ratio,
+                        Some(v) => v.asset_in_usd(),
                         None => Decimal::ZERO,
                     };
                     if current_position_amount.is_sign_positive()
