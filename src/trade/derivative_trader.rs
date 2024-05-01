@@ -447,11 +447,7 @@ impl DerivativeTrader {
             .filter_map(|fund_manager| {
                 let token_name = fund_manager.token_name();
                 if let Some(hedge_action) = hedge_requests.get(token_name) {
-                    if let Some((price, _)) = prices.get(token_name).and_then(|p| *p) {
-                        Some(fund_manager.hedge_position(price, hedge_action.clone()))
-                    } else {
-                        None
-                    }
+                    Some(fund_manager.hedge_position(hedge_action.clone()))
                 } else {
                     None
                 }
@@ -469,7 +465,7 @@ impl DerivativeTrader {
         }
 
         // 5. Do delta neutral
-        self.do_delta_neutral(&prices).await?;
+        self.do_delta_neutral().await?;
 
         // 6. Clean up the canceled positions
         for fund_manager in self.state.fund_manager_map.values_mut() {
@@ -479,10 +475,7 @@ impl DerivativeTrader {
         Ok(())
     }
 
-    async fn do_delta_neutral(
-        &mut self,
-        prices: &HashMap<String, Option<(Decimal, Decimal)>>,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn do_delta_neutral(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         let mut delta_map: HashMap<String, Decimal> = HashMap::new();
 
         for (_, fund_manager) in &self.state.fund_manager_map {
@@ -502,11 +495,6 @@ impl DerivativeTrader {
 
         let mut hedge_futures = vec![];
         for fund_manager in self.state.fund_manager_map.values_mut() {
-            let price = match prices.get(fund_manager.token_name()).and_then(|p| *p) {
-                Some((p, _)) => p,
-                None => continue,
-            };
-
             if fund_manager.strategy() == TradingStrategy::PassiveTrade {
                 if let Some(delta_position_amount) = delta_map.get(fund_manager.token_name()) {
                     let current_position_amount = match fund_manager.get_open_position() {
@@ -537,7 +525,7 @@ impl DerivativeTrader {
                         continue;
                     }
                     let hedge_action = Self::create_hedge_action(position_diff);
-                    hedge_futures.push(fund_manager.hedge_position(price, hedge_action));
+                    hedge_futures.push(fund_manager.hedge_position(hedge_action));
                 } else {
                     if let Some(hedge_position) = fund_manager.get_open_position() {
                         if matches!(hedge_position.state(), State::Open) {

@@ -263,13 +263,13 @@ impl FundManager {
 
     pub async fn hedge_position(
         &mut self,
-        current_price: Decimal,
         action: TradeAction,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         if self.config.strategy != TradingStrategy::PassiveTrade || !self.can_execute_new_trade() {
             return Ok(());
         }
 
+        let current_price = self.state.market_data.last_price();
         let target_price;
         let token_amount = match action {
             TradeAction::BuyHedge(detail) => {
