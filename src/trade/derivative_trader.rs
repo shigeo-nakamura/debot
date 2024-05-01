@@ -486,8 +486,8 @@ impl DerivativeTrader {
         let mut delta_map: HashMap<String, Decimal> = HashMap::new();
 
         for (_, fund_manager) in &self.state.fund_manager_map {
-            if let Some((delta_position, is_profitable)) = fund_manager.delta_position() {
-                if is_profitable {
+            if let Some((delta_position, should_hedge_position)) = fund_manager.delta_position() {
+                if !should_hedge_position {
                     continue;
                 }
                 let pair_token_name = fund_manager.pair_token_name().unwrap_or_default();

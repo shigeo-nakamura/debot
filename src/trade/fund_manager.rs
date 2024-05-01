@@ -1422,7 +1422,7 @@ impl FundManager {
                 if position.is_open_long_enough() {
                     return Some((
                         position.asset_in_usd(),
-                        self.is_profitable_position(position.id().unwrap_or_default()),
+                        self.should_hedge_position(position.id().unwrap_or_default()),
                     ));
                 }
             }
@@ -1432,9 +1432,9 @@ impl FundManager {
     }
 
     pub fn is_profitable_position(&self, position_id: u32) -> bool {
-        let min_profit_ratio = Decimal::new(1, 3);
         match self.state.trade_positions.get(&position_id) {
             Some(position) => {
+                let min_profit_ratio = Decimal::new(1, 3);
                 let current_price = self.state.market_data.last_price();
                 if position.position_type() == PositionType::Long {
                     current_price
@@ -1442,6 +1442,26 @@ impl FundManager {
                 } else {
                     current_price
                         < position.average_open_price() * (Decimal::ONE - min_profit_ratio)
+                }
+            }
+            None => {
+                log::warn!("Open position not found: id = {}", position_id);
+                false
+            }
+        }
+    }
+
+    pub fn should_hedge_position(&self, position_id: u32) -> bool {
+        match self.state.trade_positions.get(&position_id) {
+            Some(position) => {
+                let loss_margin_ratio = Decimal::new(5, 3);
+                let current_price = self.state.market_data.last_price();
+                if position.position_type() == PositionType::Long {
+                    current_price
+                        < position.average_open_price() * (Decimal::ONE - loss_margin_ratio)
+                } else {
+                    current_price
+                        > position.average_open_price() * (Decimal::ONE + loss_margin_ratio)
                 }
             }
             None => {
