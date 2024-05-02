@@ -129,33 +129,33 @@ pub fn get(
                 Decimal::new(3, 2),     // take profit ratio
                 Decimal::new(15, 3),    // loss cut ratio
             ),
-            (
-                HYPERLIQUID_TOKEN_LIST[3].to_owned(),       // BNB
-                Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
-                TradingStrategy::PassiveTrade(half_hedge),
-                Decimal::new(10000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),     // position size ratio
-                Decimal::new(3, 2),     // take profit ratio
-                Decimal::new(15, 3),    // loss cut ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[4].to_owned(),       // SUI
-                Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
-                TradingStrategy::PassiveTrade(half_hedge),
-                Decimal::new(10000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),     // position size ratio
-                Decimal::new(3, 2),     // take profit ratio
-                Decimal::new(15, 3),    // loss cut ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                None,                                 // pair token
-                TradingStrategy::PassiveTrade(full_hedge),
-                Decimal::new(10000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),     // position size ratio
-                Decimal::new(3, 2),     // take profit ratio
-                Decimal::new(15, 3),    // loss cut ratio
-            ),
+            // (
+            //     HYPERLIQUID_TOKEN_LIST[3].to_owned(),       // BNB
+            //     Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
+            //     TradingStrategy::PassiveTrade(half_hedge),
+            //     Decimal::new(10000, 0), // initial amount (in USD)
+            //     Decimal::new(4, 1),     // position size ratio
+            //     Decimal::new(3, 2),     // take profit ratio
+            //     Decimal::new(15, 3),    // loss cut ratio
+            // ),
+            // (
+            //     HYPERLIQUID_TOKEN_LIST[4].to_owned(),       // SUI
+            //     Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
+            //     TradingStrategy::PassiveTrade(half_hedge),
+            //     Decimal::new(10000, 0), // initial amount (in USD)
+            //     Decimal::new(4, 1),     // position size ratio
+            //     Decimal::new(3, 2),     // take profit ratio
+            //     Decimal::new(15, 3),    // loss cut ratio
+            // ),
+            // (
+            //     HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
+            //     None,                                 // pair token
+            //     TradingStrategy::PassiveTrade(full_hedge),
+            //     Decimal::new(10000, 0), // initial amount (in USD)
+            //     Decimal::new(4, 1),     // position size ratio
+            //     Decimal::new(3, 2),     // take profit ratio
+            //     Decimal::new(15, 3),    // loss cut ratio
+            // ),
         ],
         _ => panic!("Unsupported dex"),
     };
