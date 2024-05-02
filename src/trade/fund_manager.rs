@@ -578,7 +578,7 @@ impl FundManager {
         let (pnl, ratio) = self.unrealized_pnl_of_open_position(current_price);
 
         match self.config.strategy {
-            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => {
+            TradingStrategy::TrendFollow(_) => {
                 log::info!(
                     "{} pnl: {:.3}/{:.3}({:.3}%) order/fill/profit = {}/{}/{}, min position = {:.1}, trend = {:?}",
                     format!("{}-{}", self.config.token_name, self.config.index),
@@ -590,6 +590,16 @@ impl FundManager {
                     self.statistics.take_profit_count,
                     self.statistics.min_amount,
                     self.state.market_data.trend()
+                );
+            }
+            TradingStrategy::PassiveTrade(_) => {
+                log::info!(
+                    "{} pnl: {:.3}/{:.3}({:.3}%) min position = {:.1}",
+                    format!("{}-{}", self.config.token_name, self.config.index),
+                    self.statistics.pnl,
+                    pnl,
+                    ratio * Decimal::new(100, 0),
+                    self.statistics.min_amount,
                 );
             }
             TradingStrategy::MarketMake => {
