@@ -476,20 +476,18 @@ impl DerivativeTrader {
     }
 
     async fn do_delta_neutral(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let mut delta_map: HashMap<String, Decimal> = HashMap::new();
+        let mut delta_map: HashMap<String, (Decimal, bool)> = HashMap::new();
 
         for (_, fund_manager) in &self.state.fund_manager_map {
             if let Some((delta_position, should_hedge_position)) = fund_manager.delta_position() {
-                if !should_hedge_position {
-                    continue;
-                }
                 if let Some(pair_token_name) = fund_manager.pair_token_name() {
                     delta_map
                         .entry(pair_token_name.to_owned())
-                        .or_insert(Decimal::ZERO);
-                    delta_map
-                        .entry(pair_token_name.to_owned())
-                        .and_modify(|v| *v += delta_position);
+                        .or_insert((Decimal::ZERO, false));
+                    delta_map.entry(pair_token_name.to_owned()).and_modify(|v| {
+                        v.0 += delta_position;
+                        v.1 = should_hedge_position;
+                    });
                 }
             }
         }
@@ -497,7 +495,12 @@ impl DerivativeTrader {
         let mut hedge_futures = vec![];
         for fund_manager in self.state.fund_manager_map.values_mut() {
             if let TradingStrategy::PassiveTrade(hedge_ratio) = fund_manager.strategy() {
-                if let Some(delta_position_amount) = delta_map.get(fund_manager.token_name()) {
+                if let Some((delta_position_amount, should_hedge_position)) =
+                    delta_map.get(fund_manager.token_name())
+                {
+                    if !should_hedge_position {
+                        continue;
+                    }
                     let delta_position_amount = delta_position_amount * hedge_ratio;
                     let current_position_amount = match fund_manager.get_open_position() {
                         Some(v) => v.asset_in_usd(),
