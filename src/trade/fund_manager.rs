@@ -166,10 +166,6 @@ impl FundManager {
         self.config.strategy
     }
 
-    pub fn trading_amount(&self) -> Decimal {
-        self.config.trading_amount
-    }
-
     pub async fn get_token_price(
         &mut self,
     ) -> Result<(Decimal, Decimal), Box<dyn Error + Send + Sync>> {

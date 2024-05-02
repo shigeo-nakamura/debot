@@ -42,38 +42,8 @@ pub fn get(
     Decimal,
 )> {
     let full_hedge = Decimal::new(1, 0);
-    let half_hedge = Decimal::new(5, 1);
 
     let strategy_list = match dex_name {
-        "rabbitx" => vec![
-            (
-                RABBITX_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(RABBITX_TOKEN_LIST[1].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(1500, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(3, 2),    // loss cut ratio
-            ),
-            (
-                RABBITX_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(RABBITX_TOKEN_LIST[1].to_owned()), // pair token
-                TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(1500, 0), // initial amount (in USD)
-                Decimal::new(8, 1),    // position size ratio
-                Decimal::new(1, 3),    // take profit ratio
-                Decimal::new(3, 2),    // loss cut ratio
-            ),
-            (
-                RABBITX_TOKEN_LIST[0].to_owned(), // BTC
-                None,
-                TradingStrategy::MarketMake,
-                Decimal::new(2000, 0), // initial amount (in USD)
-                Decimal::new(25, 2),   // position size ratio
-                Decimal::new(1, 0),    // risk reward
-                Decimal::new(5, 4),    // loss cut ratio
-            ),
-        ],
         "hyperliquid" => vec![
             (
                 HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
@@ -117,8 +87,8 @@ pub fn get(
                 TradingStrategy::PassiveTrade(full_hedge),
                 Decimal::new(10000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),     // position size ratio
-                Decimal::new(3, 2),     // take profit ratio
-                Decimal::new(15, 3),    // loss cut ratio
+                Decimal::new(6, 2),     // take profit ratio
+                Decimal::new(3, 2),     // loss cut ratio
             ),
             (
                 HYPERLIQUID_TOKEN_LIST[2].to_owned(),       // SOL
@@ -126,36 +96,9 @@ pub fn get(
                 TradingStrategy::PassiveTrade(full_hedge),
                 Decimal::new(10000, 0), // initial amount (in USD)
                 Decimal::new(4, 1),     // position size ratio
-                Decimal::new(3, 2),     // take profit ratio
-                Decimal::new(15, 3),    // loss cut ratio
+                Decimal::new(6, 2),     // take profit ratio
+                Decimal::new(3, 2),     // loss cut ratio
             ),
-            // (
-            //     HYPERLIQUID_TOKEN_LIST[3].to_owned(),       // BNB
-            //     Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
-            //     TradingStrategy::PassiveTrade(half_hedge),
-            //     Decimal::new(10000, 0), // initial amount (in USD)
-            //     Decimal::new(4, 1),     // position size ratio
-            //     Decimal::new(3, 2),     // take profit ratio
-            //     Decimal::new(15, 3),    // loss cut ratio
-            // ),
-            // (
-            //     HYPERLIQUID_TOKEN_LIST[4].to_owned(),       // SUI
-            //     Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token
-            //     TradingStrategy::PassiveTrade(half_hedge),
-            //     Decimal::new(10000, 0), // initial amount (in USD)
-            //     Decimal::new(4, 1),     // position size ratio
-            //     Decimal::new(3, 2),     // take profit ratio
-            //     Decimal::new(15, 3),    // loss cut ratio
-            // ),
-            // (
-            //     HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-            //     None,                                 // pair token
-            //     TradingStrategy::PassiveTrade(full_hedge),
-            //     Decimal::new(10000, 0), // initial amount (in USD)
-            //     Decimal::new(4, 1),     // position size ratio
-            //     Decimal::new(3, 2),     // take profit ratio
-            //     Decimal::new(15, 3),    // loss cut ratio
-            // ),
         ],
         _ => panic!("Unsupported dex"),
     };
