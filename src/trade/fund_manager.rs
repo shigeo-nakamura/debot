@@ -809,9 +809,8 @@ impl FundManager {
                         chance.position_id,
                     )
                     .await?;
+                    self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
                 }
-
-                self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
             }
             Err(e) => {
                 log::info!(
