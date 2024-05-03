@@ -197,6 +197,7 @@ impl FundManager {
         &mut self,
         price: Decimal,
         hedge_requests: Arc<Mutex<HashMap<String, TradeAction>>>,
+        is_trend_changed: Arc<Mutex<HashMap<String, bool>>>,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         // Add price
         let rounded_price = Self::round_price(price, self.state.min_tick);
@@ -243,7 +244,7 @@ impl FundManager {
 
         self.find_expired_orders().await;
 
-        self.find_close_chances(price)
+        self.find_close_chances(price, is_trend_changed)
             .await
             .map_err(|_| "Failed to find close chances".to_owned())?;
 
@@ -614,7 +615,11 @@ impl FundManager {
         Ok(())
     }
 
-    async fn find_close_chances(&mut self, current_price: Decimal) -> Result<(), ()> {
+    async fn find_close_chances(
+        &mut self,
+        current_price: Decimal,
+        is_trend_changed: Arc<Mutex<HashMap<String, bool>>>,
+    ) -> Result<(), ()> {
         let cloned_open_positions = self.state.trade_positions.clone();
 
         for (position_id, position) in cloned_open_positions.iter() {
@@ -633,8 +638,14 @@ impl FundManager {
                 self.is_profitable_position(*position_id),
             );
 
-            self.handle_close_chances(current_price, *position_id, position, &action)
-                .await?;
+            self.handle_close_chances(
+                current_price,
+                is_trend_changed.clone(),
+                *position_id,
+                position,
+                &action,
+            )
+            .await?;
         }
 
         Ok(())
@@ -643,14 +654,17 @@ impl FundManager {
     async fn handle_close_chances(
         &mut self,
         current_price: Decimal,
+        is_trend_changed: Arc<Mutex<HashMap<String, bool>>>,
         position_id: u32,
         position: &TradePosition,
         action: &TradeAction,
     ) -> Result<(), ()> {
         let mut confidence = Decimal::ONE;
+        let mut trend_changed = false;
         let mut reason_for_close = match action {
             TradeAction::BuyClose(_) => {
                 if position.position_type() == PositionType::Short {
+                    trend_changed = true;
                     confidence = action.confidence().unwrap_or_default();
                     self.cancel_all_orders().await;
                     Some(ReasonForClose::Other("TredeChanged".to_owned()))
@@ -660,6 +674,7 @@ impl FundManager {
             }
             TradeAction::SellClose(_) => {
                 if position.position_type() == PositionType::Long {
+                    trend_changed = true;
                     confidence = action.confidence().unwrap_or_default();
                     self.cancel_all_orders().await;
                     Some(ReasonForClose::Other("TrendChanged".to_owned()))
@@ -669,6 +684,7 @@ impl FundManager {
             }
             TradeAction::BuyTrim(_) => {
                 if position.position_type() == PositionType::Short {
+                    trend_changed = true;
                     confidence = action.confidence().unwrap_or_default();
                     self.cancel_all_orders().await;
                     Some(ReasonForClose::Other("TrimPosition".to_owned()))
@@ -678,6 +694,7 @@ impl FundManager {
             }
             TradeAction::SellTrim(_) => {
                 if position.position_type() == PositionType::Long {
+                    trend_changed = true;
                     confidence = action.confidence().unwrap_or_default();
                     self.cancel_all_orders().await;
                     Some(ReasonForClose::Other("TrimPosition".to_owned()))
@@ -687,6 +704,15 @@ impl FundManager {
             }
             _ => None,
         };
+
+        if trend_changed {
+            if let Some(pair_token) = &self.config.pair_token_name {
+                is_trend_changed
+                    .lock()
+                    .await
+                    .insert(pair_token.to_string(), true);
+            }
+        }
 
         if reason_for_close.is_none() {
             reason_for_close = position.should_close(current_price);
@@ -1418,7 +1444,7 @@ impl FundManager {
             _ => return None,
         }
 
-        if self.state.trade_positions.len() == 1 {
+        if self.state.trade_positions.len() >= 1 {
             if let Some(position) = self.get_open_position() {
                 if position.is_open_long_enough() {
                     return Some((

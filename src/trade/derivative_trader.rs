@@ -64,6 +64,7 @@ struct DerivativeTraderState {
     dex_connector: Arc<DexConnectorBox>,
     fund_manager_map: HashMap<String, FundManager>,
     hedge_requests: Arc<Mutex<HashMap<String, TradeAction>>>,
+    is_trend_changed: Arc<Mutex<HashMap<String, bool>>>,
 }
 
 pub struct DerivativeTrader {
@@ -173,6 +174,7 @@ impl DerivativeTrader {
             dex_connector,
             fund_manager_map: HashMap::new(),
             hedge_requests: Arc::new(Mutex::new(HashMap::new())),
+            is_trend_changed: Arc::new(Mutex::new(HashMap::new())),
         };
 
         for fund_manager in fund_managers {
@@ -420,7 +422,11 @@ impl DerivativeTrader {
                 let token_name = fund_manager.token_name();
                 if let Some((price, min_tick)) = prices.get(token_name).and_then(|p| *p) {
                     fund_manager.set_min_tick(min_tick);
-                    Some(fund_manager.find_chances(price, self.state.hedge_requests.clone()))
+                    Some(fund_manager.find_chances(
+                        price,
+                        self.state.hedge_requests.clone(),
+                        self.state.is_trend_changed.clone(),
+                    ))
                 } else {
                     None
                 }
@@ -494,9 +500,10 @@ impl DerivativeTrader {
 
         let mut hedge_futures = vec![];
         for fund_manager in self.state.fund_manager_map.values_mut() {
+            let token_name = fund_manager.token_name();
             if let TradingStrategy::PassiveTrade(hedge_ratio) = fund_manager.strategy() {
                 if let Some((delta_position_amount, should_hedge_position)) =
-                    delta_map.get(fund_manager.token_name())
+                    delta_map.get(token_name)
                 {
                     if !should_hedge_position {
                         continue;
@@ -515,6 +522,13 @@ impl DerivativeTrader {
                     let hedge_action = Self::create_hedge_action(position_diff);
                     hedge_futures.push(fund_manager.hedge_position(hedge_action));
                 } else {
+                    if let Some(is_trend_changed) =
+                        self.state.is_trend_changed.lock().await.get(token_name)
+                    {
+                        if *is_trend_changed {
+                            continue;
+                        }
+                    }
                     if let Some(hedge_position) = fund_manager.get_open_position() {
                         if matches!(hedge_position.state(), State::Open) {
                             fund_manager.cancel_all_orders().await;
@@ -525,6 +539,7 @@ impl DerivativeTrader {
                 }
             }
         }
+        self.state.is_trend_changed.lock().await.clear();
 
         let hedge_results = join_all(hedge_futures).await;
 
