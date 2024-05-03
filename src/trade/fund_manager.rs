@@ -787,7 +787,7 @@ impl FundManager {
         let res: Result<CreateOrderResponse, DexError> = self
             .state
             .dex_connector
-            .create_order(symbol, size, side.clone(), order_price, Some(1))
+            .create_order(symbol, size, side.clone(), order_price, None)
             .await;
         match res {
             Ok(res) => {
