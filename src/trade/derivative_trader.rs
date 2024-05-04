@@ -92,7 +92,7 @@ impl DerivativeTrader {
         web_socket_endpoint: &str,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
-        take_profit_by_atr: Option<Decimal>,
+        atr_ratio: Decimal,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let interval_secs = interval_msecs as i64 / 1000;
@@ -126,7 +126,7 @@ impl DerivativeTrader {
             use_market_order,
             leverage,
             strategy,
-            take_profit_by_atr,
+            atr_ratio,
         )
         .await;
 
@@ -149,7 +149,7 @@ impl DerivativeTrader {
         use_market_order: bool,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
-        take_profit_by_atr: Option<Decimal>,
+        atr_ratio: Decimal,
     ) -> DerivativeTraderState {
         let dex_connector = Self::create_dex_connector(config)
             .await
@@ -166,7 +166,7 @@ impl DerivativeTrader {
             order_effective_duration_secs,
             use_market_order,
             strategy,
-            take_profit_by_atr,
+            atr_ratio,
         );
 
         let mut state = DerivativeTraderState {
@@ -198,13 +198,14 @@ impl DerivativeTrader {
         order_effective_duration_secs: i64,
         use_market_order: bool,
         strategy: Option<&TradingStrategy>,
-        take_profit_by_atr: Option<Decimal>,
+        atr_ratio: Decimal,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
 
         fund_manager_configurations
             .into_iter()
+            .filter(|(_, _, _, _, _, _, _, ratio)| ratio.is_none() || *ratio == Some(atr_ratio))
             .map(
                 |(
                     token_name,
@@ -214,6 +215,7 @@ impl DerivativeTrader {
                     position_size_ratio,
                     take_profit_ratio,
                     loss_cut_ratio,
+                    atr_ratio,
                 )| {
                     let trade_interval_secs = config.trade_period as i64 * config.interval_secs;
                     let order_effective_duration_secs = if trade_interval_secs > 0 {
@@ -267,7 +269,7 @@ impl DerivativeTrader {
                         use_market_order,
                         take_profit_ratio,
                         loss_cut_ratio,
-                        take_profit_by_atr,
+                        atr_ratio,
                     )
                 },
             )

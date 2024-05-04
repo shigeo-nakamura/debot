@@ -47,7 +47,7 @@ struct FundManagerConfig {
     use_market_order: bool,
     take_profit_ratio: Decimal,
     loss_cut_ratio: Decimal,
-    take_profit_by_atr: Option<Decimal>,
+    atr_ratio: Option<Decimal>,
 }
 
 #[derive(Default)]
@@ -85,7 +85,7 @@ impl FundManager {
         use_market_order: bool,
         take_profit_ratio: Decimal,
         loss_cut_ratio: Decimal,
-        take_profit_by_atr: Option<Decimal>,
+        atr_ratio: Option<Decimal>,
     ) -> Self {
         let config = FundManagerConfig {
             fund_name: fund_name.to_owned(),
@@ -101,7 +101,7 @@ impl FundManager {
             take_profit_ratio,
             loss_cut_ratio,
             execution_delay_secs: order_effective_duration_secs,
-            take_profit_by_atr,
+            atr_ratio,
         };
 
         let open_positions = match open_positions {
@@ -1236,7 +1236,7 @@ impl FundManager {
         let take_profit_distance = if is_hedge {
             current_price * self.config.take_profit_ratio
         } else {
-            if let Some(atr_ratio) = self.config.take_profit_by_atr {
+            if let Some(atr_ratio) = self.config.atr_ratio {
                 let atr = self.state.market_data.atr();
                 current_price * self.config.take_profit_ratio + atr * atr_ratio
             } else {
