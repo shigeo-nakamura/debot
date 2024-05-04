@@ -240,7 +240,13 @@ impl DerivativeTrader {
                     let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
                     *token_name_indices.get_mut(&token_name).unwrap() += 1;
 
-                    let fund_name = format!("{:?}-{}-{}", strategy, token_name, index);
+                    let fund_name = format!(
+                        "{}-{:?}-{}-{}",
+                        if config.dry_run { "test" } else { "prod" },
+                        strategy,
+                        token_name,
+                        index
+                    );
 
                     log::info!("create {}", fund_name);
 
