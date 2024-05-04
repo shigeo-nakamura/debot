@@ -56,6 +56,8 @@ struct FundManagerStatics {
     fill_count: u32,
     take_profit_count: u32,
     cut_loss_count: u32,
+    trim_count: u32,
+    trend_changed_count: u32,
     market_make_count: u32,
     market_make_fail_count: u32,
     pnl: Decimal,
@@ -577,14 +579,15 @@ impl FundManager {
         match self.config.strategy {
             TradingStrategy::TrendFollow(_) => {
                 log::info!(
-                    "{} pnl: {:.3}/{:.3}({:.3}%) order/fill/profit = {}/{}/{}, min position = {:.1}, trend = {:?}",
+                    "{} pnl: {:.3}/{:.3}({:.3}%) profit/trim/changed/loss = {}/{}/{}/{}, min position = {:.1}, trend = {:?}",
                     format!("{}-{}", self.config.token_name, self.config.index),
                     self.statistics.pnl,
                     pnl,
                     ratio * Decimal::new(100, 0),
-                    self.statistics.order_count,
-                    self.statistics.fill_count,
                     self.statistics.take_profit_count,
+                    self.statistics.trim_count,
+                    self.statistics.trend_changed_count,
+                    self.statistics.cut_loss_count,
                     self.statistics.min_amount,
                     self.state.market_data.trend()
                 );
@@ -664,6 +667,7 @@ impl FundManager {
         let mut reason_for_close = match action {
             TradeAction::BuyClose(_) => {
                 if position.position_type() == PositionType::Short {
+                    self.statistics.trend_changed_count += 1;
                     trend_changed = true;
                     confidence = action.confidence().unwrap_or_default();
                     self.cancel_all_orders().await;
@@ -674,6 +678,7 @@ impl FundManager {
             }
             TradeAction::SellClose(_) => {
                 if position.position_type() == PositionType::Long {
+                    self.statistics.trend_changed_count += 1;
                     trend_changed = true;
                     confidence = action.confidence().unwrap_or_default();
                     self.cancel_all_orders().await;
@@ -684,6 +689,7 @@ impl FundManager {
             }
             TradeAction::BuyTrim(_) => {
                 if position.position_type() == PositionType::Short {
+                    self.statistics.trim_count += 1;
                     trend_changed = true;
                     confidence = action.confidence().unwrap_or_default();
                     self.cancel_all_orders().await;
@@ -694,6 +700,7 @@ impl FundManager {
             }
             TradeAction::SellTrim(_) => {
                 if position.position_type() == PositionType::Long {
+                    self.statistics.trim_count += 1;
                     trend_changed = true;
                     confidence = action.confidence().unwrap_or_default();
                     self.cancel_all_orders().await;
@@ -716,6 +723,13 @@ impl FundManager {
 
         if reason_for_close.is_none() {
             reason_for_close = position.should_close(current_price);
+            if let Some(reason) = reason_for_close.clone() {
+                match reason {
+                    ReasonForClose::TakeProfit => self.statistics.take_profit_count += 1,
+                    ReasonForClose::CutLoss => self.statistics.cut_loss_count += 1,
+                    _ => {}
+                }
+            }
         }
 
         let mut chance: Option<TradeChance> = None;
@@ -914,14 +928,6 @@ impl FundManager {
             let position = position.unwrap();
             position.request_close(order_id, &reason_for_close.clone().unwrap().to_string())?;
             position_cloned = position.clone();
-
-            if let Some(reason) = reason_for_close {
-                match reason {
-                    ReasonForClose::TakeProfit => self.statistics.take_profit_count += 1,
-                    ReasonForClose::CutLoss => self.statistics.cut_loss_count += 1,
-                    _ => {}
-                }
-            }
         }
 
         self.statistics.order_count += 1;
