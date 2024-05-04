@@ -92,7 +92,7 @@ impl DerivativeTrader {
         web_socket_endpoint: &str,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
-        atr_ratio: Decimal,
+        atr_ratio: Option<Decimal>,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let interval_secs = interval_msecs as i64 / 1000;
@@ -149,7 +149,7 @@ impl DerivativeTrader {
         use_market_order: bool,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
-        atr_ratio: Decimal,
+        atr_ratio: Option<Decimal>,
     ) -> DerivativeTraderState {
         let dex_connector = Self::create_dex_connector(config)
             .await
@@ -198,14 +198,16 @@ impl DerivativeTrader {
         order_effective_duration_secs: i64,
         use_market_order: bool,
         strategy: Option<&TradingStrategy>,
-        atr_ratio: Decimal,
+        atr_ratio: Option<Decimal>,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
 
         fund_manager_configurations
             .into_iter()
-            .filter(|(_, _, _, _, _, _, _, ratio)| ratio.is_none() || *ratio == Some(atr_ratio))
+            .filter(|(_, _, _, _, _, _, _, ratio)| {
+                atr_ratio.is_none() || ratio.is_none() || atr_ratio.unwrap() == ratio.unwrap()
+            })
             .map(
                 |(
                     token_name,
@@ -242,13 +244,24 @@ impl DerivativeTrader {
                     let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
                     *token_name_indices.get_mut(&token_name).unwrap() += 1;
 
-                    let fund_name = format!(
-                        "{}-{:?}-{}-{}",
-                        if config.dry_run { "test" } else { "prod" },
-                        strategy,
-                        token_name,
-                        index
-                    );
+                    let fund_name = if let Some(ratio) = atr_ratio {
+                        format!(
+                            "{}-{:?}-{}-{}-atr({}))",
+                            if config.dry_run { "test" } else { "prod" },
+                            strategy,
+                            token_name,
+                            index,
+                            ratio
+                        )
+                    } else {
+                        format!(
+                            "{}-{:?}-{}-{})",
+                            if config.dry_run { "test" } else { "prod" },
+                            strategy,
+                            token_name,
+                            index
+                        )
+                    };
 
                     log::info!("create {}", fund_name);
 
