@@ -6,6 +6,7 @@ use rust_decimal::Error as DecimalParseError;
 use std::env;
 use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct RabbitxConfig {
@@ -43,7 +44,7 @@ pub struct EnvConfig {
     pub web_socket_endpoint: String,
     pub leverage: u32,
     pub strategy: Option<TradingStrategy>,
-    pub take_profit_by_atr: bool,
+    pub take_profit_by_atr: Option<Decimal>,
 }
 
 #[derive(Debug)]
@@ -128,7 +129,9 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         env::var("WEB_SOCKET_ENDPOINT").expect("WEB_SOCKET_ENDPOINT must be set");
 
     let leverage = get_env_var("LEVERAGE", "5")?;
-    let take_profit_by_atr = get_bool_env_var("TAKE_PROFIT_BY_ATR", true);
+
+    let take_profit_by_atr =
+        Decimal::from_str(env::var("TAKE_PROFIT_BY_ATR").unwrap_or_default().as_str()).ok();
 
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
         "trendfollow" => Some(TradingStrategy::TrendFollow(TrendType::Unknown)),
