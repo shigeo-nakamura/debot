@@ -155,6 +155,12 @@ impl DerivativeTrader {
             .await
             .expect("Failed to initialize DexConnector");
 
+        let score_map = if !config.dry_run {
+            Self::load_score(db_handler.clone()).await
+        } else {
+            HashMap::new()
+        };
+
         let fund_managers = Self::create_fund_managers(
             config,
             db_handler.clone(),
@@ -167,6 +173,7 @@ impl DerivativeTrader {
             use_market_order,
             strategy,
             atr_ratio,
+            score_map,
         );
 
         let mut state = DerivativeTraderState {
@@ -198,17 +205,15 @@ impl DerivativeTrader {
         order_effective_duration_secs: i64,
         use_market_order: bool,
         strategy: Option<&TradingStrategy>,
-        atr_ratio: Option<Decimal>,
+        atr_ratio_arg: Option<Decimal>,
+        score_map: HashMap<(String, Decimal), i32>,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
 
         fund_manager_configurations
             .into_iter()
-            .filter(|(_, _, _, _, _, _, _, ratio)| {
-                atr_ratio.is_none() || ratio.is_none() || atr_ratio.unwrap() == ratio.unwrap()
-            })
-            .map(
+            .filter_map(
                 |(
                     token_name,
                     pair_token_name,
@@ -219,6 +224,16 @@ impl DerivativeTrader {
                     loss_cut_ratio,
                     atr_ratio,
                 )| {
+                    let score = atr_ratio
+                        .and_then(|ratio| score_map.get(&(token_name.clone(), ratio)))
+                        .unwrap_or(&0);
+                    if atr_ratio_arg.is_some() && atr_ratio.is_some() {
+                        if atr_ratio_arg.unwrap() != atr_ratio.unwrap() {
+                            return None;
+                        } else if score < &0 {
+                            return None;
+                        }
+                    }
                     let trade_interval_secs = config.trade_period as i64 * config.interval_secs;
                     let order_effective_duration_secs = if trade_interval_secs > 0 {
                         if order_effective_duration_secs > trade_interval_secs {
@@ -265,7 +280,7 @@ impl DerivativeTrader {
 
                     log::info!("create {}", fund_name);
 
-                    FundManager::new(
+                    Some(FundManager::new(
                         &fund_name,
                         index,
                         &token_name,
@@ -283,7 +298,7 @@ impl DerivativeTrader {
                         take_profit_ratio,
                         loss_cut_ratio,
                         atr_ratio,
-                    )
+                    ))
                 },
             )
             .collect()
@@ -619,5 +634,35 @@ impl DerivativeTrader {
         }
         log::error!("failed to get the balance");
         return Err(());
+    }
+
+    pub async fn save_score(&self) {
+        let mut score_map: HashMap<(String, Decimal), i32> = HashMap::new();
+
+        for (_, fund_manager) in self.state.fund_manager_map.iter().filter(|&x| {
+            matches!(x.1.strategy(), TradingStrategy::TrendFollow(_)) && x.1.atr_ratio().is_some()
+        }) {
+            let score = fund_manager.score();
+            score_map.insert(
+                (
+                    fund_manager.token_name().to_owned(),
+                    fund_manager.atr_ratio().unwrap(),
+                ),
+                score,
+            );
+        }
+
+        self.state
+            .db_handler
+            .lock()
+            .await
+            .log_score(&score_map)
+            .await
+    }
+
+    async fn load_score(db_handler: Arc<Mutex<DBHandler>>) -> HashMap<(String, Decimal), i32> {
+        let score_map = db_handler.lock().await.get_score().await;
+        log::info!("score_map = {:?}", score_map);
+        score_map
     }
 }

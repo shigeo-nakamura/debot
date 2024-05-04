@@ -243,6 +243,9 @@ async fn main_loop(
         if exit {
             if config.liquidate_when_exit {
                 trader.liquidate("reboot").await;
+                if config.dry_run {
+                    trader.save_score().await;
+                }
             }
             std::process::exit(0);
         }

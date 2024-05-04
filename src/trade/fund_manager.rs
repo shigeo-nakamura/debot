@@ -52,14 +52,14 @@ struct FundManagerConfig {
 
 #[derive(Default)]
 struct FundManagerStatics {
-    order_count: u32,
-    fill_count: u32,
-    take_profit_count: u32,
-    cut_loss_count: u32,
-    trim_count: u32,
-    trend_changed_count: u32,
-    market_make_count: u32,
-    market_make_fail_count: u32,
+    order_count: i32,
+    fill_count: i32,
+    take_profit_count: i32,
+    cut_loss_count: i32,
+    trim_count: i32,
+    trend_changed_count: i32,
+    market_make_count: i32,
+    market_make_fail_count: i32,
     pnl: Decimal,
     min_amount: Decimal,
 }
@@ -166,6 +166,16 @@ impl FundManager {
 
     pub fn strategy(&self) -> TradingStrategy {
         self.config.strategy
+    }
+
+    pub fn score(&self) -> i32 {
+        let stat = &self.statistics;
+        (stat.take_profit_count - stat.cut_loss_count - stat.trend_changed_count) * 2
+            + stat.trim_count
+    }
+
+    pub fn atr_ratio(&self) -> Option<Decimal> {
+        self.config.atr_ratio
     }
 
     pub async fn get_token_price(

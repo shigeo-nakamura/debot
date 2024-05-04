@@ -1,6 +1,6 @@
 // db_operations.rs
 
-use debot_db::{CounterType, PnlLog, PriceLog, PricePoint, TransactionLog};
+use debot_db::{CounterType, PnlLog, PriceLog, PricePoint, Score, ScoreMap, TransactionLog};
 use debot_position_manager::{State, TradePosition};
 use debot_utils::DateTimeUtils;
 use lazy_static::lazy_static;
@@ -43,6 +43,26 @@ impl DBHandler {
 }
 
 impl DBHandler {
+    pub async fn log_score(&self, score_map: &HashMap<(String, Decimal), i32>) {
+        log::info!("log_score: {:?}", score_map);
+
+        if let Some(db) = self.transaction_log.get_db().await {
+            let mut item = ScoreMap::default();
+            item.scores = score_map
+                .iter()
+                .map(|((token_name, atr_ratio), score)| Score {
+                    token_name: token_name.to_string(),
+                    atr_ratio: *atr_ratio,
+                    score: *score,
+                })
+                .collect();
+
+            if let Err(e) = TransactionLog::update_score_map(&db, item).await {
+                log::error!("log_score: {:?}", e);
+            }
+        }
+    }
+
     pub async fn log_pnl(&self, pnl: Decimal) {
         log::info!("log_pnl: {:6.6}", pnl);
 
@@ -118,6 +138,19 @@ impl DBHandler {
             CounterType::Pnl => debot_db::CounterType::Pnl,
         };
         Some(self.transaction_log.increment_counter(counter_type))
+    }
+
+    pub async fn get_score(&self) -> HashMap<(String, Decimal), i32> {
+        if let Some(db) = self.transaction_log.get_db().await {
+            let score_map = TransactionLog::get_score_map(&db).await;
+            let mut dest_score_map: HashMap<(String, Decimal), i32> = HashMap::new();
+            for score in score_map.scores.iter() {
+                dest_score_map.insert((score.token_name.to_owned(), score.atr_ratio), score.score);
+            }
+            dest_score_map
+        } else {
+            HashMap::new()
+        }
     }
 
     pub async fn get_app_state(&self) -> (Option<SystemTime>, Option<Decimal>, bool) {
