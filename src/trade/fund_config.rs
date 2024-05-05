@@ -44,262 +44,121 @@ pub fn get(
 )> {
     let full_hedge = Decimal::new(1, 0);
 
-    let strategy_list = match dex_name {
-        "hyperliquid" => vec![
-            // ATR 0.5
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token ETH
-                TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(5, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[2].to_owned()), // pair token SOL
-                TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(5, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[3].to_owned()), // pair token BNB
-                TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(5, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[4].to_owned()), // pair token SUI
-                TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(5, 1)), // ATR ratio
-            ),
-            // ATR 0.4
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token ETH
-                TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(4, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[2].to_owned()), // pair token SOL
-                TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(4, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[3].to_owned()), // pair token BNB
-                TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(4, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[4].to_owned()), // pair token SUI
-                TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(4, 1)), // ATR ratio
-            ),
-            // ATR 0.3
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token ETH
-                TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(3, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[2].to_owned()), // pair token SOL
-                TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(3, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[3].to_owned()), // pair token BNB
-                TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(3, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[4].to_owned()), // pair token SUI
-                TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(3, 1)), // ATR ratio
-            ),
-            // ATR 0.2
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token ETH
-                TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(2, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[2].to_owned()), // pair token SOL
-                TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(2, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[3].to_owned()), // pair token BNB
-                TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(2, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[4].to_owned()), // pair token SUI
-                TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(2, 1)), // ATR ratio
-            ),
-            // ATR 0.1
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token ETH
-                TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(1, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[2].to_owned()), // pair token SOL
-                TradingStrategy::TrendFollow(TrendType::Up),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(1, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[3].to_owned()), // pair token BNB
-                TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(1, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
-                Some(HYPERLIQUID_TOKEN_LIST[4].to_owned()), // pair token SUI
-                TradingStrategy::TrendFollow(TrendType::Down),
-                Decimal::new(10000, 0),   // initial amount (in USD)
-                Decimal::new(4, 1),       // position size ratio
-                Decimal::new(1, 3),       // take profit ratio
-                Decimal::new(3, 2),       // loss cut ratio
-                Some(Decimal::new(1, 1)), // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[1].to_owned(),       // ETH
-                Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token BTC
-                TradingStrategy::PassiveTrade(full_hedge),
-                Decimal::new(10000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),     // position size ratio
-                Decimal::new(6, 2),     // take profit ratio
-                Decimal::new(3, 2),     // loss cut ratio
-                None,                   // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[2].to_owned(),       // SOL
-                Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token BTC
-                TradingStrategy::PassiveTrade(full_hedge),
-                Decimal::new(10000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),     // position size ratio
-                Decimal::new(6, 2),     // take profit ratio
-                Decimal::new(3, 2),     // loss cut ratio
-                None,                   // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[3].to_owned(),       // BNB
-                Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token BTC
-                TradingStrategy::PassiveTrade(full_hedge),
-                Decimal::new(10000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),     // position size ratio
-                Decimal::new(6, 2),     // take profit ratio
-                Decimal::new(3, 2),     // loss cut ratio
-                None,                   // ATR ratio
-            ),
-            (
-                HYPERLIQUID_TOKEN_LIST[4].to_owned(),       // SUI
-                Some(HYPERLIQUID_TOKEN_LIST[0].to_owned()), // pair token BTC
-                TradingStrategy::PassiveTrade(full_hedge),
-                Decimal::new(10000, 0), // initial amount (in USD)
-                Decimal::new(4, 1),     // position size ratio
-                Decimal::new(6, 2),     // take profit ratio
-                Decimal::new(3, 2),     // loss cut ratio
-                None,                   // ATR ratio
-            ),
-        ],
+    let atr_values = vec![
+        Decimal::new(5, 2),
+        Decimal::new(10, 2),
+        Decimal::new(15, 2),
+        Decimal::new(20, 2),
+        Decimal::new(25, 2),
+        Decimal::new(30, 2),
+        Decimal::new(35, 2),
+        Decimal::new(40, 2),
+        Decimal::new(45, 2),
+        Decimal::new(50, 2),
+    ];
+
+    let mut strategy_list = match dex_name {
+        "hyperliquid" => atr_values
+            .into_iter()
+            .flat_map(|atr_ratio| {
+                vec![
+                    (
+                        HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
+                        Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token ETH
+                        TradingStrategy::TrendFollow(TrendType::Up),
+                        Decimal::new(10000, 0), // initial amount (in USD)
+                        Decimal::new(4, 1),     // position size ratio
+                        Decimal::new(1, 3),     // least take profit ratio
+                        Decimal::new(3, 2),     // loss cut ratio
+                        Some(atr_ratio),        // ATR ratio
+                    ),
+                    (
+                        HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
+                        Some(HYPERLIQUID_TOKEN_LIST[2].to_owned()), // pair token SOL
+                        TradingStrategy::TrendFollow(TrendType::Up),
+                        Decimal::new(10000, 0), // initial amount (in USD)
+                        Decimal::new(4, 1),     // position size ratio
+                        Decimal::new(1, 3),     // least take profit ratio
+                        Decimal::new(3, 2),     // loss cut ratio
+                        Some(atr_ratio),        // ATR ratio
+                    ),
+                    (
+                        HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
+                        Some(HYPERLIQUID_TOKEN_LIST[3].to_owned()), // pair token BNB
+                        TradingStrategy::TrendFollow(TrendType::Down),
+                        Decimal::new(10000, 0), // initial amount (in USD)
+                        Decimal::new(4, 1),     // position size ratio
+                        Decimal::new(1, 3),     // least take profit ratio
+                        Decimal::new(3, 2),     // loss cut ratio
+                        Some(atr_ratio),        // ATR ratio
+                    ),
+                    (
+                        HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
+                        Some(HYPERLIQUID_TOKEN_LIST[4].to_owned()), // pair token SUI
+                        TradingStrategy::TrendFollow(TrendType::Down),
+                        Decimal::new(10000, 0), // initial amount (in USD)
+                        Decimal::new(4, 1),     // position size ratio
+                        Decimal::new(1, 3),     // least take profit ratio
+                        Decimal::new(3, 2),     // loss cut ratio
+                        Some(atr_ratio),        // ATR ratio
+                    ),
+                ]
+            })
+            .collect::<Vec<_>>(),
         _ => panic!("Unsupported dex"),
     };
 
+    // Add non-repeating items
+    let non_repeating_items = vec![
+        (
+            HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
+            None,                                 // pair token
+            TradingStrategy::PassiveTrade(full_hedge),
+            Decimal::new(10000, 0), // initial amount (in USD)
+            Decimal::new(4, 1),     // position size ratio
+            Decimal::new(6, 2),     // least take profit ratio
+            Decimal::new(3, 2),     // loss cut ratio
+            None,                   // ATR ratio
+        ),
+        (
+            HYPERLIQUID_TOKEN_LIST[2].to_owned(), // SOL
+            None,                                 // pair token
+            TradingStrategy::PassiveTrade(full_hedge),
+            Decimal::new(10000, 0), // initial amount (in USD)
+            Decimal::new(4, 1),     // position size ratio
+            Decimal::new(6, 2),     // least take profit ratio
+            Decimal::new(3, 2),     // loss cut ratio
+            None,                   // ATR ratio
+        ),
+        (
+            HYPERLIQUID_TOKEN_LIST[3].to_owned(), // BNB
+            None,                                 // pair token
+            TradingStrategy::PassiveTrade(full_hedge),
+            Decimal::new(10000, 0), // initial amount (in USD)
+            Decimal::new(4, 1),     // position size ratio
+            Decimal::new(6, 2),     // least take profit ratio
+            Decimal::new(3, 2),     // loss cut ratio
+            None,                   // ATR ratio
+        ),
+        (
+            HYPERLIQUID_TOKEN_LIST[4].to_owned(), // SUI
+            None,                                 // pair token
+            TradingStrategy::PassiveTrade(full_hedge),
+            Decimal::new(10000, 0), // initial amount (in USD)
+            Decimal::new(4, 1),     // position size ratio
+            Decimal::new(6, 2),     // least take profit ratio
+            Decimal::new(3, 2),     // loss cut ratio
+            None,                   // ATR ratio
+        ),
+    ];
+
+    strategy_list.extend(non_repeating_items);
+
     strategy_list
         .into_iter()
-        .filter(|(_, _, trading_strategy, _, _, _, _,_)|
-                // Check if strategy is None or if it matches the token's strategy
-                strategy.is_none() || strategy == Some(trading_strategy))
+        .filter(|(_, _, trading_strategy, _, _, _, _, _)| {
+            strategy.is_none() || strategy == Some(trading_strategy)
+        })
         .map(
             |(
                 token,
