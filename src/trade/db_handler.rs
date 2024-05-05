@@ -50,10 +50,10 @@ impl DBHandler {
             let mut item = ScoreMap::default();
             item.scores = score_map
                 .iter()
-                .map(|((token_name, atr_ratio), score)| Score {
+                .map(|((token_name, atr_ratio), val)| Score {
                     token_name: token_name.to_string(),
                     atr_ratio: *atr_ratio,
-                    score: *score,
+                    val: *val,
                 })
                 .collect();
 
@@ -147,7 +147,7 @@ impl DBHandler {
             let score_map = TransactionLog::get_score_map(&db).await;
             let mut dest_score_map: HashMap<(String, Decimal), i32> = HashMap::new();
             for score in score_map.scores.iter() {
-                dest_score_map.insert((score.token_name.to_owned(), score.atr_ratio), score.score);
+                dest_score_map.insert((score.token_name.to_owned(), score.atr_ratio), score.val);
             }
             dest_score_map
         } else {

@@ -219,9 +219,8 @@ impl DerivativeTrader {
                     loss_cut_ratio,
                     atr_ratio,
                 )| {
-                    let score = atr_ratio
-                        .and_then(|ratio| score_map.get(&(token_name.clone(), ratio)))
-                        .unwrap_or(&0);
+                    let score_key = Self::get_score_key(&token_name, &strategy, &atr_ratio);
+                    let score = score_map.get(&score_key).unwrap_or(&0);
                     if atr_ratio.is_some() {
                         if score < &0 {
                             return None;
@@ -645,9 +644,10 @@ impl DerivativeTrader {
                 TradingStrategy::TrendFollow(_) | TradingStrategy::MeanReversion(_)
             ) && x.1.atr_ratio().is_some()
         }) {
-            let key = (
-                fund_manager.token_name().to_owned(),
-                fund_manager.atr_ratio().unwrap(),
+            let key = Self::get_score_key(
+                fund_manager.token_name(),
+                &fund_manager.strategy(),
+                &fund_manager.atr_ratio(),
             );
             let score = fund_manager.score();
             let item = score_map.entry(key).or_insert(0);
@@ -660,6 +660,15 @@ impl DerivativeTrader {
             .await
             .log_score(&score_map)
             .await
+    }
+
+    fn get_score_key(
+        token_name: &str,
+        strategy: &TradingStrategy,
+        atr_ratio: &Option<Decimal>,
+    ) -> (String, Decimal) {
+        let name = format!("{}-{:?}", token_name, strategy.trend_type());
+        (name, atr_ratio.unwrap_or_default())
     }
 
     async fn load_score(db_handler: Arc<Mutex<DBHandler>>) -> HashMap<(String, Decimal), i32> {

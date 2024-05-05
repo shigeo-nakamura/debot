@@ -401,7 +401,6 @@ impl FundManager {
             self.config.strategy.clone(),
             rounded_price,
             self.config.trading_amount,
-            self.config.atr_ratio.unwrap_or_default(),
         );
 
         self.handle_open_chances(current_price, &actions, hedge_requests)
@@ -481,8 +480,15 @@ impl FundManager {
             };
             let order_price = match self.config.strategy {
                 TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => current_price,
-                TradingStrategy::MarketMake | TradingStrategy::MeanReversion(_) => {
-                    order_price.unwrap()
+                TradingStrategy::MarketMake => order_price.unwrap(),
+                TradingStrategy::MeanReversion(_) => {
+                    let distance =
+                        self.state.market_data.atr() * self.config.atr_ratio.unwrap_or_default();
+                    if is_buy {
+                        current_price - distance
+                    } else {
+                        current_price + distance
+                    }
                 }
             };
             let token_amount = match token_amount {
