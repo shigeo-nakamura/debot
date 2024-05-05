@@ -12,10 +12,10 @@ pub struct DBHandler {
 }
 
 lazy_static! {
-    static ref SAVE_ALL_POSITION_STATE: bool = {
-        match env::var("SAVE_ALL_POSITION_STATE") {
-            Ok(val) => val.parse::<bool>().unwrap_or(false),
-            Err(_) => false,
+    static ref SAVE_POSITION: bool = {
+        match env::var("SAVE_POSITION") {
+            Ok(val) => val.parse::<bool>().unwrap_or(true),
+            Err(_) => true,
         }
     };
 }
@@ -103,14 +103,16 @@ impl DBHandler {
     }
 
     pub async fn log_position(&self, position: &TradePosition) {
-        if *SAVE_ALL_POSITION_STATE == false {
-            if matches!(
-                position.state(),
-                State::Opening | State::Closing(_) | State::Canceled(_)
-            ) {
-                return;
-            }
+        if *SAVE_POSITION == false {
+            return;
         }
+        if matches!(
+            position.state(),
+            State::Opening | State::Closing(_) | State::Canceled(_)
+        ) {
+            return;
+        }
+
         if let Some(db) = self.transaction_log.get_db().await {
             if let Err(e) = TransactionLog::update_transaction(&db, position).await {
                 log::error!("log_position: {:?}", e);
