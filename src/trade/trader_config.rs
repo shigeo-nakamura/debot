@@ -17,7 +17,7 @@ pub fn get(strategy: Option<&TradingStrategy>) -> Vec<(usize, SampleInterval, St
         (
             TradingStrategy::MeanReversion(TrendType::Unknown),
             15,
-            SampleInterval::new(30, 240),
+            SampleInterval::new(12 * 5, 26 * 5),
             dex_name.to_owned(),
         ),
     ]
