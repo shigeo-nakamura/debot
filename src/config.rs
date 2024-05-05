@@ -44,7 +44,6 @@ pub struct EnvConfig {
     pub web_socket_endpoint: String,
     pub leverage: u32,
     pub strategy: Option<TradingStrategy>,
-    pub atr_ratio: Option<Decimal>,
 }
 
 #[derive(Debug)]
@@ -130,11 +129,6 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let leverage = get_env_var("LEVERAGE", "5")?;
 
-    let atr_ratio = match env::var("ATR_RATIO") {
-        Ok(v) => Decimal::from_str(&v).ok(),
-        Err(_) => None,
-    };
-
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
         "trendfollow" => Some(TradingStrategy::TrendFollow(TrendType::Unknown)),
         "marketmake" => Some(TradingStrategy::MarketMake),
@@ -159,7 +153,6 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         web_socket_endpoint,
         leverage,
         strategy,
-        atr_ratio,
     };
 
     Ok(env_config)

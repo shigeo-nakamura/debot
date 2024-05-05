@@ -92,7 +92,6 @@ impl DerivativeTrader {
         web_socket_endpoint: &str,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
-        atr_ratio: Option<Decimal>,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let interval_secs = interval_msecs as i64 / 1000;
@@ -126,7 +125,6 @@ impl DerivativeTrader {
             use_market_order,
             leverage,
             strategy,
-            atr_ratio,
         )
         .await;
 
@@ -149,7 +147,6 @@ impl DerivativeTrader {
         use_market_order: bool,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
-        atr_ratio: Option<Decimal>,
     ) -> DerivativeTraderState {
         let dex_connector = Self::create_dex_connector(config)
             .await
@@ -172,7 +169,6 @@ impl DerivativeTrader {
             order_effective_duration_secs,
             use_market_order,
             strategy,
-            atr_ratio,
             score_map,
         );
 
@@ -205,7 +201,6 @@ impl DerivativeTrader {
         order_effective_duration_secs: i64,
         use_market_order: bool,
         strategy: Option<&TradingStrategy>,
-        atr_ratio_arg: Option<Decimal>,
         score_map: HashMap<(String, Decimal), i32>,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
@@ -227,13 +222,12 @@ impl DerivativeTrader {
                     let score = atr_ratio
                         .and_then(|ratio| score_map.get(&(token_name.clone(), ratio)))
                         .unwrap_or(&0);
-                    if atr_ratio_arg.is_some() && atr_ratio.is_some() {
-                        if atr_ratio_arg.unwrap() != atr_ratio.unwrap() {
-                            return None;
-                        } else if score < &0 {
+                    if atr_ratio.is_some() {
+                        if score < &0 {
                             return None;
                         }
                     }
+
                     let trade_interval_secs = config.trade_period as i64 * config.interval_secs;
                     let order_effective_duration_secs = if trade_interval_secs > 0 {
                         if order_effective_duration_secs > trade_interval_secs {

@@ -100,7 +100,6 @@ async fn prepare_trader_instance(
         &config.web_socket_endpoint,
         config.leverage,
         config.strategy.as_ref(),
-        config.atr_ratio,
     )
     .await;
 
