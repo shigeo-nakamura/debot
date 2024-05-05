@@ -297,6 +297,15 @@ impl FundManager {
             }
         };
 
+        if self.state.amount <= token_amount * current_price {
+            log::warn!(
+                "{} does not have enough fund: {:.6}",
+                self.config.fund_name,
+                self.state.amount
+            );
+            return Ok(());
+        }
+
         let chance = TradeChance {
             token_name: self.config.token_name.clone(),
             target_price,
