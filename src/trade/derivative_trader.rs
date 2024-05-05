@@ -645,14 +645,13 @@ impl DerivativeTrader {
         for (_, fund_manager) in self.state.fund_manager_map.iter().filter(|&x| {
             matches!(x.1.strategy(), TradingStrategy::TrendFollow(_)) && x.1.atr_ratio().is_some()
         }) {
-            let score = fund_manager.score();
-            score_map.insert(
-                (
-                    fund_manager.token_name().to_owned(),
-                    fund_manager.atr_ratio().unwrap(),
-                ),
-                score,
+            let key = (
+                fund_manager.token_name().to_owned(),
+                fund_manager.atr_ratio().unwrap(),
             );
+            let score = fund_manager.score();
+            let item = score_map.entry(key).or_insert(0);
+            *item += score;
         }
 
         self.state
