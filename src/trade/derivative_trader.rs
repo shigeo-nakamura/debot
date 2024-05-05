@@ -555,6 +555,11 @@ impl DerivativeTrader {
                     {
                         continue;
                     }
+                    self.state
+                        .is_trend_changed
+                        .lock()
+                        .await
+                        .insert(token_name.to_owned(), false);
                     let hedge_action = Self::create_hedge_action(position_diff);
                     hedge_futures.push(fund_manager.hedge_position(hedge_action));
                 } else {
@@ -562,6 +567,11 @@ impl DerivativeTrader {
                         self.state.is_trend_changed.lock().await.get(token_name)
                     {
                         if *is_trend_changed {
+                            self.state
+                                .is_trend_changed
+                                .lock()
+                                .await
+                                .insert(token_name.to_owned(), false);
                             continue;
                         }
                     }
@@ -575,7 +585,6 @@ impl DerivativeTrader {
                 }
             }
         }
-        self.state.is_trend_changed.lock().await.clear();
 
         let hedge_results = join_all(hedge_futures).await;
 
