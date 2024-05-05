@@ -58,6 +58,7 @@ struct FundManagerStatics {
     cut_loss_count: i32,
     trim_count: i32,
     trend_changed_count: i32,
+    expired_count: i32,
     market_make_count: i32,
     market_make_fail_count: i32,
     pnl: Decimal,
@@ -172,6 +173,7 @@ impl FundManager {
         let stat = &self.statistics;
         (stat.take_profit_count - stat.cut_loss_count - stat.trend_changed_count) * 2
             + stat.trim_count
+            - stat.expired_count
     }
 
     pub fn atr_ratio(&self) -> Option<Decimal> {
@@ -254,7 +256,9 @@ impl FundManager {
                 .await?;
         }
 
-        self.find_expired_orders().await;
+        if !matches!(self.config.strategy, TradingStrategy::MeanReversion(_)) {
+            self.find_expired_orders().await;
+        }
 
         self.find_close_chances(price, is_trend_changed)
             .await
@@ -336,10 +340,10 @@ impl FundManager {
         // Cancel the exipired orders
         for position in &positions_to_cancel {
             match self.config.strategy {
-                TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => {}
                 TradingStrategy::MarketMake => {
                     self.statistics.market_make_fail_count += 1;
                 }
+                _ => {}
             }
             log::debug!("Canceling expired order: order_id:{}", position.order_id());
             self.cancel_order(position.order_id(), false).await;
@@ -366,6 +370,14 @@ impl FundManager {
                         .await;
                 }
             }
+            TradingStrategy::MeanReversion(_) => match self.state.trade_positions.len() {
+                0 => {}
+                _ => {
+                    return self
+                        .handle_open_chances(current_price, &actions, hedge_requests)
+                        .await;
+                }
+            },
             TradingStrategy::MarketMake => match self.state.trade_positions.len() {
                 0 => {}
                 1 => {
@@ -389,6 +401,7 @@ impl FundManager {
             self.config.strategy.clone(),
             rounded_price,
             self.config.trading_amount,
+            self.config.atr_ratio.unwrap_or_default(),
         );
 
         self.handle_open_chances(current_price, &actions, hedge_requests)
@@ -413,11 +426,11 @@ impl FundManager {
 
         for action in actions.clone() {
             let is_buy;
-            let (target_price, token_amount, confidence) = match action.clone() {
+            let (order_price, token_amount, confidence) = match action.clone() {
                 TradeAction::BuyOpen(detail) => {
                     is_buy = true;
                     (
-                        detail.target_price(),
+                        detail.order_price(),
                         detail.amount_in_usd(),
                         detail.confidence(),
                     )
@@ -425,7 +438,7 @@ impl FundManager {
                 TradeAction::SellOpen(detail) => {
                     is_buy = false;
                     (
-                        detail.target_price(),
+                        detail.order_price(),
                         detail.amount_in_usd(),
                         detail.confidence(),
                     )
@@ -468,16 +481,15 @@ impl FundManager {
             };
             let order_price = match self.config.strategy {
                 TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => current_price,
-                TradingStrategy::MarketMake => target_price.unwrap(),
+                TradingStrategy::MarketMake | TradingStrategy::MeanReversion(_) => {
+                    order_price.unwrap()
+                }
             };
             let token_amount = match token_amount {
                 Some(token_amount) => token_amount * confidence,
                 None => self.config.trading_amount / order_price * confidence,
             };
-            let target_price = match target_price {
-                Some(v) => Some(v),
-                None => self.target_price(current_price, side, false),
-            };
+            let target_price = self.target_price(current_price, side, false);
 
             if self.state.amount <= token_amount * order_price {
                 log::warn!(
@@ -551,7 +563,7 @@ impl FundManager {
 
                     let is_updated = actions
                         .iter()
-                        .any(|a| a.target_price().unwrap_or_default() == position.ordered_price());
+                        .any(|a| a.order_price().unwrap_or_default() == position.ordered_price());
 
                     let amount_value = if position.state() == State::Opening {
                         position.unfilled_amount()
@@ -607,6 +619,20 @@ impl FundManager {
                     self.statistics.trim_count,
                     self.statistics.trend_changed_count,
                     self.statistics.cut_loss_count,
+                    self.statistics.min_amount,
+                    self.state.market_data.trend()
+                );
+            }
+            TradingStrategy::MeanReversion(_) => {
+                log::info!(
+                    "{} pnl: {:.3}/{:.3}({:.3}%) profit/loss/expired = {}/{}/{}, min position = {:.1}, trend = {:?}",
+                    format!("{}-{}", self.config.token_name, self.config.index),
+                    self.statistics.pnl,
+                    pnl,
+                    ratio * Decimal::new(100, 0),
+                    self.statistics.take_profit_count,
+                    self.statistics.cut_loss_count,
+                    self.statistics.expired_count,
                     self.statistics.min_amount,
                     self.state.market_data.trend()
                 );
@@ -747,6 +773,11 @@ impl FundManager {
                     ReasonForClose::TakeProfit => self.statistics.take_profit_count += 1,
                     ReasonForClose::CutLoss => self.statistics.cut_loss_count += 1,
                     _ => {}
+                }
+            } else if matches!(self.config.strategy, TradingStrategy::MeanReversion(_)) {
+                if position.is_open_long_enough() {
+                    reason_for_close = Some(ReasonForClose::Expired);
+                    self.statistics.expired_count += 1;
                 }
             }
         }
@@ -1271,7 +1302,9 @@ impl FundManager {
 
         match self.config.strategy {
             TradingStrategy::MarketMake => None,
-            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => match side {
+            TradingStrategy::TrendFollow(_)
+            | TradingStrategy::PassiveTrade(_)
+            | TradingStrategy::MeanReversion(_) => match side {
                 OrderSide::Long => Some(current_price + take_profit_distance),
                 _ => Some(current_price - take_profit_distance),
             },
@@ -1281,9 +1314,7 @@ impl FundManager {
     fn take_profit_price(&self, target_price: Decimal) -> Option<Decimal> {
         match self.config.strategy {
             TradingStrategy::MarketMake => None,
-            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => {
-                Some(target_price)
-            }
+            _ => Some(target_price),
         }
     }
 
@@ -1291,7 +1322,7 @@ impl FundManager {
         let cut_loss_distance = filled_price * self.config.loss_cut_ratio;
         match self.config.strategy {
             TradingStrategy::MarketMake => None,
-            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => match side {
+            _ => match side {
                 OrderSide::Long => Some(filled_price - cut_loss_distance),
                 _ => Some(filled_price + cut_loss_distance),
             },

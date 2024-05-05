@@ -102,6 +102,26 @@ pub fn get(
                         Decimal::new(3, 2),     // loss cut ratio
                         Some(atr_ratio),        // ATR ratio
                     ),
+                    (
+                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
+                        None,                                 // pair token
+                        TradingStrategy::MeanReversion(TrendType::Up),
+                        Decimal::new(10000, 0), // initial amount (in USD)
+                        Decimal::new(4, 1),     // position size ratio
+                        Decimal::new(1, 3),     // least take profit ratio
+                        Decimal::new(3, 2),     // loss cut ratio
+                        Some(atr_ratio),        // ATR ratio
+                    ),
+                    (
+                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
+                        None,                                 // pair token
+                        TradingStrategy::MeanReversion(TrendType::Down),
+                        Decimal::new(10000, 0), // initial amount (in USD)
+                        Decimal::new(4, 1),     // position size ratio
+                        Decimal::new(1, 3),     // least take profit ratio
+                        Decimal::new(3, 2),     // loss cut ratio
+                        Some(atr_ratio),        // ATR ratio
+                    ),
                 ]
             })
             .collect::<Vec<_>>(),

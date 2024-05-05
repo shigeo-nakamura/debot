@@ -229,15 +229,12 @@ impl DerivativeTrader {
                     }
 
                     let trade_interval_secs = config.trade_period as i64 * config.interval_secs;
-                    let order_effective_duration_secs = if trade_interval_secs > 0 {
-                        if order_effective_duration_secs > trade_interval_secs {
-                            trade_interval_secs - 5
+                    let order_effective_duration_secs =
+                        if matches!(strategy, TradingStrategy::MeanReversion(_)) {
+                            trade_interval_secs
                         } else {
                             order_effective_duration_secs
-                        }
-                    } else {
-                        order_effective_duration_secs
-                    };
+                        };
 
                     let mut market_data = Self::create_market_data(config.clone());
 
@@ -643,7 +640,10 @@ impl DerivativeTrader {
         let mut score_map: HashMap<(String, Decimal), i32> = HashMap::new();
 
         for (_, fund_manager) in self.state.fund_manager_map.iter().filter(|&x| {
-            matches!(x.1.strategy(), TradingStrategy::TrendFollow(_)) && x.1.atr_ratio().is_some()
+            matches!(
+                x.1.strategy(),
+                TradingStrategy::TrendFollow(_) | TradingStrategy::MeanReversion(_)
+            ) && x.1.atr_ratio().is_some()
         }) {
             let key = (
                 fund_manager.token_name().to_owned(),

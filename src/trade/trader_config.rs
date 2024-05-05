@@ -15,15 +15,18 @@ pub fn get(strategy: Option<&TradingStrategy>) -> Vec<(usize, SampleInterval, St
             dex_name.to_owned(),
         ),
         (
-            TradingStrategy::MarketMake,
-            3,
+            TradingStrategy::MeanReversion(TrendType::Unknown),
+            15,
             SampleInterval::new(30, 240),
             dex_name.to_owned(),
         ),
     ]
     .into_iter()
     .filter(|(trading_strategy, _, _, _)| match strategy {
-        Some(strategy) => strategy == trading_strategy,
+        Some(strategy) => {
+            strategy == trading_strategy
+                || matches!(trading_strategy, TradingStrategy::PassiveTrade(_))
+        }
         None => true,
     })
     .map(

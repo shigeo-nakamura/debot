@@ -131,6 +131,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
         "trendfollow" => Some(TradingStrategy::TrendFollow(TrendType::Unknown)),
+        "meanreversion" => Some(TradingStrategy::MeanReversion(TrendType::Unknown)),
         "marketmake" => Some(TradingStrategy::MarketMake),
         &_ => None,
     };
