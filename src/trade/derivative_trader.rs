@@ -50,7 +50,6 @@ struct DerivativeTraderConfig {
     short_trade_period: usize,
     long_trade_period: usize,
     trade_period: usize,
-    interval_secs: i64,
     order_effective_duration_secs: i64,
     max_price_size: u32,
     initial_balance: Decimal,
@@ -87,6 +86,7 @@ impl DerivativeTrader {
         save_prices: bool,
         max_dd_ratio: Decimal,
         order_effective_duration_secs: i64,
+        max_open_duration_secs: i64,
         use_market_order: bool,
         rest_endpoint: &str,
         web_socket_endpoint: &str,
@@ -106,7 +106,6 @@ impl DerivativeTrader {
             long_trade_period: sample_interval.long_term * SECONDS_IN_MINUTE
                 / interval_secs as usize,
             trade_period: trade_interval * SECONDS_IN_MINUTE / interval_secs as usize,
-            interval_secs,
             order_effective_duration_secs,
             max_price_size: max_price_size,
             initial_balance: Decimal::new(0, 0),
@@ -123,6 +122,7 @@ impl DerivativeTrader {
             load_prices,
             save_prices,
             order_effective_duration_secs,
+            max_open_duration_secs,
             use_market_order,
             leverage,
             strategy,
@@ -146,6 +146,7 @@ impl DerivativeTrader {
         load_prices: bool,
         save_prices: bool,
         order_effective_duration_secs: i64,
+        max_open_duration_secs: i64,
         use_market_order: bool,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
@@ -170,6 +171,7 @@ impl DerivativeTrader {
             load_prices,
             save_prices,
             order_effective_duration_secs,
+            max_open_duration_secs,
             use_market_order,
             strategy,
             score_map,
@@ -202,6 +204,7 @@ impl DerivativeTrader {
         load_prices: bool,
         save_prices: bool,
         order_effective_duration_secs: i64,
+        max_open_duration_secs: i64,
         use_market_order: bool,
         strategy: Option<&TradingStrategy>,
         score_map: HashMap<(String, Decimal), i32>,
@@ -253,14 +256,6 @@ impl DerivativeTrader {
                         }
                     }
 
-                    let trade_interval_secs = config.trade_period as i64 * config.interval_secs;
-                    let order_effective_duration_secs =
-                        if matches!(strategy, TradingStrategy::MeanReversion(_)) {
-                            trade_interval_secs
-                        } else {
-                            order_effective_duration_secs
-                        };
-
                     let mut market_data = Self::create_market_data(config.clone());
 
                     if load_prices {
@@ -288,6 +283,7 @@ impl DerivativeTrader {
                         dex_connector.clone(),
                         save_prices,
                         order_effective_duration_secs,
+                        max_open_duration_secs,
                         use_market_order,
                         take_profit_ratio,
                         loss_cut_ratio,

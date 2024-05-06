@@ -38,6 +38,7 @@ pub struct EnvConfig {
     pub liquidate_when_exit: bool,
     pub max_dd_ratio: Decimal,
     pub order_effective_duration_secs: i64,
+    pub max_open_duration_secs: i64,
     pub use_market_order: bool,
     pub rest_endpoint: String,
     pub web_socket_endpoint: String,
@@ -120,7 +121,8 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
     let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1").map_err(ConfigError::from)?;
-    let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_PERIOD_SECS", "300")?;
+    let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_DURATION_SECS", "300")?;
+    let max_open_duration_secs = get_env_var("MAX_OPEN_DURATION_SECS", "3600")?;
     let use_market_order = get_bool_env_var("USE_MARKET_ORDER", false);
 
     let rest_endpoint = env::var("REST_ENDPOINT").expect("REST_ENDPOINT must be set");
@@ -151,6 +153,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         liquidate_when_exit,
         max_dd_ratio,
         order_effective_duration_secs,
+        max_open_duration_secs,
         use_market_order,
         rest_endpoint,
         web_socket_endpoint,

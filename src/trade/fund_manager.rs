@@ -43,6 +43,7 @@ struct FundManagerConfig {
     initial_amount: Decimal,
     save_prices: bool,
     order_effective_duration_secs: i64,
+    max_open_duration_secs: i64,
     execution_delay_secs: i64,
     use_market_order: bool,
     take_profit_ratio: Decimal,
@@ -85,6 +86,7 @@ impl FundManager {
         dex_connector: Arc<DexConnectorBox>,
         save_prices: bool,
         order_effective_duration_secs: i64,
+        max_open_duration_secs: i64,
         use_market_order: bool,
         take_profit_ratio: Decimal,
         loss_cut_ratio: Decimal,
@@ -100,6 +102,7 @@ impl FundManager {
             initial_amount,
             save_prices,
             order_effective_duration_secs,
+            max_open_duration_secs,
             use_market_order,
             take_profit_ratio,
             loss_cut_ratio,
@@ -256,7 +259,7 @@ impl FundManager {
                 .await?;
         }
 
-            self.find_expired_orders().await;
+        self.find_expired_orders().await;
 
         self.find_close_chances(price, is_trend_changed)
             .await
@@ -332,13 +335,12 @@ impl FundManager {
             .trade_positions
             .iter()
             .filter(|(_k, v)| {
-                if self.config.strategy == TradingStrategy::MeanReversion(_) {
+                if matches!(self.config.strategy, TradingStrategy::MeanReversion(_)) {
                     v.should_cancel_order(Some(OrderType::CloseOrder))
+                } else {
+                    v.should_cancel_order(None)
                 }
-                else {
-                v.should_cancel_order(&None)
-                }
-    })
+            })
             .map(|(_k, v)| v.clone())
             .collect();
 
@@ -368,21 +370,13 @@ impl FundManager {
         let mut actions: Vec<TradeAction> = vec![];
 
         match self.config.strategy {
-            TradingStrategy::TrendFollow(_) => {
+            TradingStrategy::TrendFollow(_) | TradingStrategy::MeanReversion(_) => {
                 if !self.can_execute_new_trade() {
                     return self
                         .handle_open_chances(current_price, &actions, hedge_requests)
                         .await;
                 }
             }
-            TradingStrategy::MeanReversion(_) => match self.state.trade_positions.len() {
-                0 => {}
-                _ => {
-                    return self
-                        .handle_open_chances(current_price, &actions, hedge_requests)
-                        .await;
-                }
-            },
             TradingStrategy::MarketMake => match self.state.trade_positions.len() {
                 0 => {}
                 1 => {
@@ -539,6 +533,7 @@ impl FundManager {
             "",
             current_price,
             decimal_0,
+            0,
             0,
             "",
             "",
@@ -786,7 +781,7 @@ impl FundManager {
                     _ => {}
                 }
             } else if matches!(self.config.strategy, TradingStrategy::MeanReversion(_)) {
-                if position.is_open_long_enough() {
+                if position.should_open_expired() {
                     reason_for_close = Some(ReasonForClose::Expired);
                     self.statistics.expired_count += 1;
                 }
@@ -972,6 +967,7 @@ impl FundManager {
                 ordered_price.unwrap(),
                 ordered_amount,
                 self.config.order_effective_duration_secs,
+                self.config.max_open_duration_secs,
                 token_name,
                 &self.config.fund_name,
                 position_type,

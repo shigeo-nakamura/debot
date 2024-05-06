@@ -95,6 +95,7 @@ async fn prepare_trader_instance(
         config.save_prices,
         config.max_dd_ratio,
         config.order_effective_duration_secs,
+        config.max_open_duration_secs,
         config.use_market_order,
         &config.rest_endpoint,
         &config.web_socket_endpoint,
