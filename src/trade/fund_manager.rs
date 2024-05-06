@@ -3,7 +3,7 @@
 use super::dex_connector_box::DexConnectorBox;
 use super::DBHandler;
 use debot_market_analyzer::{MarketData, TradeAction, TradeDetail, TradingStrategy};
-use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
+use debot_position_manager::{OrderType, PositionType, ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
 use rust_decimal::Decimal;
 use std::collections::HashMap;
@@ -256,9 +256,7 @@ impl FundManager {
                 .await?;
         }
 
-        if !matches!(self.config.strategy, TradingStrategy::MeanReversion(_)) {
             self.find_expired_orders().await;
-        }
 
         self.find_close_chances(price, is_trend_changed)
             .await
@@ -333,7 +331,14 @@ impl FundManager {
             .state
             .trade_positions
             .iter()
-            .filter(|(_k, v)| v.should_cancel_order())
+            .filter(|(_k, v)| {
+                if self.config.strategy == TradingStrategy::MeanReversion(_) {
+                    v.should_cancel_order(Some(OrderType::CloseOrder))
+                }
+                else {
+                v.should_cancel_order(&None)
+                }
+    })
             .map(|(_k, v)| v.clone())
             .collect();
 
