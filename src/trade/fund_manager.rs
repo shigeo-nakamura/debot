@@ -876,7 +876,14 @@ impl FundManager {
 
         // Execute the transaction
         let order_price = match reason_for_close {
-            Some(ReasonForClose::Liquidated) | None if self.config.use_market_order => None,
+            Some(ReasonForClose::Liquidated)
+            | Some(ReasonForClose::Expired)
+            | Some(ReasonForClose::CutLoss)
+            | None
+                if self.config.use_market_order =>
+            {
+                None
+            }
             _ => Some(order_price),
         };
 
