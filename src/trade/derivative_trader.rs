@@ -92,6 +92,7 @@ impl DerivativeTrader {
         web_socket_endpoint: &str,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
+        load_score: bool,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let interval_secs = interval_msecs as i64 / 1000;
@@ -125,6 +126,7 @@ impl DerivativeTrader {
             use_market_order,
             leverage,
             strategy,
+            load_score,
         )
         .await;
 
@@ -147,12 +149,13 @@ impl DerivativeTrader {
         use_market_order: bool,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
+        load_score: bool,
     ) -> DerivativeTraderState {
         let dex_connector = Self::create_dex_connector(config)
             .await
             .expect("Failed to initialize DexConnector");
 
-        let score_map = if !config.dry_run {
+        let score_map = if load_score {
             Self::load_score(db_handler.clone()).await
         } else {
             HashMap::new()
