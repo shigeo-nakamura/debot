@@ -337,13 +337,7 @@ impl FundManager {
             .state
             .trade_positions
             .iter()
-            .filter(|(_k, v)| {
-                if matches!(self.config.strategy, TradingStrategy::MeanReversion(_)) {
-                    v.should_cancel_order(Some(OrderType::CloseOrder))
-                } else {
-                    v.should_cancel_order(None)
-                }
-            })
+            .filter(|(_k, v)| v.should_cancel_order(None))
             .map(|(_k, v)| v.clone())
             .collect();
 
