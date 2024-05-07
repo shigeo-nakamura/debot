@@ -174,9 +174,12 @@ impl FundManager {
 
     pub fn score(&self) -> i32 {
         let stat = &self.statistics;
-        (stat.take_profit_count - stat.cut_loss_count - stat.trend_changed_count) * 2
+        (stat.take_profit_count
+            - stat.cut_loss_count
+            - stat.trend_changed_count
+            - stat.expired_count)
+            * 2
             + stat.trim_count
-            - stat.expired_count
     }
 
     pub fn atr_ratio(&self) -> Option<Decimal> {
