@@ -109,7 +109,7 @@ pub fn get(
                         Decimal::new(10000, 0), // initial amount (in USD)
                         Decimal::new(2, 1),     // position size ratio
                         Decimal::new(5, 4),     // least take profit ratio
-                        Decimal::new(3, 2),     // loss cut ratio
+                        Decimal::new(1, 2),     // loss cut ratio
                         Some(atr_ratio),        // ATR ratio
                     ),
                     (
@@ -119,7 +119,7 @@ pub fn get(
                         Decimal::new(10000, 0), // initial amount (in USD)
                         Decimal::new(2, 1),     // position size ratio
                         Decimal::new(5, 4),     // least take profit ratio
-                        Decimal::new(3, 2),     // loss cut ratio
+                        Decimal::new(1, 2),     // loss cut ratio
                         Some(atr_ratio),        // ATR ratio
                     ),
                 ]
