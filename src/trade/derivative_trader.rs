@@ -223,6 +223,8 @@ impl DerivativeTrader {
                     position_size_ratio,
                     take_profit_ratio,
                     loss_cut_ratio,
+                    rsi_lower_threshold,
+                    rsi_upper_threshold,
                     atr_ratio,
                 )| {
                     let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
@@ -230,11 +232,13 @@ impl DerivativeTrader {
 
                     let fund_name = if let Some(ratio) = atr_ratio {
                         format!(
-                            "{}-{:?}-{}-{}-atr({}))",
+                            "{}-{:?}-{}-{}-{}/{}-atr({}))",
                             if config.dry_run { "test" } else { "prod" },
                             strategy,
                             token_name,
                             index,
+                            rsi_lower_threshold,
+                            rsi_upper_threshold,
                             ratio
                         )
                     } else {
@@ -247,7 +251,13 @@ impl DerivativeTrader {
                         )
                     };
 
-                    let score_key = Self::get_score_key(&token_name, &strategy, &atr_ratio);
+                    let score_key = Self::get_score_key(
+                        &token_name,
+                        &strategy,
+                        rsi_lower_threshold,
+                        rsi_upper_threshold,
+                        &atr_ratio,
+                    );
                     let score = score_map.get(&score_key).unwrap_or(&0);
                     if atr_ratio.is_some() {
                         if *score < 0 {
@@ -256,7 +266,11 @@ impl DerivativeTrader {
                         }
                     }
 
-                    let mut market_data = Self::create_market_data(config.clone());
+                    let mut market_data = Self::create_market_data(
+                        config.clone(),
+                        rsi_lower_threshold,
+                        rsi_upper_threshold,
+                    );
 
                     if load_prices {
                         Self::restore_market_data(
@@ -287,6 +301,8 @@ impl DerivativeTrader {
                         use_market_order,
                         take_profit_ratio,
                         loss_cut_ratio,
+                        rsi_lower_threshold,
+                        rsi_upper_threshold,
                         atr_ratio,
                     ))
                 },
@@ -324,7 +340,11 @@ impl DerivativeTrader {
         }
     }
 
-    fn create_market_data(config: DerivativeTraderConfig) -> MarketData {
+    fn create_market_data(
+        config: DerivativeTraderConfig,
+        rsi_lower_threshold: Decimal,
+        rsi_upper_threshold: Decimal,
+    ) -> MarketData {
         MarketData::new(
             config.trader_name.to_owned(),
             config.short_trade_period,
@@ -332,6 +352,8 @@ impl DerivativeTrader {
             config.trade_period,
             config.max_price_size as usize,
             config.order_effective_duration_secs,
+            rsi_lower_threshold,
+            rsi_upper_threshold,
         )
     }
 
@@ -647,6 +669,8 @@ impl DerivativeTrader {
             let key = Self::get_score_key(
                 fund_manager.token_name(),
                 &fund_manager.strategy(),
+                fund_manager.rsi_lower_threshold(),
+                fund_manager.rsi_upper_threshold(),
                 &fund_manager.atr_ratio(),
             );
             let score = fund_manager.score();
@@ -665,9 +689,17 @@ impl DerivativeTrader {
     fn get_score_key(
         token_name: &str,
         strategy: &TradingStrategy,
+        rsi_lower_threshold: Decimal,
+        rsi_upper_threshold: Decimal,
         atr_ratio: &Option<Decimal>,
     ) -> (String, Decimal) {
-        let name = format!("{}-{:?}", token_name, strategy.trend_type());
+        let name = format!(
+            "{}-{}-{}-{:?}",
+            token_name,
+            rsi_lower_threshold,
+            rsi_upper_threshold,
+            strategy.trend_type()
+        );
         (name, atr_ratio.unwrap_or_default())
     }
 

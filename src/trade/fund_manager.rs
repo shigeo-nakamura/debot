@@ -3,7 +3,7 @@
 use super::dex_connector_box::DexConnectorBox;
 use super::DBHandler;
 use debot_market_analyzer::{MarketData, TradeAction, TradeDetail, TradingStrategy};
-use debot_position_manager::{OrderType, PositionType, ReasonForClose, State, TradePosition};
+use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
 use rust_decimal::Decimal;
 use std::collections::HashMap;
@@ -48,6 +48,8 @@ struct FundManagerConfig {
     use_market_order: bool,
     take_profit_ratio: Decimal,
     loss_cut_ratio: Decimal,
+    rsi_lower_threshold: Decimal,
+    rsi_upper_threshold: Decimal,
     atr_ratio: Option<Decimal>,
 }
 
@@ -90,6 +92,8 @@ impl FundManager {
         use_market_order: bool,
         take_profit_ratio: Decimal,
         loss_cut_ratio: Decimal,
+        rsi_lower_threshold: Decimal,
+        rsi_upper_threshold: Decimal,
         atr_ratio: Option<Decimal>,
     ) -> Self {
         let config = FundManagerConfig {
@@ -107,6 +111,8 @@ impl FundManager {
             take_profit_ratio,
             loss_cut_ratio,
             execution_delay_secs: order_effective_duration_secs,
+            rsi_lower_threshold,
+            rsi_upper_threshold,
             atr_ratio,
         };
 
@@ -180,6 +186,14 @@ impl FundManager {
             - stat.expired_count)
             * 2
             + stat.trim_count
+    }
+
+    pub fn rsi_lower_threshold(&self) -> Decimal {
+        self.config.rsi_lower_threshold
+    }
+
+    pub fn rsi_upper_threshold(&self) -> Decimal {
+        self.config.rsi_upper_threshold
     }
 
     pub fn atr_ratio(&self) -> Option<Decimal> {
@@ -1205,8 +1219,8 @@ impl FundManager {
             }
             None => {
                 log::debug!(
-                    "Filled position not found: token = {}, order_id = {}",
-                    self.config.token_name,
+                    "{}: Filled position not found: order_id = {}",
+                    self.fund_name(),
                     order_id
                 );
                 return Ok(false);
