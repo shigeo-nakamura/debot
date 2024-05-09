@@ -180,11 +180,7 @@ impl FundManager {
 
     pub fn score(&self) -> i32 {
         let stat = &self.statistics;
-        (stat.take_profit_count
-            - stat.cut_loss_count
-            - stat.trend_changed_count
-            - stat.expired_count)
-            * 2
+        (stat.take_profit_count - stat.cut_loss_count - stat.trend_changed_count) * 2
             + stat.trim_count
     }
 
@@ -494,6 +490,10 @@ impl FundManager {
                 TradingStrategy::MeanReversion(_) => {
                     let distance =
                         self.state.market_data.atr() * self.config.atr_ratio.unwrap_or_default();
+                    let least_distance = current_price * self.config.take_profit_ratio;
+                    if distance < least_distance {
+                        continue;
+                    }
                     if is_buy {
                         current_price - distance
                     } else {
@@ -826,7 +826,10 @@ impl FundManager {
 
     fn can_execute_new_trade(&self) -> bool {
         match self.config.strategy {
-            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => {
+            TradingStrategy::MeanReversion(_) => {
+                return self.state.latest_open_position_id.is_none();
+            }
+            TradingStrategy::TrendFollow(_) => {
                 if let Some(last_trade_time) = self.state.last_trade_time {
                     let current_time = chrono::Utc::now().timestamp();
                     let delay_secs = self.config.execution_delay_secs;

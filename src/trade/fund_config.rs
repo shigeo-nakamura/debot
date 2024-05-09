@@ -68,8 +68,32 @@ pub fn get(
                         TradingStrategy::MeanReversion(TrendType::Up),
                         Decimal::new(10000, 0), // initial amount (in USD)
                         Decimal::new(2, 1),     // position size ratio
-                        Decimal::new(5, 4),     // least take profit ratio
-                        Decimal::new(1, 2),     // loss cut ratio
+                        Decimal::new(5, 3),     // take profit ratio
+                        Decimal::new(5, 3),     // loss cut ratio
+                        Decimal::new(2, 1),     // RSI lower threshold
+                        Decimal::new(8, 1),     // RSI higher threshold
+                        Some(atr_ratio),        // ATR ratio
+                    ),
+                    (
+                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), //  BTC
+                        None,                                 // pair token
+                        TradingStrategy::MeanReversion(TrendType::Down),
+                        Decimal::new(10000, 0), // initial amount (in USD)
+                        Decimal::new(2, 1),     // position size ratio
+                        Decimal::new(5, 3),     // take profit ratio
+                        Decimal::new(5, 3),     // loss cut ratio
+                        Decimal::new(2, 1),     // RSI lower threshold
+                        Decimal::new(8, 1),     // RSI higher threshold
+                        Some(atr_ratio),        // ATR ratio
+                    ),
+                    (
+                        HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
+                        None,                                 // pair token
+                        TradingStrategy::MeanReversion(TrendType::Up),
+                        Decimal::new(10000, 0), // initial amount (in USD)
+                        Decimal::new(2, 1),     // position size ratio
+                        Decimal::new(5, 3),     // take profit ratio
+                        Decimal::new(5, 3),     // loss cut ratio
                         Decimal::new(2, 1),     // RSI lower threshold
                         Decimal::new(8, 1),     // RSI higher threshold
                         Some(atr_ratio),        // ATR ratio
@@ -80,8 +104,8 @@ pub fn get(
                         TradingStrategy::MeanReversion(TrendType::Down),
                         Decimal::new(10000, 0), // initial amount (in USD)
                         Decimal::new(2, 1),     // position size ratio
-                        Decimal::new(5, 4),     // least take profit ratio
-                        Decimal::new(1, 2),     // loss cut ratio
+                        Decimal::new(5, 3),     // take profit ratio
+                        Decimal::new(5, 3),     // loss cut ratio
                         Decimal::new(2, 1),     // RSI lower threshold
                         Decimal::new(8, 1),     // RSI higher threshold
                         Some(atr_ratio),        // ATR ratio
