@@ -68,7 +68,7 @@ pub fn get(
                         TradingStrategy::MeanReversion(TrendType::Up),
                         Decimal::new(10000, 0), // initial amount (in USD)
                         Decimal::new(2, 1),     // position size ratio
-                        Decimal::new(5, 3),     // take profit ratio
+                        Decimal::new(1, 3),     // take profit ratio
                         Decimal::new(5, 3),     // loss cut ratio
                         Decimal::new(2, 1),     // RSI lower threshold
                         Decimal::new(8, 1),     // RSI higher threshold
@@ -80,7 +80,7 @@ pub fn get(
                         TradingStrategy::MeanReversion(TrendType::Down),
                         Decimal::new(10000, 0), // initial amount (in USD)
                         Decimal::new(2, 1),     // position size ratio
-                        Decimal::new(5, 3),     // take profit ratio
+                        Decimal::new(1, 3),     // take profit ratio
                         Decimal::new(5, 3),     // loss cut ratio
                         Decimal::new(2, 1),     // RSI lower threshold
                         Decimal::new(8, 1),     // RSI higher threshold
@@ -92,7 +92,7 @@ pub fn get(
                         TradingStrategy::MeanReversion(TrendType::Up),
                         Decimal::new(10000, 0), // initial amount (in USD)
                         Decimal::new(2, 1),     // position size ratio
-                        Decimal::new(5, 3),     // take profit ratio
+                        Decimal::new(1, 3),     // take profit ratio
                         Decimal::new(5, 3),     // loss cut ratio
                         Decimal::new(2, 1),     // RSI lower threshold
                         Decimal::new(8, 1),     // RSI higher threshold
@@ -104,7 +104,7 @@ pub fn get(
                         TradingStrategy::MeanReversion(TrendType::Down),
                         Decimal::new(10000, 0), // initial amount (in USD)
                         Decimal::new(2, 1),     // position size ratio
-                        Decimal::new(5, 3),     // take profit ratio
+                        Decimal::new(1, 3),     // take profit ratio
                         Decimal::new(5, 3),     // loss cut ratio
                         Decimal::new(2, 1),     // RSI lower threshold
                         Decimal::new(8, 1),     // RSI higher threshold
