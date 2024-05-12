@@ -828,7 +828,7 @@ impl FundManager {
     fn can_execute_new_trade(&self) -> bool {
         match self.config.strategy {
             TradingStrategy::MeanReversion(_) => {
-                return self.state.latest_open_position_id.is_none();
+                return self.state.trade_positions.is_empty();
             }
             TradingStrategy::TrendFollow(_) => {
                 if let Some(last_trade_time) = self.state.last_trade_time {
