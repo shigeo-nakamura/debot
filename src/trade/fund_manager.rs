@@ -1316,18 +1316,9 @@ impl FundManager {
         &self,
         current_price: Decimal,
         side: OrderSide,
-        is_hedge: bool,
+        _is_hedge: bool,
     ) -> Option<Decimal> {
-        let take_profit_distance = if is_hedge {
-            current_price * self.config.take_profit_ratio
-        } else {
-            if let Some(atr_ratio) = self.config.atr_ratio {
-                let atr = self.state.market_data.atr();
-                current_price * self.config.take_profit_ratio + atr * atr_ratio
-            } else {
-                current_price * self.config.take_profit_ratio
-            }
-        };
+        let take_profit_distance = current_price * self.config.take_profit_ratio;
 
         match self.config.strategy {
             TradingStrategy::MarketMake => None,
