@@ -63,49 +63,25 @@ pub fn get(
             .flat_map(|atr_ratio| {
                 vec![
                     (
-                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
-                        None,                                 // pair token
+                        HYPERLIQUID_TOKEN_LIST[0].to_owned(),       // BTC
+                        Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token ETH
                         TradingStrategy::MeanReversion(TrendType::Up),
                         Decimal::new(5000, 0), // initial amount (in USD)
                         Decimal::new(8, 1),    // position size ratio
-                        Decimal::new(1, 3),    // take profit ratio
-                        Decimal::new(5, 3),    // loss cut ratio
+                        Decimal::new(1, 3),    // least take profit ratio
+                        Decimal::new(1, 2),    // loss cut ratio
                         Decimal::new(2, 1),    // RSI lower threshold
                         Decimal::new(8, 1),    // RSI higher threshold
                         Some(atr_ratio),       // ATR ratio
                     ),
                     (
-                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), //  BTC
-                        None,                                 // pair token
+                        HYPERLIQUID_TOKEN_LIST[0].to_owned(),       //  BTC
+                        Some(HYPERLIQUID_TOKEN_LIST[1].to_owned()), // pair token ETH
                         TradingStrategy::MeanReversion(TrendType::Down),
                         Decimal::new(5000, 0), // initial amount (in USD)
                         Decimal::new(8, 1),    // position size ratio
-                        Decimal::new(1, 3),    // take profit ratio
-                        Decimal::new(5, 3),    // loss cut ratio
-                        Decimal::new(2, 1),    // RSI lower threshold
-                        Decimal::new(8, 1),    // RSI higher threshold
-                        Some(atr_ratio),       // ATR ratio
-                    ),
-                    (
-                        HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                        None,                                 // pair token
-                        TradingStrategy::MeanReversion(TrendType::Up),
-                        Decimal::new(5000, 0), // initial amount (in USD)
-                        Decimal::new(8, 1),    // position size ratio
-                        Decimal::new(1, 3),    // take profit ratio
-                        Decimal::new(5, 3),    // loss cut ratio
-                        Decimal::new(2, 1),    // RSI lower threshold
-                        Decimal::new(8, 1),    // RSI higher threshold
-                        Some(atr_ratio),       // ATR ratio
-                    ),
-                    (
-                        HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                        None,                                 // pair token
-                        TradingStrategy::MeanReversion(TrendType::Down),
-                        Decimal::new(5000, 0), // initial amount (in USD)
-                        Decimal::new(8, 1),    // position size ratio
-                        Decimal::new(1, 3),    // take profit ratio
-                        Decimal::new(5, 3),    // loss cut ratio
+                        Decimal::new(1, 3),    // least take profit ratio
+                        Decimal::new(1, 2),    // loss cut ratio
                         Decimal::new(2, 1),    // RSI lower threshold
                         Decimal::new(8, 1),    // RSI higher threshold
                         Some(atr_ratio),       // ATR ratio
@@ -117,7 +93,18 @@ pub fn get(
     };
 
     // Add non-repeating items
-    let non_repeating_items = vec![];
+    let non_repeating_items = vec![(
+        HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
+        None,                                 // pair token
+        TradingStrategy::PassiveTrade(Decimal::ONE),
+        Decimal::new(5000, 0), // initial amount (in USD)
+        Decimal::new(8, 1),    // position size ratio
+        Decimal::new(1, 2),    // take profit ratio
+        Decimal::new(1, 2),    // loss cut ratio
+        Decimal::new(2, 1),    // RSI lower threshold
+        Decimal::new(8, 1),    // RSI higher threshold
+        None,                  // ATR ratio
+    )];
 
     strategy_list.extend(non_repeating_items);
 

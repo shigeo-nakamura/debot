@@ -488,7 +488,6 @@ impl FundManager {
                 TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => current_price,
                 TradingStrategy::MarketMake => order_price.unwrap(),
                 TradingStrategy::MeanReversion(_) => {
-                    log::debug!("atr = {}", self.state.market_data.atr());
                     let distance =
                         self.state.market_data.atr() * self.config.atr_ratio.unwrap_or_default();
                     let least_distance = current_price * self.config.take_profit_ratio;
