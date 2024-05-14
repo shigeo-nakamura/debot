@@ -67,7 +67,7 @@ pub fn get(
                         None,                                 // pair token
                         TradingStrategy::MeanReversion(TrendType::Up),
                         Decimal::new(5000, 0), // initial amount (in USD)
-                        Decimal::new(7, 1),    // position size ratio
+                        Decimal::new(8, 1),    // position size ratio
                         Decimal::new(1, 3),    // take profit ratio
                         Decimal::new(5, 3),    // loss cut ratio
                         Decimal::new(2, 1),    // RSI lower threshold
@@ -79,7 +79,7 @@ pub fn get(
                         None,                                 // pair token
                         TradingStrategy::MeanReversion(TrendType::Down),
                         Decimal::new(5000, 0), // initial amount (in USD)
-                        Decimal::new(7, 1),    // position size ratio
+                        Decimal::new(8, 1),    // position size ratio
                         Decimal::new(1, 3),    // take profit ratio
                         Decimal::new(5, 3),    // loss cut ratio
                         Decimal::new(2, 1),    // RSI lower threshold
@@ -91,7 +91,7 @@ pub fn get(
                         None,                                 // pair token
                         TradingStrategy::MeanReversion(TrendType::Up),
                         Decimal::new(5000, 0), // initial amount (in USD)
-                        Decimal::new(7, 1),    // position size ratio
+                        Decimal::new(8, 1),    // position size ratio
                         Decimal::new(1, 3),    // take profit ratio
                         Decimal::new(5, 3),    // loss cut ratio
                         Decimal::new(2, 1),    // RSI lower threshold
@@ -103,59 +103,11 @@ pub fn get(
                         None,                                 // pair token
                         TradingStrategy::MeanReversion(TrendType::Down),
                         Decimal::new(5000, 0), // initial amount (in USD)
-                        Decimal::new(7, 1),    // position size ratio
+                        Decimal::new(8, 1),    // position size ratio
                         Decimal::new(1, 3),    // take profit ratio
                         Decimal::new(5, 3),    // loss cut ratio
                         Decimal::new(2, 1),    // RSI lower threshold
                         Decimal::new(8, 1),    // RSI higher threshold
-                        Some(atr_ratio),       // ATR ratio
-                    ),
-                    (
-                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
-                        None,                                 // pair token
-                        TradingStrategy::MeanReversion(TrendType::Up),
-                        Decimal::new(5000, 0), // initial amount (in USD)
-                        Decimal::new(7, 1),    // position size ratio
-                        Decimal::new(1, 3),    // take profit ratio
-                        Decimal::new(5, 3),    // loss cut ratio
-                        Decimal::new(1, 1),    // RSI lower threshold
-                        Decimal::new(9, 1),    // RSI higher threshold
-                        Some(atr_ratio),       // ATR ratio
-                    ),
-                    (
-                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), //  BTC
-                        None,                                 // pair token
-                        TradingStrategy::MeanReversion(TrendType::Down),
-                        Decimal::new(5000, 0), // initial amount (in USD)
-                        Decimal::new(7, 1),    // position size ratio
-                        Decimal::new(1, 3),    // take profit ratio
-                        Decimal::new(5, 3),    // loss cut ratio
-                        Decimal::new(1, 1),    // RSI lower threshold
-                        Decimal::new(9, 1),    // RSI higher threshold
-                        Some(atr_ratio),       // ATR ratio
-                    ),
-                    (
-                        HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                        None,                                 // pair token
-                        TradingStrategy::MeanReversion(TrendType::Up),
-                        Decimal::new(5000, 0), // initial amount (in USD)
-                        Decimal::new(7, 1),    // position size ratio
-                        Decimal::new(1, 3),    // take profit ratio
-                        Decimal::new(5, 3),    // loss cut ratio
-                        Decimal::new(1, 1),    // RSI lower threshold
-                        Decimal::new(9, 1),    // RSI higher threshold
-                        Some(atr_ratio),       // ATR ratio
-                    ),
-                    (
-                        HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                        None,                                 // pair token
-                        TradingStrategy::MeanReversion(TrendType::Down),
-                        Decimal::new(5000, 0), // initial amount (in USD)
-                        Decimal::new(7, 1),    // position size ratio
-                        Decimal::new(1, 3),    // take profit ratio
-                        Decimal::new(5, 3),    // loss cut ratio
-                        Decimal::new(1, 1),    // RSI lower threshold
-                        Decimal::new(9, 1),    // RSI higher threshold
                         Some(atr_ratio),       // ATR ratio
                     ),
                 ]
