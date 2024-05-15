@@ -492,6 +492,7 @@ impl FundManager {
                         self.state.market_data.atr() * self.config.atr_ratio.unwrap_or_default();
                     let least_distance = current_price * self.config.take_profit_ratio;
                     if distance < least_distance {
+                        log::debug!("open signaled, but atr is too small: {}", distance);
                         continue;
                     }
                     if is_buy {
