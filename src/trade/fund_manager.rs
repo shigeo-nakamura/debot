@@ -50,6 +50,8 @@ struct FundManagerConfig {
     loss_cut_ratio: Decimal,
     rsi_lower_threshold: Decimal,
     rsi_upper_threshold: Decimal,
+    adx_threshold: Decimal,
+    deviation: f64,
     atr_ratio: Option<Decimal>,
 }
 
@@ -94,6 +96,8 @@ impl FundManager {
         loss_cut_ratio: Decimal,
         rsi_lower_threshold: Decimal,
         rsi_upper_threshold: Decimal,
+        adx_threshold: Decimal,
+        deviation: f64,
         atr_ratio: Option<Decimal>,
     ) -> Self {
         let config = FundManagerConfig {
@@ -113,6 +117,8 @@ impl FundManager {
             execution_delay_secs: order_effective_duration_secs,
             rsi_lower_threshold,
             rsi_upper_threshold,
+            adx_threshold,
+            deviation,
             atr_ratio,
         };
 
@@ -182,6 +188,7 @@ impl FundManager {
         let stat = &self.statistics;
         (stat.take_profit_count - stat.cut_loss_count - stat.trend_changed_count) * 2
             + stat.trim_count
+            - stat.expired_count
     }
 
     pub fn rsi_lower_threshold(&self) -> Decimal {
@@ -190,6 +197,14 @@ impl FundManager {
 
     pub fn rsi_upper_threshold(&self) -> Decimal {
         self.config.rsi_upper_threshold
+    }
+
+    pub fn adx_threshold(&self) -> Decimal {
+        self.config.adx_threshold
+    }
+
+    pub fn deviation(&self) -> f64 {
+        self.config.deviation
     }
 
     pub fn atr_ratio(&self) -> Option<Decimal> {

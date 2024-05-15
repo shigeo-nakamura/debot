@@ -112,8 +112,8 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let dry_run = get_bool_env_var("DRY_RUN", true);
     let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
 
-    let max_price_size_days: u32 = get_env_var("MAX_PRICE_SIZE_DAYS", "1")?;
-    let max_price_size = max_price_size_days * 24 * 60 * 60 * 1000 / interval_msec as u32;
+    let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "1")?;
+    let max_price_size: u32 = max_price_size_hours * 60 * 60 * 1000 / interval_msec as u32;
 
     let max_error_duration = get_env_var("MAX_ERROR_DURATION", "10")?;
     let save_prices = get_bool_env_var("SAVE_PRICES", false);

@@ -225,44 +225,42 @@ impl DerivativeTrader {
                     loss_cut_ratio,
                     rsi_lower_threshold,
                     rsi_upper_threshold,
+                    adx_threshold,
+                    deviation,
                     atr_ratio,
                 )| {
                     let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
                     *token_name_indices.get_mut(&token_name).unwrap() += 1;
 
-                    let fund_name = if let Some(ratio) = atr_ratio {
-                        format!(
-                            "{}-{:?}-{}-{}-{}/{}-atr({}))",
-                            if config.dry_run { "test" } else { "prod" },
-                            strategy,
-                            token_name,
-                            index,
-                            rsi_lower_threshold,
-                            rsi_upper_threshold,
-                            ratio
-                        )
-                    } else {
-                        format!(
-                            "{}-{:?}-{}-{})",
-                            if config.dry_run { "test" } else { "prod" },
-                            strategy,
-                            token_name,
-                            index
-                        )
-                    };
+                    let fund_name = format!(
+                        "{}-{:?}-{}-{}-{}/{}-{}-{}-{:?})",
+                        if config.dry_run { "test" } else { "prod" },
+                        strategy,
+                        token_name,
+                        index,
+                        rsi_lower_threshold,
+                        rsi_upper_threshold,
+                        adx_threshold,
+                        deviation,
+                        atr_ratio
+                    );
 
                     let score_key = Self::get_score_key(
                         &token_name,
                         &strategy,
                         rsi_lower_threshold,
                         rsi_upper_threshold,
+                        adx_threshold,
+                        deviation,
                         &atr_ratio,
                     );
                     let score = score_map.get(&score_key).unwrap_or(&0);
                     if atr_ratio.is_some() {
-                        if *score < 0 {
-                            log::info!("discard {}", fund_name);
-                            return None;
+                        if !config.dry_run {
+                            if *score <= 0 {
+                                log::info!("score = {}, discard {}", score, fund_name);
+                                return None;
+                            }
                         }
                     }
 
@@ -270,6 +268,8 @@ impl DerivativeTrader {
                         config.clone(),
                         rsi_lower_threshold,
                         rsi_upper_threshold,
+                        adx_threshold,
+                        deviation,
                     );
 
                     if load_prices {
@@ -303,6 +303,8 @@ impl DerivativeTrader {
                         loss_cut_ratio,
                         rsi_lower_threshold,
                         rsi_upper_threshold,
+                        adx_threshold,
+                        deviation,
                         atr_ratio,
                     ))
                 },
@@ -344,6 +346,8 @@ impl DerivativeTrader {
         config: DerivativeTraderConfig,
         rsi_lower_threshold: Decimal,
         rsi_upper_threshold: Decimal,
+        adx_threshold: Decimal,
+        deviation: f64,
     ) -> MarketData {
         MarketData::new(
             config.trader_name.to_owned(),
@@ -354,6 +358,8 @@ impl DerivativeTrader {
             config.order_effective_duration_secs,
             rsi_lower_threshold,
             rsi_upper_threshold,
+            deviation,
+            adx_threshold,
         )
     }
 
@@ -671,6 +677,8 @@ impl DerivativeTrader {
                 &fund_manager.strategy(),
                 fund_manager.rsi_lower_threshold(),
                 fund_manager.rsi_upper_threshold(),
+                fund_manager.adx_threshold(),
+                fund_manager.deviation(),
                 &fund_manager.atr_ratio(),
             );
             let score = fund_manager.score();
@@ -691,13 +699,17 @@ impl DerivativeTrader {
         strategy: &TradingStrategy,
         rsi_lower_threshold: Decimal,
         rsi_upper_threshold: Decimal,
+        adx_threshold: Decimal,
+        deviation: f64,
         atr_ratio: &Option<Decimal>,
     ) -> (String, Decimal) {
         let name = format!(
-            "{}-{}-{}-{:?}",
+            "{}-{}-{}-{}-{}-{:?}",
             token_name,
             rsi_lower_threshold,
             rsi_upper_threshold,
+            adx_threshold,
+            deviation,
             strategy.trend_type()
         );
         (name, atr_ratio.unwrap_or_default())
