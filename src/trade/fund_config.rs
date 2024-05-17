@@ -57,14 +57,12 @@ pub fn get(
         Decimal::new(30, 2),
         Decimal::new(35, 2),
         Decimal::new(40, 2),
-        Decimal::new(45, 2),
     ];
     let derivation_values = vec![1.0, 1.5, 2.0];
     let rsi_thresholds = vec![
         (Decimal::new(20, 2), Decimal::new(80, 2)),
         (Decimal::new(25, 2), Decimal::new(75, 2)),
         (Decimal::new(30, 2), Decimal::new(70, 2)),
-        (Decimal::new(35, 2), Decimal::new(65, 2)),
     ];
 
     let mut strategy_list = Vec::new();
