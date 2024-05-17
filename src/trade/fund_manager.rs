@@ -547,6 +547,10 @@ impl FundManager {
             .await?;
         }
 
+        if self.state.trade_positions.is_empty() {
+            return Ok(());
+        }
+
         let mut positions_vec: Vec<TradePosition> = self
             .state
             .trade_positions
