@@ -27,7 +27,7 @@ pub fn get(strategy: Option<&TradingStrategy>) -> Vec<(usize, SampleInterval, St
             strategy == trading_strategy
                 || matches!(trading_strategy, TradingStrategy::PassiveTrade(_))
         }
-        None => true,
+        None => false,
     })
     .map(
         |(_trading_strategy, trading_interval, interval, dex_name)| {
