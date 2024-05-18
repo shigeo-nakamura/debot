@@ -47,11 +47,10 @@ pub fn get(
     Option<Decimal>,
 )> {
     let atr_values = vec![
-        Decimal::new(1, 1),
-        Decimal::new(2, 1),
-        Decimal::new(3, 1),
-        Decimal::new(4, 1),
-        Decimal::new(5, 1),
+        Decimal::new(125, 3),
+        Decimal::new(250, 3),
+        Decimal::new(375, 3),
+        Decimal::new(500, 3),
     ];
     let adx_values = vec![
         Decimal::new(30, 2),
