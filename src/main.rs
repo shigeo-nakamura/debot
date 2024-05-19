@@ -1,11 +1,16 @@
 // main.rs
 
+use chrono::{DateTime, FixedOffset, Utc};
 use config::EnvConfig;
 use debot_db::PricePoint;
 use debot_market_analyzer::TradingStrategy;
 use debot_utils::DateTimeUtils;
+use env_logger::Builder;
 use error_manager::ErrorManager;
+use log::LevelFilter;
 use rust_decimal::Decimal;
+use std::env;
+use std::io::Write;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use trade::{trader_config, DerivativeTrader};
@@ -26,7 +31,27 @@ extern crate lazy_static;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     // Init logging
-    env_logger::init();
+    let offset_seconds = env::var("TIMEZONE_OFFSET")
+        .unwrap_or_else(|_| "3600".to_string())
+        .parse::<i32>()
+        .expect("Invalid TIMEZONE_OFFSET");
+
+    let offset = FixedOffset::east_opt(offset_seconds).expect("Invalid offset");
+
+    Builder::from_default_env()
+        .format(move |buf, record| {
+            let utc_now: DateTime<Utc> = Utc::now();
+            let local_now = utc_now.with_timezone(&offset);
+            writeln!(
+                buf,
+                "{} [{}] - {}",
+                local_now.format("%Y-%m-%dT%H:%M:%S%z"),
+                record.level(),
+                record.args()
+            )
+        })
+        .filter(None, LevelFilter::Debug)
+        .init();
 
     // Load the configs
     let config = config::get_config_from_env().expect("Invalid configuration");
