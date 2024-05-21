@@ -853,11 +853,14 @@ impl FundManager {
     }
 
     fn can_execute_new_trade(&self) -> bool {
+        if matches!(self.config.strategy, TradingStrategy::MeanReversion(_))
+            && !self.state.trade_positions.is_empty()
+        {
+            return false;
+        }
+
         match self.config.strategy {
-            TradingStrategy::MeanReversion(_) => {
-                return self.state.trade_positions.is_empty();
-            }
-            TradingStrategy::TrendFollow(_) => {
+            TradingStrategy::TrendFollow(_) | TradingStrategy::MeanReversion(_) => {
                 if let Some(last_trade_time) = self.state.last_trade_time {
                     let current_time = chrono::Utc::now().timestamp();
                     let delay_secs = self.config.execution_delay_secs;
