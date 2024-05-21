@@ -100,8 +100,7 @@ async fn prepare_trader_instance(
     let (trading_interval, interval, dex_name) = &trader_config::get(config.strategy.as_ref())[0];
 
     // Read open positions from the DB
-    //let open_positions_map = db_handler.lock().await.get_open_positions_map().await;
-    let open_positions_map = HashMap::new();
+    let open_positions_map = db_handler.lock().await.get_open_positions_map().await;
 
     // Create an error manager
     let error_manager = ErrorManager::new();
