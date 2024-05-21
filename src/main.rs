@@ -122,6 +122,7 @@ async fn prepare_trader_instance(
         config.order_effective_duration_secs,
         config.max_open_duration_secs,
         config.use_market_order,
+        config.risk_reward,
         &config.rest_endpoint,
         &config.web_socket_endpoint,
         config.leverage,

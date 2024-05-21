@@ -48,6 +48,7 @@ struct FundManagerConfig {
     use_market_order: bool,
     take_profit_ratio: Decimal,
     loss_cut_ratio: Decimal,
+    risk_reward: Decimal,
     rsi_lower_threshold: Decimal,
     rsi_upper_threshold: Decimal,
     adx_threshold: Decimal,
@@ -94,6 +95,7 @@ impl FundManager {
         use_market_order: bool,
         take_profit_ratio: Decimal,
         loss_cut_ratio: Decimal,
+        risk_reward: Decimal,
         rsi_lower_threshold: Decimal,
         rsi_upper_threshold: Decimal,
         adx_threshold: Decimal,
@@ -114,6 +116,7 @@ impl FundManager {
             use_market_order,
             take_profit_ratio,
             loss_cut_ratio,
+            risk_reward,
             execution_delay_secs: order_effective_duration_secs,
             rsi_lower_threshold,
             rsi_upper_threshold,
@@ -505,9 +508,14 @@ impl FundManager {
                 TradingStrategy::MeanReversion(_) => {
                     let distance =
                         self.state.market_data.atr() * self.config.atr_ratio.unwrap_or_default();
-                    let least_distance = current_price * self.config.take_profit_ratio;
+                    let least_distance =
+                        current_price * self.config.loss_cut_ratio * self.config.risk_reward;
                     if distance < least_distance {
-                        log::debug!("open signaled, but atr is too small: {}", distance);
+                        log::debug!(
+                            "{} open signaled, but atr is too small: {}",
+                            self.config.token_name,
+                            self.state.market_data.atr()
+                        );
                         continue;
                     }
                     if is_buy {
@@ -1342,7 +1350,10 @@ impl FundManager {
         } else {
             if let Some(atr_ratio) = self.config.atr_ratio {
                 let atr = self.state.market_data.atr();
-                current_price * self.config.take_profit_ratio + atr * atr_ratio
+                let target_price = current_price * self.config.take_profit_ratio + atr * atr_ratio;
+                let least_target_price =
+                    current_price * self.config.loss_cut_ratio * self.config.risk_reward;
+                target_price.max(least_target_price)
             } else {
                 current_price * self.config.take_profit_ratio
             }

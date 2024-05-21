@@ -40,6 +40,7 @@ pub struct EnvConfig {
     pub order_effective_duration_secs: i64,
     pub max_open_duration_secs: i64,
     pub use_market_order: bool,
+    pub risk_reward: Decimal,
     pub rest_endpoint: String,
     pub web_socket_endpoint: String,
     pub leverage: u32,
@@ -125,6 +126,8 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let max_open_duration_secs = get_env_var("MAX_OPEN_DURATION_SECS", "3600")?;
     let use_market_order = get_bool_env_var("USE_MARKET_ORDER", false);
 
+    let risk_reward = get_env_var("RISK_REWARD", "1.0")?;
+
     let rest_endpoint = env::var("REST_ENDPOINT").expect("REST_ENDPOINT must be set");
     let web_socket_endpoint =
         env::var("WEB_SOCKET_ENDPOINT").expect("WEB_SOCKET_ENDPOINT must be set");
@@ -155,6 +158,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         order_effective_duration_secs,
         max_open_duration_secs,
         use_market_order,
+        risk_reward,
         rest_endpoint,
         web_socket_endpoint,
         leverage,
