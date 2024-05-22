@@ -1381,7 +1381,11 @@ impl FundManager {
     }
 
     fn cut_loss_price(&self, filled_price: Decimal, side: OrderSide) -> Option<Decimal> {
-        let cut_loss_distance = filled_price * self.config.loss_cut_ratio;
+        let mut cut_loss_distance = filled_price * self.config.loss_cut_ratio;
+        if let Some(atr_ratio) = self.config.atr_ratio {
+            let atr = self.state.market_data.atr();
+            cut_loss_distance = cut_loss_distance.max(atr * atr_ratio);
+        }
         match self.config.strategy {
             TradingStrategy::MarketMake => None,
             _ => match side {
