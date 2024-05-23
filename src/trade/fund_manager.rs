@@ -502,28 +502,9 @@ impl FundManager {
             } else {
                 OrderSide::Short
             };
-            let order_price = match self.config.strategy {
-                TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => current_price,
-                TradingStrategy::MarketMake => order_price.unwrap(),
-                TradingStrategy::MeanReversion(_) => {
-                    let distance =
-                        self.state.market_data.atr() * self.config.atr_ratio.unwrap_or_default();
-                    let least_distance =
-                        current_price * self.config.loss_cut_ratio * self.config.risk_reward;
-                    if distance < least_distance {
-                        log::debug!(
-                            "{} open signaled, but atr is too small: {}",
-                            self.config.token_name,
-                            self.state.market_data.atr()
-                        );
-                        continue;
-                    }
-                    if is_buy {
-                        current_price - distance
-                    } else {
-                        current_price + distance
-                    }
-                }
+            let order_price = match self.order_price(current_price, order_price, is_buy) {
+                Ok(order_price) => order_price,
+                Err(_) => continue,
             };
             let token_amount = match token_amount {
                 Some(token_amount) => token_amount * confidence,
@@ -1340,6 +1321,38 @@ impl FundManager {
         );
 
         return Ok(true);
+    }
+
+    fn order_price(
+        &self,
+        current_price: Decimal,
+        order_price: Option<Decimal>,
+        is_buy: bool,
+    ) -> Result<Decimal, ()> {
+        let order_price = match self.config.strategy {
+            TradingStrategy::TrendFollow(_) | TradingStrategy::PassiveTrade(_) => current_price,
+            TradingStrategy::MarketMake => order_price.unwrap(),
+            TradingStrategy::MeanReversion(_) => {
+                let distance =
+                    self.state.market_data.atr() * self.config.atr_ratio.unwrap_or_default();
+                let least_distance =
+                    current_price * self.config.loss_cut_ratio * self.config.risk_reward;
+                if distance < least_distance {
+                    log::debug!(
+                        "{} open signaled, but atr is too small: {}",
+                        self.config.token_name,
+                        self.state.market_data.atr()
+                    );
+                    return Err(());
+                }
+                if is_buy {
+                    current_price - distance
+                } else {
+                    current_price + distance
+                }
+            }
+        };
+        return Ok(order_price);
     }
 
     fn target_price(
