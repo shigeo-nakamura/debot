@@ -237,7 +237,10 @@ async fn main_loop(
             if config.liquidate_when_exit {
                 trader.liquidate("reboot").await;
             }
-            return Ok(());
+            if config.dry_run {
+                trader.save_score().await;
+            }
+            std::process::exit(0);
         }
 
         let elapsed = loop_start.elapsed();
