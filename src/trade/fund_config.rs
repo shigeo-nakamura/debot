@@ -77,8 +77,8 @@ pub fn get(
                             TradingStrategy::MeanReversion(TrendType::Up),
                             Decimal::new(5000, 0), // initial amount (in USD)
                             Decimal::new(8, 1),    // position size ratio
-                            Decimal::new(1, 3),    // least take profit ratio
-                            Decimal::new(1, 3),    // least loss cut ratio
+                            Decimal::new(15, 4),   // least take profit ratio
+                            Decimal::new(10, 4),   // least loss cut ratio
                             rsi_threshold.0,       // RSI lower threshold
                             rsi_threshold.1,       // RSI higher threshold
                             *adx_threshold,        // ADX threshold
@@ -92,8 +92,8 @@ pub fn get(
                             TradingStrategy::MeanReversion(TrendType::Down),
                             Decimal::new(5000, 0), // initial amount (in USD)
                             Decimal::new(8, 1),    // position size ratio
-                            Decimal::new(1, 3),    // least take profit ratio
-                            Decimal::new(1, 3),    // least loss cut ratio
+                            Decimal::new(15, 4),   // least take profit ratio
+                            Decimal::new(10, 4),   // least loss cut ratio
                             rsi_threshold.0,       // RSI lower threshold
                             rsi_threshold.1,       // RSI higher threshold
                             *adx_threshold,        // ADX threshold
@@ -107,8 +107,8 @@ pub fn get(
                             TradingStrategy::MeanReversion(TrendType::Up),
                             Decimal::new(5000, 0), // initial amount (in USD)
                             Decimal::new(8, 1),    // position size ratio
-                            Decimal::new(1, 3),    // least take profit ratio
-                            Decimal::new(1, 3),    // least loss cut ratio
+                            Decimal::new(15, 4),   // least take profit ratio
+                            Decimal::new(10, 4),   // least loss cut ratio
                             rsi_threshold.0,       // RSI lower threshold
                             rsi_threshold.1,       // RSI higher threshold
                             *adx_threshold,        // ADX threshold
@@ -122,8 +122,8 @@ pub fn get(
                             TradingStrategy::MeanReversion(TrendType::Down),
                             Decimal::new(5000, 0), // initial amount (in USD)
                             Decimal::new(8, 1),    // position size ratio
-                            Decimal::new(1, 3),    // least take profit ratio
-                            Decimal::new(1, 3),    // least loss cut ratio
+                            Decimal::new(15, 4),   // least take profit ratio
+                            Decimal::new(10, 4),   // least loss cut ratio
                             rsi_threshold.0,       // RSI lower threshold
                             rsi_threshold.1,       // RSI higher threshold
                             *adx_threshold,        // ADX threshold
