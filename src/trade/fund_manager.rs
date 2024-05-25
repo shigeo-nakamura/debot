@@ -1335,16 +1335,6 @@ impl FundManager {
             TradingStrategy::MeanReversion(_) => {
                 let distance =
                     self.state.market_data.atr() * self.config.atr_ratio.unwrap_or_default();
-                let least_distance =
-                    current_price * self.config.loss_cut_ratio * self.config.risk_reward;
-                if distance < least_distance {
-                    log::debug!(
-                        "{} open signaled, but atr is too small: {}",
-                        self.config.token_name,
-                        self.state.market_data.atr()
-                    );
-                    return Err(());
-                }
                 if is_buy {
                     current_price - distance
                 } else {
@@ -1364,15 +1354,7 @@ impl FundManager {
         let take_profit_distance = if is_hedge {
             current_price * self.config.take_profit_ratio
         } else {
-            if let Some(atr_ratio) = self.config.atr_ratio {
-                let atr = self.state.market_data.atr();
-                let target_price = current_price * self.config.take_profit_ratio + atr * atr_ratio;
-                let least_target_price =
-                    current_price * self.config.loss_cut_ratio * self.config.risk_reward;
-                target_price.max(least_target_price)
-            } else {
-                current_price * self.config.take_profit_ratio
-            }
+            current_price * self.config.take_profit_ratio
         };
 
         match self.config.strategy {
@@ -1395,10 +1377,6 @@ impl FundManager {
 
     fn cut_loss_price(&self, filled_price: Decimal, side: OrderSide) -> Option<Decimal> {
         let mut cut_loss_distance = filled_price * self.config.loss_cut_ratio;
-        if let Some(atr_ratio) = self.config.atr_ratio {
-            let atr = self.state.market_data.atr();
-            cut_loss_distance = cut_loss_distance.max(atr * atr_ratio);
-        }
         match self.config.strategy {
             TradingStrategy::MarketMake => None,
             _ => match side {
