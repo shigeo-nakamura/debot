@@ -39,100 +39,41 @@ pub fn get(
     Decimal,
     Decimal,
     Decimal,
-    Decimal,
-    Decimal,
-    Decimal,
-    Decimal,
-    f64,
-    Option<Decimal>,
 )> {
-    let atr_values = vec![
-        Decimal::new(125, 3),
-        Decimal::new(250, 3),
-        Decimal::new(375, 3),
-        Decimal::new(500, 3),
-    ];
-    let adx_values = vec![
-        Decimal::new(30, 2),
-        Decimal::new(35, 2),
-        Decimal::new(40, 2),
-    ];
-    let derivation_values = vec![1.0, 1.5, 2.0];
-    let rsi_thresholds = vec![
-        (Decimal::new(20, 2), Decimal::new(80, 2)),
-        (Decimal::new(25, 2), Decimal::new(75, 2)),
-        (Decimal::new(30, 2), Decimal::new(70, 2)),
+    let take_profit_ratio_values = vec![
+        Decimal::new(1, 3),
+        Decimal::new(2, 3),
+        Decimal::new(3, 3),
+        Decimal::new(4, 3),
+        Decimal::new(5, 3),
+        Decimal::new(6, 3),
+        Decimal::new(7, 3),
+        Decimal::new(8, 3),
+        Decimal::new(9, 3),
+        Decimal::new(1, 2),
     ];
 
     let mut strategy_list = Vec::new();
 
     if dex_name == "hyperliquid" {
-        for atr_ratio in atr_values {
-            for adx_threshold in &adx_values {
-                for derivation in &derivation_values {
-                    for rsi_threshold in &rsi_thresholds {
-                        strategy_list.push((
-                            HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
-                            None,                                 // pair token
-                            TradingStrategy::MeanReversion(TrendType::Up),
-                            Decimal::new(5000, 0), // initial amount (in USD)
-                            Decimal::new(8, 1),    // position size ratio
-                            Decimal::new(15, 4),   // least take profit ratio
-                            Decimal::new(10, 4),   // least loss cut ratio
-                            rsi_threshold.0,       // RSI lower threshold
-                            rsi_threshold.1,       // RSI higher threshold
-                            *adx_threshold,        // ADX threshold
-                            *derivation,           // derivation
-                            Some(atr_ratio),       // ATR ratio
-                        ));
+        for take_profit_ratio in take_profit_ratio_values {
+            strategy_list.push((
+                HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
+                None,                                 // pair token
+                TradingStrategy::RandomWalk(TrendType::Up),
+                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(8, 1),    // position size ratio
+                take_profit_ratio,     // take profit ratio
+            ));
 
-                        strategy_list.push((
-                            HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
-                            None,                                 // pair token
-                            TradingStrategy::MeanReversion(TrendType::Down),
-                            Decimal::new(5000, 0), // initial amount (in USD)
-                            Decimal::new(8, 1),    // position size ratio
-                            Decimal::new(15, 4),   // least take profit ratio
-                            Decimal::new(10, 4),   // least loss cut ratio
-                            rsi_threshold.0,       // RSI lower threshold
-                            rsi_threshold.1,       // RSI higher threshold
-                            *adx_threshold,        // ADX threshold
-                            *derivation,           // derivation
-                            Some(atr_ratio),       // ATR ratio
-                        ));
-
-                        strategy_list.push((
-                            HYPERLIQUID_TOKEN_LIST[1].to_owned(), //  ETH
-                            None,                                 // pair token
-                            TradingStrategy::MeanReversion(TrendType::Up),
-                            Decimal::new(5000, 0), // initial amount (in USD)
-                            Decimal::new(8, 1),    // position size ratio
-                            Decimal::new(15, 4),   // least take profit ratio
-                            Decimal::new(10, 4),   // least loss cut ratio
-                            rsi_threshold.0,       // RSI lower threshold
-                            rsi_threshold.1,       // RSI higher threshold
-                            *adx_threshold,        // ADX threshold
-                            *derivation,           // derivation
-                            Some(atr_ratio),       // ATR ratio
-                        ));
-
-                        strategy_list.push((
-                            HYPERLIQUID_TOKEN_LIST[1].to_owned(), //  ETH
-                            None,                                 // pair token
-                            TradingStrategy::MeanReversion(TrendType::Down),
-                            Decimal::new(5000, 0), // initial amount (in USD)
-                            Decimal::new(8, 1),    // position size ratio
-                            Decimal::new(15, 4),   // least take profit ratio
-                            Decimal::new(10, 4),   // least loss cut ratio
-                            rsi_threshold.0,       // RSI lower threshold
-                            rsi_threshold.1,       // RSI higher threshold
-                            *adx_threshold,        // ADX threshold
-                            *derivation,           // derivation
-                            Some(atr_ratio),       // ATR ratio
-                        ));
-                    }
-                }
-            }
+            strategy_list.push((
+                HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
+                None,                                 // pair token
+                TradingStrategy::RandomWalk(TrendType::Down),
+                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(8, 1),    // position size ratio
+                take_profit_ratio,     // take profit ratio
+            ));
         }
     } else {
         panic!("Unsupported dex");
@@ -145,24 +86,11 @@ pub fn get(
 
     strategy_list
         .into_iter()
-        .filter(|(_, _, trading_strategy, _, _, _, _, _, _, _, _, _)| {
+        .filter(|(_, _, trading_strategy, _, _, _)| {
             strategy.is_none() || strategy == Some(trading_strategy)
         })
         .map(
-            |(
-                token,
-                pair_token,
-                trading_strategy,
-                amount,
-                size_ratio,
-                take_profit_ratio,
-                loss_cut_ratio,
-                rsi_lower_threshold,
-                rsi_upper_threshold,
-                adx_threshold,
-                deviation,
-                atr_ratio,
-            )| {
+            |(token, pair_token, trading_strategy, amount, size_ratio, take_profit_ratio)| {
                 (
                     token,
                     pair_token,
@@ -170,12 +98,6 @@ pub fn get(
                     amount * *FUND_SCALE_FACTOR,
                     size_ratio,
                     take_profit_ratio,
-                    loss_cut_ratio,
-                    rsi_lower_threshold,
-                    rsi_upper_threshold,
-                    adx_threshold,
-                    deviation,
-                    atr_ratio,
                 )
             },
         )

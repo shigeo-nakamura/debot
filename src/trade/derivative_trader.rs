@@ -7,7 +7,6 @@ use debot_market_analyzer::TradeDetail;
 use debot_market_analyzer::TradingStrategy;
 use debot_position_manager::ReasonForClose;
 use debot_position_manager::State;
-use debot_position_manager::TradePosition;
 use dex_connector::DexConnector;
 use dex_connector::DexError;
 use dex_connector::FilledOrder;
@@ -80,7 +79,6 @@ impl DerivativeTrader {
         interval_msecs: u64,
         max_price_size: u32,
         db_handler: Arc<Mutex<DBHandler>>,
-        open_positions_map: HashMap<String, HashMap<u32, TradePosition>>,
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
         save_prices: bool,
@@ -93,7 +91,6 @@ impl DerivativeTrader {
         web_socket_endpoint: &str,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
-        load_score: bool,
     ) -> Self {
         const SECONDS_IN_MINUTE: usize = 60;
         let interval_secs = interval_msecs as i64 / 1000;
@@ -118,7 +115,6 @@ impl DerivativeTrader {
         let state = Self::initialize_state(
             &mut config,
             db_handler,
-            open_positions_map,
             price_market_data,
             load_prices,
             save_prices,
@@ -128,7 +124,6 @@ impl DerivativeTrader {
             risk_reward,
             leverage,
             strategy,
-            load_score,
         )
         .await;
 
@@ -143,7 +138,6 @@ impl DerivativeTrader {
     async fn initialize_state(
         config: &mut DerivativeTraderConfig,
         db_handler: Arc<Mutex<DBHandler>>,
-        open_positions_map: HashMap<String, HashMap<u32, TradePosition>>,
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
         save_prices: bool,
@@ -153,23 +147,15 @@ impl DerivativeTrader {
         risk_reward: Decimal,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
-        load_score: bool,
     ) -> DerivativeTraderState {
         let dex_connector = Self::create_dex_connector(config)
             .await
             .expect("Failed to initialize DexConnector");
 
-        let score_map = if load_score {
-            Self::load_score(db_handler.clone()).await
-        } else {
-            HashMap::new()
-        };
-
         let fund_managers = Self::create_fund_managers(
             config,
             db_handler.clone(),
             dex_connector.clone(),
-            &open_positions_map,
             &price_market_data,
             load_prices,
             save_prices,
@@ -178,7 +164,6 @@ impl DerivativeTrader {
             use_market_order,
             risk_reward,
             strategy,
-            score_map,
         );
 
         let mut state = DerivativeTraderState {
@@ -203,7 +188,6 @@ impl DerivativeTrader {
         config: &mut DerivativeTraderConfig,
         db_handler: Arc<Mutex<DBHandler>>,
         dex_connector: Arc<DexConnectorBox>,
-        open_positions_map: &HashMap<String, HashMap<u32, TradePosition>>,
         price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
         save_prices: bool,
@@ -212,7 +196,6 @@ impl DerivativeTrader {
         use_market_order: bool,
         risk_reward: Decimal,
         strategy: Option<&TradingStrategy>,
-        score_map: HashMap<(String, Decimal), i32>,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
@@ -227,55 +210,20 @@ impl DerivativeTrader {
                     initial_amount,
                     position_size_ratio,
                     take_profit_ratio,
-                    loss_cut_ratio,
-                    rsi_lower_threshold,
-                    rsi_upper_threshold,
-                    adx_threshold,
-                    deviation,
-                    atr_ratio,
                 )| {
                     let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
                     *token_name_indices.get_mut(&token_name).unwrap() += 1;
 
                     let fund_name = format!(
-                        "{}-{:?}-{}-{}-{}/{}-{}-{}-{:?})",
+                        "{}-{:?}-{}-{:3}-{})",
                         if config.dry_run { "test" } else { "prod" },
                         strategy,
                         token_name,
                         index,
-                        rsi_lower_threshold,
-                        rsi_upper_threshold,
-                        adx_threshold,
-                        deviation,
-                        atr_ratio
+                        take_profit_ratio,
                     );
 
-                    let score_key = Self::get_score_key(
-                        &token_name,
-                        &strategy,
-                        rsi_lower_threshold,
-                        rsi_upper_threshold,
-                        adx_threshold,
-                        deviation,
-                        &atr_ratio,
-                    );
-                    let score = score_map.get(&score_key).unwrap_or(&0);
-                    if atr_ratio.is_some() {
-                        if !config.dry_run {
-                            if *score <= 0 {
-                                log::info!("score = {}, discard {}", score, fund_name);
-                                return None;
-                            }
-                        }
-                    }
-
-                    let mut market_data = Self::create_market_data(
-                        config.clone(),
-                        rsi_lower_threshold,
-                        rsi_upper_threshold,
-                        adx_threshold,
-                        deviation,
-                    );
+                    let mut market_data = Self::create_market_data(config.clone());
 
                     if load_prices {
                         Self::restore_market_data(
@@ -293,7 +241,6 @@ impl DerivativeTrader {
                         index,
                         &token_name,
                         pair_token_name.as_deref(),
-                        open_positions_map.get(&fund_name).cloned(),
                         market_data,
                         strategy,
                         initial_amount * position_size_ratio,
@@ -305,13 +252,7 @@ impl DerivativeTrader {
                         max_open_duration_secs,
                         use_market_order,
                         take_profit_ratio,
-                        loss_cut_ratio,
                         risk_reward,
-                        rsi_lower_threshold,
-                        rsi_upper_threshold,
-                        adx_threshold,
-                        deviation,
-                        atr_ratio,
                     ))
                 },
             )
@@ -348,13 +289,7 @@ impl DerivativeTrader {
         }
     }
 
-    fn create_market_data(
-        config: DerivativeTraderConfig,
-        rsi_lower_threshold: Decimal,
-        rsi_upper_threshold: Decimal,
-        adx_threshold: Decimal,
-        deviation: f64,
-    ) -> MarketData {
+    fn create_market_data(config: DerivativeTraderConfig) -> MarketData {
         MarketData::new(
             config.trader_name.to_owned(),
             config.short_trade_period,
@@ -362,10 +297,6 @@ impl DerivativeTrader {
             config.trade_period,
             config.max_price_size as usize,
             config.order_effective_duration_secs,
-            rsi_lower_threshold,
-            rsi_upper_threshold,
-            deviation,
-            adx_threshold,
         )
     }
 
@@ -667,63 +598,5 @@ impl DerivativeTrader {
         }
         log::error!("failed to get the balance");
         return Err(());
-    }
-
-    pub async fn save_score(&self) {
-        let mut score_map: HashMap<(String, Decimal), i32> = HashMap::new();
-
-        for (_, fund_manager) in self.state.fund_manager_map.iter().filter(|&x| {
-            matches!(
-                x.1.strategy(),
-                TradingStrategy::TrendFollow(_) | TradingStrategy::MeanReversion(_)
-            ) && x.1.atr_ratio().is_some()
-        }) {
-            let key = Self::get_score_key(
-                fund_manager.token_name(),
-                &fund_manager.strategy(),
-                fund_manager.rsi_lower_threshold(),
-                fund_manager.rsi_upper_threshold(),
-                fund_manager.adx_threshold(),
-                fund_manager.deviation(),
-                &fund_manager.atr_ratio(),
-            );
-            let score = fund_manager.score();
-            let item = score_map.entry(key).or_insert(0);
-            *item += score;
-        }
-
-        self.state
-            .db_handler
-            .lock()
-            .await
-            .log_score(&score_map)
-            .await
-    }
-
-    fn get_score_key(
-        token_name: &str,
-        strategy: &TradingStrategy,
-        rsi_lower_threshold: Decimal,
-        rsi_upper_threshold: Decimal,
-        adx_threshold: Decimal,
-        deviation: f64,
-        atr_ratio: &Option<Decimal>,
-    ) -> (String, Decimal) {
-        let name = format!(
-            "{}-{}-{}-{}-{}-{:?}",
-            token_name,
-            rsi_lower_threshold,
-            rsi_upper_threshold,
-            adx_threshold,
-            deviation,
-            strategy.trend_type()
-        );
-        (name, atr_ratio.unwrap_or_default())
-    }
-
-    async fn load_score(db_handler: Arc<Mutex<DBHandler>>) -> HashMap<(String, Decimal), i32> {
-        let score_map = db_handler.lock().await.get_score().await;
-        log::info!("score_map = {:?}", score_map);
-        score_map
     }
 }

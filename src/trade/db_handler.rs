@@ -1,7 +1,7 @@
 // db_operations.rs
 
-use debot_db::{CounterType, PnlLog, PriceLog, PricePoint, Score, ScoreMap, TransactionLog};
-use debot_position_manager::{State, TradePosition};
+use debot_db::{CounterType, DebugLog, PnlLog, PositionLog, PriceLog, PricePoint, TransactionLog};
+use debot_position_manager::{PositionType, State, TradePosition};
 use debot_utils::DateTimeUtils;
 use lazy_static::lazy_static;
 use rust_decimal::Decimal;
@@ -43,26 +43,6 @@ impl DBHandler {
 }
 
 impl DBHandler {
-    pub async fn log_score(&self, score_map: &HashMap<(String, Decimal), i32>) {
-        log::info!("log_score: {:?}", score_map);
-
-        if let Some(db) = self.transaction_log.get_db().await {
-            let mut item = ScoreMap::default();
-            item.scores = score_map
-                .iter()
-                .map(|((token_name, atr_ratio), val)| Score {
-                    token_name: token_name.to_string(),
-                    atr_ratio: *atr_ratio,
-                    val: *val,
-                })
-                .collect();
-
-            if let Err(e) = TransactionLog::update_score_map(&db, item).await {
-                log::error!("log_score: {:?}", e);
-            }
-        }
-    }
-
     pub async fn log_pnl(&self, pnl: Decimal) {
         log::info!("log_pnl: {:6.6}", pnl);
 
@@ -114,7 +94,47 @@ impl DBHandler {
         }
 
         if let Some(db) = self.transaction_log.get_db().await {
-            if let Err(e) = TransactionLog::update_transaction(&db, position).await {
+            let position_log = PositionLog {
+                id: Some(position.id()),
+                fund_name: position.fund_name().to_owned(),
+                order_id: position.order_id().to_owned(),
+                ordered_price: position.ordered_price(),
+                state: position.state().to_string(),
+                token_name: position.token_name().to_owned(),
+                open_time_str: position.open_time_str().to_owned(),
+                close_time_str: position.close_time_str().to_owned(),
+                average_open_price: position.average_open_price(),
+                position_type: if position.position_type() == PositionType::Long {
+                    "Long"
+                } else {
+                    "Short"
+                }
+                .to_string(),
+                close_price: position.close_price(),
+                asset_in_usd: position.asset_in_usd(),
+                pnl: position.pnl(),
+                fee: position.fee(),
+                debug: DebugLog {
+                    input_1: position.adx().round_dp(4),
+                    input_2: position.atr().round_dp(4),
+                    input_3: position.rsi().round_dp(4),
+                    input_4: position.macd().round_dp(4),
+                    input_5: position.trend().round_dp(4),
+                    input_6: position.take_profit_ratio().round_dp(4),
+                    input_7: position.price_variance().round_dp(4),
+                    input_8: position.stochastic().round_dp(4),
+                    input_9: Decimal::ZERO.round_dp(4),
+                    input_10: Decimal::ZERO.round_dp(4),
+                    output_1: if position.pnl().is_sign_positive() {
+                        Decimal::ONE
+                    } else {
+                        Decimal::ZERO
+                    },
+                    output_2: Decimal::ZERO,
+                },
+            };
+
+            if let Err(e) = TransactionLog::update_transaction(&db, &position_log).await {
                 log::error!("log_position: {:?}", e);
             }
         }
@@ -142,19 +162,6 @@ impl DBHandler {
         Some(self.transaction_log.increment_counter(counter_type))
     }
 
-    pub async fn get_score(&self) -> HashMap<(String, Decimal), i32> {
-        if let Some(db) = self.transaction_log.get_db().await {
-            let score_map = TransactionLog::get_score_map(&db).await;
-            let mut dest_score_map: HashMap<(String, Decimal), i32> = HashMap::new();
-            for score in score_map.scores.iter() {
-                dest_score_map.insert((score.token_name.to_owned(), score.atr_ratio), score.val);
-            }
-            dest_score_map
-        } else {
-            HashMap::new()
-        }
-    }
-
     pub async fn get_app_state(&self) -> (Option<SystemTime>, Option<Decimal>, bool) {
         if let Some(db) = self.transaction_log.get_db().await {
             let app_state = TransactionLog::get_app_state(&db).await;
@@ -174,32 +181,5 @@ impl DBHandler {
         } else {
             HashMap::new()
         }
-    }
-
-    #[allow(dead_code)]
-    pub async fn get_open_positions_map(&self) -> HashMap<String, HashMap<u32, TradePosition>> {
-        let mut open_positions_map = HashMap::new();
-        if let Some(db) = self.transaction_log.get_db().await {
-            let open_positions_vec = TransactionLog::get_all_open_positions(&db).await;
-
-            // Populate the open_positions_map
-            for position in open_positions_vec {
-                // Ensure a Vec exists for this fund_name, then push the position into it
-                open_positions_map
-                    .entry(position.fund_name().to_owned())
-                    .or_insert_with(HashMap::new)
-                    .insert(position.id().unwrap_or_default(), position);
-            }
-
-            for (fund_name, positions) in &open_positions_map {
-                log::info!("Fund name: {}", fund_name);
-                for (_, position) in positions {
-                    log::info!("Token name: {}", position.token_name());
-                    log::info!("Position: {:?}", position);
-                }
-            }
-        }
-
-        open_positions_map
     }
 }

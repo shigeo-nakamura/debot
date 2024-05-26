@@ -99,9 +99,6 @@ async fn prepare_trader_instance(
     // todo: support multiple traders
     let (trading_interval, interval, dex_name) = &trader_config::get(config.strategy.as_ref())[0];
 
-    // Read open positions from the DB
-    let open_positions_map = db_handler.lock().await.get_open_positions_map().await;
-
     // Create an error manager
     let error_manager = ErrorManager::new();
 
@@ -113,7 +110,6 @@ async fn prepare_trader_instance(
         config.interval_msec,
         config.max_price_size,
         db_handler,
-        open_positions_map,
         price_market_data.clone(),
         config.load_prices,
         config.save_prices,
@@ -126,7 +122,6 @@ async fn prepare_trader_instance(
         &config.web_socket_endpoint,
         config.leverage,
         config.strategy.as_ref(),
-        config.load_score,
     )
     .await;
 
@@ -237,9 +232,6 @@ async fn main_loop(
             if config.liquidate_when_exit {
                 trader.liquidate("reboot").await;
             }
-            if config.dry_run {
-                trader.save_score().await;
-            }
             std::process::exit(0);
         }
 
@@ -272,9 +264,6 @@ async fn main_loop(
         if exit {
             if config.liquidate_when_exit {
                 trader.liquidate("reboot").await;
-            }
-            if config.dry_run {
-                trader.save_score().await;
             }
             std::process::exit(0);
         }
