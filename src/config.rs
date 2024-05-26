@@ -109,7 +109,7 @@ fn get_bool_env_var(var: &str, default: bool) -> bool {
 pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
     let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
-    let log_limit = get_env_var("LOG_LIMIT", "10000")?;
+    let log_limit = get_env_var("LOG_LIMIT", "1000000")?;
     let dry_run = get_bool_env_var("DRY_RUN", true);
     let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
 
