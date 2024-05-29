@@ -74,6 +74,42 @@ pub fn get(
                 Decimal::new(8, 1),    // position size ratio
                 take_profit_ratio,     // take profit ratio
             ));
+
+            strategy_list.push((
+                HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
+                None,                                 // pair token
+                TradingStrategy::RandomWalk(TrendType::Up),
+                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(8, 1),    // position size ratio
+                take_profit_ratio,     // take profit ratio
+            ));
+
+            strategy_list.push((
+                HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
+                None,                                 // pair token
+                TradingStrategy::RandomWalk(TrendType::Down),
+                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(8, 1),    // position size ratio
+                take_profit_ratio,     // take profit ratio
+            ));
+
+            strategy_list.push((
+                HYPERLIQUID_TOKEN_LIST[2].to_owned(), // SOL
+                None,                                 // pair token
+                TradingStrategy::RandomWalk(TrendType::Up),
+                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(8, 1),    // position size ratio
+                take_profit_ratio,     // take profit ratio
+            ));
+
+            strategy_list.push((
+                HYPERLIQUID_TOKEN_LIST[2].to_owned(), // SOL
+                None,                                 // pair token
+                TradingStrategy::RandomWalk(TrendType::Down),
+                Decimal::new(5000, 0), // initial amount (in USD)
+                Decimal::new(8, 1),    // position size ratio
+                take_profit_ratio,     // take profit ratio
+            ));
         }
     } else {
         panic!("Unsupported dex");
