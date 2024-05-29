@@ -136,10 +136,13 @@ impl DBHandler {
                     input_8: position.stochastic().round_dp(4),
                     input_9: position.atr_spread().round_dp(4),
                     input_10: Decimal::ZERO.round_dp(4),
-                    output_1: if position.pnl().is_sign_positive() {
-                        Decimal::ONE
-                    } else {
-                        Decimal::ZERO
+                    output_1: match position.state() {
+                        State::Closed(reason) => match reason.as_str() {
+                            "TakeProfit" => Decimal::new(1, 0),
+                            "CutLoss" => Decimal::new(-1, 0),
+                            _ => Decimal::ZERO,
+                        },
+                        _ => Decimal::ZERO,
                     },
                     output_2: Decimal::ZERO,
                 },
