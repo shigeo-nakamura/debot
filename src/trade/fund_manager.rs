@@ -47,6 +47,7 @@ struct FundManagerConfig {
     use_market_order: bool,
     take_profit_ratio: Decimal,
     risk_reward: Decimal,
+    atr_spread: Option<Decimal>,
 }
 
 #[derive(Default)]
@@ -87,6 +88,7 @@ impl FundManager {
         use_market_order: bool,
         take_profit_ratio: Decimal,
         risk_reward: Decimal,
+        atr_spread: Option<Decimal>,
     ) -> Self {
         let config = FundManagerConfig {
             fund_name: fund_name.to_owned(),
@@ -103,6 +105,7 @@ impl FundManager {
             take_profit_ratio,
             risk_reward,
             execution_delay_secs: order_effective_duration_secs,
+            atr_spread,
         };
 
         log::info!("initial amount = {}", initial_amount);
@@ -442,7 +445,7 @@ impl FundManager {
             } else {
                 OrderSide::Short
             };
-            let order_price = match self.order_price(current_price, order_price) {
+            let order_price = match self.order_price(current_price, order_price, is_buy) {
                 Ok(order_price) => order_price,
                 Err(_) => continue,
             };
@@ -1250,10 +1253,21 @@ impl FundManager {
         &self,
         current_price: Decimal,
         order_price: Option<Decimal>,
+        is_buy: bool,
     ) -> Result<Decimal, ()> {
         match order_price {
             Some(v) => Ok(v),
-            None => Ok(current_price),
+            None => match self.config.atr_spread {
+                Some(atr_spread) => {
+                    let spread = self.state.market_data.atr() * atr_spread;
+                    if is_buy {
+                        Ok(current_price - spread)
+                    } else {
+                        Ok(current_price + spread)
+                    }
+                }
+                None => Ok(current_price),
+            },
         }
     }
 

@@ -210,17 +210,19 @@ impl DerivativeTrader {
                     initial_amount,
                     position_size_ratio,
                     take_profit_ratio,
+                    atr_spread,
                 )| {
                     let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
                     *token_name_indices.get_mut(&token_name).unwrap() += 1;
 
                     let fund_name = format!(
-                        "{}-{:?}-{}-{}-{})",
+                        "{}-{:?}-{}-{}-{}-{:?})",
                         if config.dry_run { "test" } else { "prod" },
                         strategy,
                         token_name,
                         index,
                         take_profit_ratio,
+                        atr_spread,
                     );
 
                     let mut market_data = Self::create_market_data(config.clone());
@@ -253,6 +255,7 @@ impl DerivativeTrader {
                         use_market_order,
                         take_profit_ratio,
                         risk_reward,
+                        atr_spread,
                     ))
                 },
             )
