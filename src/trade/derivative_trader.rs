@@ -1,5 +1,9 @@
 // derivative_trader.rs
 
+use super::dex_connector_box::DexConnectorBox;
+use super::fund_config;
+use super::DBHandler;
+use super::FundManager;
 use debot_db::PricePoint;
 use debot_market_analyzer::MarketData;
 use debot_market_analyzer::TradeAction;
@@ -20,11 +24,7 @@ use std::io;
 use std::io::ErrorKind;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-
-use super::dex_connector_box::DexConnectorBox;
-use super::fund_config;
-use super::DBHandler;
-use super::FundManager;
+use tokio::task;
 
 #[derive(Clone)]
 pub struct SampleInterval {
@@ -164,7 +164,8 @@ impl DerivativeTrader {
             use_market_order,
             risk_reward,
             strategy,
-        );
+        )
+        .await;
 
         let mut state = DerivativeTraderState {
             db_handler,
@@ -184,7 +185,7 @@ impl DerivativeTrader {
         state
     }
 
-    fn create_fund_managers(
+    async fn create_fund_managers(
         config: &mut DerivativeTraderConfig,
         db_handler: Arc<Mutex<DBHandler>>,
         dex_connector: Arc<DexConnectorBox>,
@@ -199,67 +200,87 @@ impl DerivativeTrader {
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
+        let mut futures = vec![];
 
-        fund_manager_configurations
-            .into_iter()
-            .filter_map(
-                |(
-                    token_name,
-                    pair_token_name,
-                    strategy,
-                    initial_amount,
-                    position_size_ratio,
-                    take_profit_ratio,
-                    atr_spread,
-                )| {
-                    let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
-                    *token_name_indices.get_mut(&token_name).unwrap() += 1;
+        for (
+            token_name,
+            pair_token_name,
+            strategy,
+            initial_amount,
+            position_size_ratio,
+            take_profit_ratio,
+            atr_spread,
+        ) in fund_manager_configurations.into_iter()
+        {
+            let db_handler = db_handler.clone();
+            let dex_connector = dex_connector.clone();
+            let config = config.clone();
+            let price_market_data = price_market_data.clone();
+            let load_prices = load_prices;
+            let save_prices = save_prices;
+            let order_effective_duration_secs = order_effective_duration_secs;
+            let max_open_duration_secs = max_open_duration_secs;
+            let use_market_order = use_market_order;
+            let risk_reward = risk_reward;
+            let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
+            *token_name_indices.get_mut(&token_name).unwrap() += 1;
 
-                    let fund_name = format!(
-                        "{}-{:?}-{}-{}-{}-{:?})",
-                        if config.dry_run { "test" } else { "prod" },
-                        strategy,
-                        token_name,
-                        index,
-                        take_profit_ratio,
-                        atr_spread,
-                    );
+            let fund_name = format!(
+                "{}-{:?}-{}-{}-{}-{:?}",
+                if config.dry_run { "test" } else { "prod" },
+                strategy,
+                token_name,
+                index,
+                take_profit_ratio,
+                atr_spread,
+            );
 
-                    let mut market_data = Self::create_market_data(config.clone());
+            let future = async move {
+                let mut market_data = Self::create_market_data(
+                    db_handler.clone(),
+                    config.clone(),
+                    &token_name,
+                    &strategy,
+                )
+                .await;
 
-                    if load_prices {
-                        Self::restore_market_data(
-                            &mut market_data,
-                            &config.trader_name,
-                            &token_name,
-                            &price_market_data,
-                        );
-                    }
-
-                    log::info!("create {}", fund_name);
-
-                    Some(FundManager::new(
-                        &fund_name,
-                        index,
+                if load_prices {
+                    Self::restore_market_data(
+                        &mut market_data,
+                        &config.trader_name,
                         &token_name,
-                        pair_token_name.as_deref(),
-                        market_data,
-                        strategy,
-                        initial_amount * position_size_ratio,
-                        initial_amount,
-                        db_handler.clone(),
-                        dex_connector.clone(),
-                        save_prices,
-                        order_effective_duration_secs,
-                        max_open_duration_secs,
-                        use_market_order,
-                        take_profit_ratio,
-                        risk_reward,
-                        atr_spread,
-                    ))
-                },
-            )
-            .collect()
+                        &price_market_data,
+                    );
+                }
+
+                log::info!("create {}", fund_name);
+
+                Some(FundManager::new(
+                    &fund_name,
+                    index,
+                    &token_name,
+                    pair_token_name.as_deref(),
+                    market_data,
+                    strategy,
+                    initial_amount * position_size_ratio,
+                    initial_amount,
+                    db_handler,
+                    dex_connector,
+                    save_prices,
+                    order_effective_duration_secs,
+                    max_open_duration_secs,
+                    use_market_order,
+                    take_profit_ratio,
+                    risk_reward,
+                    atr_spread,
+                ))
+            };
+
+            futures.push(task::spawn(future));
+        }
+
+        let results = join_all(futures).await;
+        results.into_iter().filter_map(|res| res.unwrap()).collect()
     }
 
     async fn create_dex_connector(
@@ -292,7 +313,25 @@ impl DerivativeTrader {
         }
     }
 
-    fn create_market_data(config: DerivativeTraderConfig) -> MarketData {
+    async fn create_market_data(
+        db_handler: Arc<Mutex<DBHandler>>,
+        config: DerivativeTraderConfig,
+        token_name: &str,
+        strategy: &TradingStrategy,
+    ) -> MarketData {
+        let random_foreset = match strategy {
+            TradingStrategy::MachineLearning(trend_type) => {
+                let position_type = match trend_type {
+                    debot_market_analyzer::TrendType::Up => "Long",
+                    debot_market_analyzer::TrendType::Down => "Short",
+                    _ => "",
+                };
+                let key = format!("{}_{}", token_name, position_type);
+                Some(db_handler.lock().await.create_random_forest(&key).await)
+            }
+            _ => None,
+        };
+
         MarketData::new(
             config.trader_name.to_owned(),
             config.short_trade_period,
@@ -300,6 +339,7 @@ impl DerivativeTrader {
             config.trade_period,
             config.max_price_size as usize,
             config.order_effective_duration_secs,
+            random_foreset,
         )
     }
 

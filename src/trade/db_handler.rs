@@ -1,6 +1,9 @@
 // db_operations.rs
 
-use debot_db::{CounterType, DebugLog, PnlLog, PositionLog, PriceLog, PricePoint, TransactionLog};
+use debot_db::{
+    CounterType, DebugLog, ModelParams, PnlLog, PositionLog, PriceLog, PricePoint, TransactionLog,
+};
+use debot_ml::RandomForest;
 use debot_position_manager::{PositionType, State, TradePosition};
 use debot_utils::DateTimeUtils;
 use lazy_static::lazy_static;
@@ -9,6 +12,7 @@ use std::{collections::HashMap, env, sync::Arc, time::SystemTime};
 
 pub struct DBHandler {
     transaction_log: Arc<TransactionLog>,
+    model_params: Arc<ModelParams>,
 }
 
 lazy_static! {
@@ -38,7 +42,14 @@ impl DBHandler {
             )
             .await,
         );
-        Self { transaction_log }
+
+        let model_params = ModelParams::new(&mongodb_uri, &db_name).await;
+        let model_params = Arc::new(model_params);
+
+        Self {
+            transaction_log,
+            model_params,
+        }
     }
 }
 
@@ -123,7 +134,7 @@ impl DBHandler {
                     input_6: position.take_profit_ratio().round_dp(4),
                     input_7: position.price_variance().round_dp(4),
                     input_8: position.stochastic().round_dp(4),
-                    input_9: Decimal::ZERO.round_dp(4),
+                    input_9: position.atr_spread().round_dp(4),
                     input_10: Decimal::ZERO.round_dp(4),
                     output_1: if position.pnl().is_sign_positive() {
                         Decimal::ONE
@@ -181,5 +192,9 @@ impl DBHandler {
         } else {
             HashMap::new()
         }
+    }
+
+    pub async fn create_random_forest(&self, key: &str) -> RandomForest {
+        RandomForest::new(key, &self.model_params).await
     }
 }

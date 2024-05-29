@@ -511,6 +511,7 @@ impl FundManager {
             Decimal::ZERO,
             Decimal::ZERO,
             Decimal::ZERO,
+            Decimal::ZERO,
         );
         positions_vec.push(dummy_position);
 
@@ -732,7 +733,10 @@ impl FundManager {
                     ReasonForClose::CutLoss => self.statistics.cut_loss_count += 1,
                     _ => {}
                 }
-            } else if matches!(self.config.strategy, TradingStrategy::RandomWalk(_)) {
+            } else if matches!(
+                self.config.strategy,
+                TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_)
+            ) {
                 if position.should_open_expired() {
                     reason_for_close = Some(ReasonForClose::Expired);
                     self.statistics.expired_count += 1;
@@ -765,14 +769,16 @@ impl FundManager {
     }
 
     fn can_execute_new_trade(&self) -> bool {
-        if matches!(self.config.strategy, TradingStrategy::RandomWalk(_))
-            && !self.state.trade_positions.is_empty()
+        if matches!(
+            self.config.strategy,
+            TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_)
+        ) && !self.state.trade_positions.is_empty()
         {
             return false;
         }
 
         match self.config.strategy {
-            TradingStrategy::RandomWalk(_) => {
+            TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_) => {
                 if let Some(last_trade_time) = self.state.last_trade_time {
                     let current_time = chrono::Utc::now().timestamp();
                     let delay_secs = self.config.execution_delay_secs;
@@ -935,6 +941,7 @@ impl FundManager {
                 self.state.market_data.macd(),
                 self.state.market_data.trend_val(),
                 self.config.take_profit_ratio,
+                self.config.atr_spread.unwrap_or_default(),
             );
 
             position_cloned = position.clone();
