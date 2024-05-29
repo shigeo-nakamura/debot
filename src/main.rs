@@ -11,6 +11,7 @@ use log::LevelFilter;
 use rust_decimal::Decimal;
 use std::env;
 use std::io::Write;
+use std::str::FromStr;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use trade::{trader_config, DerivativeTrader};
@@ -50,7 +51,11 @@ async fn main() -> std::io::Result<()> {
                 record.args()
             )
         })
-        .filter(None, LevelFilter::Debug)
+        .filter(
+            None,
+            LevelFilter::from_str(&env::var("RUST_LOG").unwrap_or_else(|_| "debug".to_string()))
+                .unwrap_or(LevelFilter::Debug),
+        )
         .init();
 
     // Load the configs
