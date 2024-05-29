@@ -106,6 +106,46 @@ pub fn get(
                     take_profit_ratio,     // take profit ratio
                     atr_spread,            // spread by ATR
                 ));
+
+                strategy_list.push((
+                    HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
+                    None,                                 // pair token
+                    TradingStrategy::MachineLearning(TrendType::Up),
+                    Decimal::new(5000, 0), // initial amount (in USD)
+                    Decimal::new(8, 1),    // position size ratio
+                    take_profit_ratio,     // take profit ratioat
+                    atr_spread,            // spread by ATR
+                ));
+
+                strategy_list.push((
+                    HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
+                    None,                                 // pair token
+                    TradingStrategy::MachineLearning(TrendType::Down),
+                    Decimal::new(5000, 0), // initial amount (in USD)
+                    Decimal::new(8, 1),    // position size ratio
+                    take_profit_ratio,     // take profit ratio
+                    atr_spread,            // spread by ATR
+                ));
+
+                strategy_list.push((
+                    HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
+                    None,                                 // pair token
+                    TradingStrategy::MachineLearning(TrendType::Up),
+                    Decimal::new(5000, 0), // initial amount (in USD)
+                    Decimal::new(8, 1),    // position size ratio
+                    take_profit_ratio,     // take profit ratio
+                    atr_spread,            // spread by ATR
+                ));
+
+                strategy_list.push((
+                    HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
+                    None,                                 // pair token
+                    TradingStrategy::MachineLearning(TrendType::Down),
+                    Decimal::new(5000, 0), // initial amount (in USD)
+                    Decimal::new(8, 1),    // position size ratio
+                    take_profit_ratio,     // take profit ratio
+                    atr_spread,            // spread by ATR
+                ));
             }
         }
     } else {

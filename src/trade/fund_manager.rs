@@ -340,7 +340,7 @@ impl FundManager {
         let mut actions: Vec<TradeAction> = vec![];
 
         match self.config.strategy {
-            TradingStrategy::RandomWalk(_) => {
+            TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_) => {
                 if !self.can_execute_new_trade() {
                     return self
                         .handle_open_chances(current_price, &actions, hedge_requests)
@@ -370,6 +370,8 @@ impl FundManager {
             self.config.strategy.clone(),
             rounded_price,
             self.config.trading_amount,
+            self.config.take_profit_ratio,
+            self.config.atr_spread,
         );
 
         self.handle_open_chances(current_price, &actions, hedge_requests)
@@ -579,7 +581,7 @@ impl FundManager {
         let (pnl, ratio) = self.unrealized_pnl_of_open_position(current_price);
 
         match self.config.strategy {
-            TradingStrategy::RandomWalk(_) => {
+            TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_) => {
                 log::info!(
                     "{} pnl: {:.3}/{:.3}({:.3}%) profit/loss/expired = {}/{}/{}, min position = {:.1}, trend = {:?}",
                     format!("{}-{}", self.config.token_name, self.config.index),
@@ -1285,7 +1287,9 @@ impl FundManager {
 
         match self.config.strategy {
             TradingStrategy::MarketMake => None,
-            TradingStrategy::RandomWalk(_) | TradingStrategy::PassiveTrade(_) => match side {
+            TradingStrategy::RandomWalk(_)
+            | TradingStrategy::MachineLearning(_)
+            | TradingStrategy::PassiveTrade(_) => match side {
                 OrderSide::Long => Some(current_price + take_profit_distance),
                 _ => Some(current_price - take_profit_distance),
             },

@@ -15,6 +15,12 @@ pub fn get(strategy: Option<&TradingStrategy>) -> Vec<(usize, SampleInterval, St
             dex_name.to_owned(),
         ),
         (
+            TradingStrategy::MachineLearning(TrendType::Unknown),
+            5,
+            SampleInterval::new(12, 26),
+            dex_name.to_owned(),
+        ),
+        (
             TradingStrategy::MarketMake,
             5,
             SampleInterval::new(12, 26),
