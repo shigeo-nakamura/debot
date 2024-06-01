@@ -504,12 +504,11 @@ impl FundManager {
             PositionType::Long,
             Decimal::ZERO,
             Decimal::ZERO,
-            Decimal::ZERO,
-            Decimal::ZERO,
-            Decimal::ZERO,
-            Decimal::ZERO,
-            Decimal::ZERO,
-            Decimal::ZERO,
+            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
+            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
+            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
+            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
+            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
             Decimal::ZERO,
             Decimal::ZERO,
         );
@@ -939,7 +938,6 @@ impl FundManager {
                 self.state.market_data.rsi(),
                 self.state.market_data.stochastic(),
                 self.state.market_data.macd(),
-                self.state.market_data.trend_val(),
                 self.config.take_profit_ratio,
                 self.config.atr_spread.unwrap_or_default(),
             );
@@ -1268,7 +1266,7 @@ impl FundManager {
             Some(v) => Ok(v),
             None => match self.config.atr_spread {
                 Some(atr_spread) => {
-                    let spread = self.state.market_data.atr() * atr_spread;
+                    let spread = self.state.market_data.atr().0 * atr_spread;
                     if is_buy {
                         Ok(current_price - spread)
                     } else {

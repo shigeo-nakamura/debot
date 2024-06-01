@@ -10,19 +10,19 @@ pub fn get(strategy: Option<&TradingStrategy>) -> Vec<(usize, SampleInterval, St
     vec![
         (
             TradingStrategy::RandomWalk(TrendType::Unknown),
-            5,
+            60,
             SampleInterval::new(12, 26),
             dex_name.to_owned(),
         ),
         (
-            TradingStrategy::MachineLearning(TrendType::Unknown),
-            5,
+            TradingStrategy::RandomWalk(TrendType::Unknown),
+            60,
             SampleInterval::new(12, 26),
             dex_name.to_owned(),
         ),
         (
             TradingStrategy::MarketMake,
-            5,
+            15,
             SampleInterval::new(12, 26),
             dex_name.to_owned(),
         ),
