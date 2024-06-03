@@ -226,7 +226,7 @@ impl DerivativeTrader {
             *token_name_indices.get_mut(&token_name).unwrap() += 1;
 
             let fund_name = format!(
-                "{}-{:?}-{}-{}-{}-{:?}",
+                "{}-{:?}-{}-{}-{:?}-{:?}",
                 if config.dry_run { "test" } else { "prod" },
                 strategy,
                 token_name,

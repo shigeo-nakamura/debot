@@ -45,7 +45,7 @@ struct FundManagerConfig {
     max_open_duration_secs: i64,
     execution_delay_secs: i64,
     use_market_order: bool,
-    take_profit_ratio: Decimal,
+    take_profit_ratio: Option<Decimal>,
     risk_reward: Decimal,
     atr_spread: Option<Decimal>,
 }
@@ -86,7 +86,7 @@ impl FundManager {
         order_effective_duration_secs: i64,
         max_open_duration_secs: i64,
         use_market_order: bool,
-        take_profit_ratio: Decimal,
+        take_profit_ratio: Option<Decimal>,
         risk_reward: Decimal,
         atr_spread: Option<Decimal>,
     ) -> Self {
@@ -370,7 +370,7 @@ impl FundManager {
             self.config.strategy.clone(),
             rounded_price,
             self.config.trading_amount,
-            self.config.take_profit_ratio,
+            self.config.take_profit_ratio.unwrap_or_default(),
             self.config.atr_spread,
         );
 
@@ -456,6 +456,9 @@ impl FundManager {
                 None => self.config.trading_amount / order_price * confidence,
             };
             let target_price = self.target_price(current_price, side, false);
+            if target_price.is_none() {
+                continue;
+            }
 
             if self.state.amount <= token_amount * order_price {
                 log::warn!(
@@ -938,7 +941,7 @@ impl FundManager {
                 self.state.market_data.rsi(),
                 self.state.market_data.stochastic(),
                 self.state.market_data.macd(),
-                self.config.take_profit_ratio,
+                self.config.take_profit_ratio.unwrap_or_default(),
                 self.config.atr_spread.unwrap_or_default(),
             );
 
@@ -1278,16 +1281,32 @@ impl FundManager {
         }
     }
 
+    fn take_profit_distance(&self, current_price: Decimal) -> Option<Decimal> {
+        match self.config.take_profit_ratio {
+            Some(v) => Some(v * current_price),
+            None => match self.config.atr_spread {
+                Some(v) => {
+                    let atr = self.state.market_data.atr().0;
+                    if atr == Decimal::ZERO {
+                        None
+                    } else {
+                        Some(atr * v)
+                    }
+                }
+                None => None,
+            },
+        }
+    }
+
     fn target_price(
         &self,
         current_price: Decimal,
         side: OrderSide,
-        is_hedge: bool,
+        _is_hedge: bool,
     ) -> Option<Decimal> {
-        let take_profit_distance = if is_hedge {
-            current_price * self.config.take_profit_ratio
-        } else {
-            current_price * self.config.take_profit_ratio
+        let take_profit_distance = match self.take_profit_distance(current_price) {
+            Some(v) => v,
+            None => return None,
         };
 
         match self.config.strategy {
@@ -1309,8 +1328,12 @@ impl FundManager {
     }
 
     fn cut_loss_price(&self, filled_price: Decimal, side: OrderSide) -> Option<Decimal> {
-        let cut_loss_distance =
-            filled_price * self.config.take_profit_ratio / self.config.risk_reward;
+        let take_profit_distance = match self.take_profit_distance(filled_price) {
+            Some(v) => v,
+            None => return None,
+        };
+
+        let cut_loss_distance = take_profit_distance / self.config.risk_reward;
         match self.config.strategy {
             TradingStrategy::MarketMake => None,
             _ => match side {
