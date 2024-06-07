@@ -154,7 +154,11 @@ impl DBHandler {
                         },
                         _ => Decimal::ZERO,
                     },
-                    output_2: Decimal::ZERO,
+                    output_2: if position.pnl().is_sign_positive() {
+                        Decimal::ONE
+                    } else {
+                        Decimal::ZERO
+                    },
                 },
             };
 
