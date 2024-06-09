@@ -511,7 +511,7 @@ impl FundManager {
             (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
             (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
             (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
-            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
+            Decimal::ZERO,
             Decimal::ZERO,
             Decimal::ZERO,
         );
