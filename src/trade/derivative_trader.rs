@@ -84,7 +84,6 @@ impl DerivativeTrader {
         save_prices: bool,
         max_dd_ratio: Decimal,
         order_effective_duration_secs: i64,
-        max_open_duration_secs: i64,
         use_market_order: bool,
         risk_reward: Decimal,
         rest_endpoint: &str,
@@ -119,7 +118,6 @@ impl DerivativeTrader {
             load_prices,
             save_prices,
             order_effective_duration_secs,
-            max_open_duration_secs,
             use_market_order,
             risk_reward,
             leverage,
@@ -142,7 +140,6 @@ impl DerivativeTrader {
         load_prices: bool,
         save_prices: bool,
         order_effective_duration_secs: i64,
-        max_open_duration_secs: i64,
         use_market_order: bool,
         risk_reward: Decimal,
         leverage: u32,
@@ -160,7 +157,6 @@ impl DerivativeTrader {
             load_prices,
             save_prices,
             order_effective_duration_secs,
-            max_open_duration_secs,
             use_market_order,
             risk_reward,
             strategy,
@@ -193,7 +189,6 @@ impl DerivativeTrader {
         load_prices: bool,
         save_prices: bool,
         order_effective_duration_secs: i64,
-        max_open_duration_secs: i64,
         use_market_order: bool,
         risk_reward: Decimal,
         strategy: Option<&TradingStrategy>,
@@ -210,6 +205,7 @@ impl DerivativeTrader {
             position_size_ratio,
             take_profit_ratio,
             atr_spread,
+            max_open_hours,
         ) in fund_manager_configurations.into_iter()
         {
             let db_handler = db_handler.clone();
@@ -219,7 +215,6 @@ impl DerivativeTrader {
             let load_prices = load_prices;
             let save_prices = save_prices;
             let order_effective_duration_secs = order_effective_duration_secs;
-            let max_open_duration_secs = max_open_duration_secs;
             let use_market_order = use_market_order;
             let risk_reward = risk_reward;
             let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
@@ -268,7 +263,7 @@ impl DerivativeTrader {
                     dex_connector,
                     save_prices,
                     order_effective_duration_secs,
-                    max_open_duration_secs,
+                    max_open_hours * 60 * 60,
                     use_market_order,
                     take_profit_ratio,
                     risk_reward,

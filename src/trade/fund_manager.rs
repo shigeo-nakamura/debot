@@ -372,6 +372,7 @@ impl FundManager {
             self.config.trading_amount,
             self.config.take_profit_ratio.unwrap_or_default(),
             self.config.atr_spread,
+            self.config.max_open_duration_secs,
         );
 
         self.handle_open_chances(current_price, &actions, hedge_requests)

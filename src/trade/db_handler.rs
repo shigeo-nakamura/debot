@@ -142,7 +142,7 @@ impl DBHandler {
                     input_14: position.take_profit_ratio().round_dp(4),
                     input_15: position.price_variance().round_dp(4),
                     input_16: position.atr_spread().round_dp(4),
-                    input_17: Decimal::ZERO,
+                    input_17: position.max_open_duration().into(),
                     input_18: Decimal::ZERO,
                     input_19: Decimal::ZERO,
                     input_20: Decimal::ZERO,
