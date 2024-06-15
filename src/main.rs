@@ -3,7 +3,6 @@
 use chrono::{DateTime, FixedOffset, Utc};
 use config::EnvConfig;
 use debot_db::PricePoint;
-use debot_market_analyzer::TradingStrategy;
 use debot_utils::DateTimeUtils;
 use env_logger::Builder;
 use error_manager::ErrorManager;
@@ -62,12 +61,7 @@ async fn main() -> std::io::Result<()> {
     let config = config::get_config_from_env().expect("Invalid configuration");
 
     // Set up the DB handler
-    let max_position_counter =
-        if config.strategy.is_some() && config.strategy.unwrap() == TradingStrategy::MarketMake {
-            std::u32::MAX
-        } else {
-            config.log_limit
-        };
+    let max_position_counter = config.log_limit;
     let db_handler = Arc::new(Mutex::new(
         DBHandler::new(
             max_position_counter,

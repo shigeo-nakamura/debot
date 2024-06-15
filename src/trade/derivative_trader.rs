@@ -6,11 +6,7 @@ use super::DBHandler;
 use super::FundManager;
 use debot_db::PricePoint;
 use debot_market_analyzer::MarketData;
-use debot_market_analyzer::TradeAction;
-use debot_market_analyzer::TradeDetail;
 use debot_market_analyzer::TradingStrategy;
-use debot_position_manager::ReasonForClose;
-use debot_position_manager::State;
 use dex_connector::DexConnector;
 use dex_connector::DexError;
 use dex_connector::FilledOrder;
@@ -24,6 +20,7 @@ use std::io;
 use std::io::ErrorKind;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio::task;
 
 #[derive(Clone)]
@@ -55,14 +52,14 @@ struct DerivativeTraderConfig {
     max_dd_ratio: Decimal,
     rest_endpoint: String,
     web_socket_endpoint: String,
+    save_prices: bool,
 }
 
 struct DerivativeTraderState {
     db_handler: Arc<Mutex<DBHandler>>,
     dex_connector: Arc<DexConnectorBox>,
     fund_manager_map: HashMap<String, FundManager>,
-    hedge_requests: Arc<Mutex<HashMap<String, TradeAction>>>,
-    is_trend_changed: Arc<Mutex<HashMap<String, bool>>>,
+    market_data_map: Arc<RwLock<HashMap<(String, TradingStrategy), Arc<RwLock<MarketData>>>>>,
 }
 
 pub struct DerivativeTrader {
@@ -109,6 +106,7 @@ impl DerivativeTrader {
             max_dd_ratio,
             rest_endpoint: rest_endpoint.to_owned(),
             web_socket_endpoint: web_socket_endpoint.to_owned(),
+            save_prices,
         };
 
         let state = Self::initialize_state(
@@ -116,7 +114,6 @@ impl DerivativeTrader {
             db_handler,
             price_market_data,
             load_prices,
-            save_prices,
             order_effective_duration_secs,
             use_market_order,
             risk_reward,
@@ -138,7 +135,6 @@ impl DerivativeTrader {
         db_handler: Arc<Mutex<DBHandler>>,
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
-        save_prices: bool,
         order_effective_duration_secs: i64,
         use_market_order: bool,
         risk_reward: Decimal,
@@ -149,17 +145,19 @@ impl DerivativeTrader {
             .await
             .expect("Failed to initialize DexConnector");
 
+        let market_data_map = Arc::new(RwLock::new(HashMap::new()));
+
         let fund_managers = Self::create_fund_managers(
             config,
             db_handler.clone(),
             dex_connector.clone(),
             &price_market_data,
             load_prices,
-            save_prices,
             order_effective_duration_secs,
             use_market_order,
             risk_reward,
             strategy,
+            market_data_map.clone(),
         )
         .await;
 
@@ -167,8 +165,7 @@ impl DerivativeTrader {
             db_handler,
             dex_connector,
             fund_manager_map: HashMap::new(),
-            hedge_requests: Arc::new(Mutex::new(HashMap::new())),
-            is_trend_changed: Arc::new(Mutex::new(HashMap::new())),
+            market_data_map,
         };
 
         for fund_manager in fund_managers {
@@ -187,11 +184,11 @@ impl DerivativeTrader {
         dex_connector: Arc<DexConnectorBox>,
         price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
-        save_prices: bool,
         order_effective_duration_secs: i64,
         use_market_order: bool,
         risk_reward: Decimal,
         strategy: Option<&TradingStrategy>,
+        market_data_map: Arc<RwLock<HashMap<(String, TradingStrategy), Arc<RwLock<MarketData>>>>>,
     ) -> Vec<FundManager> {
         let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
@@ -199,7 +196,6 @@ impl DerivativeTrader {
 
         for (
             token_name,
-            pair_token_name,
             strategy,
             initial_amount,
             position_size_ratio,
@@ -213,7 +209,6 @@ impl DerivativeTrader {
             let config = config.clone();
             let price_market_data = price_market_data.clone();
             let load_prices = load_prices;
-            let save_prices = save_prices;
             let order_effective_duration_secs = order_effective_duration_secs;
             let use_market_order = use_market_order;
             let risk_reward = risk_reward;
@@ -230,23 +225,39 @@ impl DerivativeTrader {
                 atr_spread,
             );
 
-            let future = async move {
-                let mut market_data = Self::create_market_data(
-                    db_handler.clone(),
-                    config.clone(),
-                    &token_name,
-                    &strategy,
-                )
-                .await;
+            let market_data_key = (token_name.clone(), strategy.clone());
+            let market_data_map = market_data_map.clone();
 
-                if load_prices {
-                    Self::restore_market_data(
-                        &mut market_data,
-                        &config.trader_name,
-                        &token_name,
-                        &price_market_data,
-                    );
-                }
+            let future = async move {
+                let market_data = {
+                    let mut map = market_data_map.write().await;
+                    if let Some(market_data) = map.get(&market_data_key) {
+                        market_data.clone()
+                    } else {
+                        let new_market_data = Arc::new(RwLock::new(
+                            Self::create_market_data(
+                                db_handler.clone(),
+                                config.clone(),
+                                &token_name,
+                                &strategy,
+                            )
+                            .await,
+                        ));
+
+                        if load_prices {
+                            Self::restore_market_data(
+                                new_market_data.clone(),
+                                &config.trader_name,
+                                &token_name,
+                                &price_market_data,
+                            )
+                            .await;
+                        }
+
+                        map.insert(market_data_key.clone(), new_market_data.clone());
+                        new_market_data
+                    }
+                };
 
                 log::info!("create {}", fund_name);
 
@@ -254,14 +265,12 @@ impl DerivativeTrader {
                     &fund_name,
                     index,
                     &token_name,
-                    pair_token_name.as_deref(),
-                    market_data,
+                    market_data.clone(),
                     strategy,
                     initial_amount * position_size_ratio,
                     initial_amount,
                     db_handler,
                     dex_connector,
-                    save_prices,
                     order_effective_duration_secs,
                     max_open_hours * 60 * 60,
                     use_market_order,
@@ -292,19 +301,19 @@ impl DerivativeTrader {
         Ok(Arc::new(dex_connector))
     }
 
-    fn restore_market_data(
-        market_data: &mut MarketData,
+    async fn restore_market_data(
+        market_data: Arc<RwLock<MarketData>>,
         trader_name: &str,
         token_name: &str,
         price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
     ) {
+        let mut market_data = market_data.write().await;
         if let Some(price_points_map) = price_market_data.get(trader_name) {
             if let Some(price_points) = price_points_map.get(token_name) {
                 for price_point in price_points {
                     market_data.add_price(Some(price_point.price), Some(price_point.timestamp));
                 }
             }
-            market_data.init_crossover_state();
         }
     }
 
@@ -336,6 +345,11 @@ impl DerivativeTrader {
             config.order_effective_duration_secs,
             random_foreset,
         )
+    }
+
+    fn round_price(price: Decimal, min_tick: Option<Decimal>) -> Decimal {
+        let min_tick = min_tick.unwrap_or(Decimal::ONE);
+        (price / min_tick).round() * min_tick
     }
 
     pub async fn is_max_dd_occurred(&self) -> Result<bool, ()> {
@@ -387,6 +401,35 @@ impl DerivativeTrader {
         for result in price_results {
             let (token_name, price_min_tick) = result?;
             prices.insert(token_name.to_owned(), price_min_tick);
+        }
+
+        for (key, market_data) in self.state.market_data_map.write().await.iter() {
+            let token_name = &key.0;
+            if let Some((price, min_tick)) = prices.get(token_name).and_then(|p| *p) {
+                let rounded_price = Self::round_price(price, Some(min_tick));
+                let price_point = market_data
+                    .write()
+                    .await
+                    .add_price(Some(rounded_price), None);
+
+                if self.config.save_prices {
+                    // Save the price in the DB
+                    log::trace!(
+                        "{}: price = {:.5}, min_tick = {:.5?}, rounded_price = {:.5}",
+                        token_name,
+                        price,
+                        min_tick,
+                        price_point.price
+                    );
+
+                    self.state
+                        .db_handler
+                        .lock()
+                        .await
+                        .log_price(market_data.read().await.name(), token_name, price_point)
+                        .await;
+                }
+            }
         }
 
         // 2. Check newly filled orders after the new price is queried; otherwise DexEmulator can't fill any orders
@@ -449,13 +492,8 @@ impl DerivativeTrader {
             .values_mut()
             .filter_map(|fund_manager| {
                 let token_name = fund_manager.token_name();
-                if let Some((price, min_tick)) = prices.get(token_name).and_then(|p| *p) {
-                    fund_manager.set_min_tick(min_tick);
-                    Some(fund_manager.find_chances(
-                        price,
-                        self.state.hedge_requests.clone(),
-                        self.state.is_trend_changed.clone(),
-                    ))
+                if let Some((price, _min_tick)) = prices.get(token_name).and_then(|p| *p) {
+                    Some(fund_manager.find_chances(price))
                 } else {
                     None
                 }
@@ -470,133 +508,12 @@ impl DerivativeTrader {
             }
         }
 
-        // 4. Hedge positions
-        let hedge_requests_lock = self.state.hedge_requests.lock().await;
-        let hedge_requests = hedge_requests_lock.clone();
-        drop(hedge_requests_lock);
-
-        let hedge_futures: Vec<_> = self
-            .state
-            .fund_manager_map
-            .values_mut()
-            .filter_map(|fund_manager| {
-                let token_name = fund_manager.token_name();
-                if let Some(hedge_action) = hedge_requests.get(token_name) {
-                    Some(fund_manager.hedge_position(hedge_action.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let hedge_results = join_all(hedge_futures).await;
-
-        self.state.hedge_requests.lock().await.clear();
-
-        for result in hedge_results {
-            if result.is_err() {
-                return result;
-            }
-        }
-
-        // 5. Do delta neutral
-        self.do_delta_neutral().await?;
-
         // 6. Clean up the canceled positions
         for fund_manager in self.state.fund_manager_map.values_mut() {
             fund_manager.clean_canceled_position();
         }
 
         Ok(())
-    }
-
-    async fn do_delta_neutral(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let mut delta_map: HashMap<String, (Decimal, bool)> = HashMap::new();
-
-        for (_, fund_manager) in &self.state.fund_manager_map {
-            if let Some((delta_position, should_hedge_position)) = fund_manager.delta_position() {
-                if let Some(pair_token_name) = fund_manager.pair_token_name() {
-                    delta_map
-                        .entry(pair_token_name.to_owned())
-                        .or_insert((Decimal::ZERO, false));
-                    delta_map.entry(pair_token_name.to_owned()).and_modify(|v| {
-                        v.0 += delta_position;
-                        v.1 = should_hedge_position;
-                    });
-                }
-            }
-        }
-
-        let mut hedge_futures = vec![];
-        for fund_manager in self.state.fund_manager_map.values_mut() {
-            let token_name = fund_manager.token_name();
-            if let TradingStrategy::PassiveTrade(hedge_ratio) = fund_manager.strategy() {
-                if let Some((delta_position_amount, should_hedge_position)) =
-                    delta_map.get(token_name)
-                {
-                    if !should_hedge_position {
-                        continue;
-                    }
-                    let delta_position_amount = delta_position_amount * hedge_ratio;
-                    let current_position_amount = match fund_manager.get_open_position() {
-                        Some(v) => v.asset_in_usd(),
-                        None => Decimal::ZERO,
-                    };
-                    let position_diff = delta_position_amount + current_position_amount;
-                    if position_diff.abs() / (current_position_amount.abs() + Decimal::ONE)
-                        < Decimal::new(1, 1)
-                    {
-                        continue;
-                    }
-                    self.state
-                        .is_trend_changed
-                        .lock()
-                        .await
-                        .insert(token_name.to_owned(), false);
-                    let hedge_action = Self::create_hedge_action(position_diff);
-                    hedge_futures.push(fund_manager.hedge_position(hedge_action));
-                } else {
-                    if let Some(is_trend_changed) =
-                        self.state.is_trend_changed.lock().await.get(token_name)
-                    {
-                        if *is_trend_changed {
-                            self.state
-                                .is_trend_changed
-                                .lock()
-                                .await
-                                .insert(token_name.to_owned(), false);
-                            continue;
-                        }
-                    }
-                    if let Some(hedge_position) = fund_manager.get_open_position() {
-                        if matches!(hedge_position.state(), State::Open) {
-                            fund_manager.cancel_all_orders().await;
-                            let reason = ReasonForClose::Other("TrimHedgedPosition".to_owned());
-                            fund_manager.close_open_position(Some(reason)).await;
-                        }
-                    }
-                }
-            }
-        }
-
-        let hedge_results = join_all(hedge_futures).await;
-
-        for result in hedge_results {
-            if result.is_err() {
-                return result;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn create_hedge_action(amount_in_usd: Decimal) -> TradeAction {
-        let confidence = Decimal::ONE;
-        if amount_in_usd.is_sign_positive() {
-            TradeAction::BuyHedge(TradeDetail::new(None, Some(amount_in_usd), confidence))
-        } else {
-            TradeAction::SellHedge(TradeDetail::new(None, Some(amount_in_usd), confidence))
-        }
     }
 
     pub async fn reset_dex_client(&mut self) -> bool {

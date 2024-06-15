@@ -23,10 +23,7 @@ pub fn get(strategy: Option<&TradingStrategy>) -> Vec<(usize, SampleInterval, St
     ]
     .into_iter()
     .filter(|(trading_strategy, _, _, _)| match strategy {
-        Some(strategy) => {
-            strategy == trading_strategy
-                || matches!(trading_strategy, TradingStrategy::PassiveTrade(_))
-        }
+        Some(strategy) => strategy == trading_strategy,
         None => false,
     })
     .map(

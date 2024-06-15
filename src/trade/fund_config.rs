@@ -34,7 +34,6 @@ pub fn get(
     strategy: Option<&TradingStrategy>,
 ) -> Vec<(
     String,
-    Option<String>,
     TradingStrategy,
     Decimal,
     Decimal,
@@ -42,16 +41,22 @@ pub fn get(
     Option<Decimal>,
     i64,
 )> {
-    let take_profit_ratio_values = vec![None, Some(Decimal::new(5, 3)), Some(Decimal::new(1, 2))];
+    let take_profit_ratio_values = vec![
+        None,
+        Some(Decimal::new(5, 3)),
+        Some(Decimal::new(1, 2)),
+        Some(Decimal::new(2, 2)),
+    ];
 
     let atr_spread_values = vec![
         None,
         Some(Decimal::new(125, 3)),
         Some(Decimal::new(25, 2)),
         Some(Decimal::new(5, 1)),
+        Some(Decimal::new(1, 1)),
     ];
 
-    let open_hours_values = vec![12, 24];
+    let open_hours_values = vec![3, 6, 12, 24];
 
     let mut strategy_list = Vec::new();
 
@@ -64,7 +69,6 @@ pub fn get(
                 for open_hours in &open_hours_values {
                     strategy_list.push((
                         HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
-                        None,                                 // pair token
                         TradingStrategy::RandomWalk(TrendType::Up),
                         Decimal::new(5000, 0), // initial amount (in USD)
                         Decimal::new(8, 1),    // position size ratio
@@ -75,7 +79,6 @@ pub fn get(
 
                     strategy_list.push((
                         HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                        None,                                 // pair token
                         TradingStrategy::RandomWalk(TrendType::Down),
                         Decimal::new(5000, 0), // initial amount (in USD)
                         Decimal::new(8, 1),    // position size ratio
@@ -86,7 +89,6 @@ pub fn get(
 
                     strategy_list.push((
                         HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
-                        None,                                 // pair token
                         TradingStrategy::MachineLearning(TrendType::Up),
                         Decimal::new(5000, 0), // initial amount (in USD)
                         Decimal::new(8, 1),    // position size ratio
@@ -97,7 +99,6 @@ pub fn get(
 
                     strategy_list.push((
                         HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                        None,                                 // pair token
                         TradingStrategy::MachineLearning(TrendType::Down),
                         Decimal::new(5000, 0), // initial amount (in USD)
                         Decimal::new(8, 1),    // position size ratio
@@ -119,13 +120,12 @@ pub fn get(
 
     strategy_list
         .into_iter()
-        .filter(|(_, _, trading_strategy, _, _, _, _, _)| {
+        .filter(|(_, trading_strategy, _, _, _, _, _)| {
             strategy.is_none() || strategy == Some(trading_strategy)
         })
         .map(
             |(
                 token,
-                pair_token,
                 trading_strategy,
                 amount,
                 size_ratio,
@@ -135,7 +135,6 @@ pub fn get(
             )| {
                 (
                     token,
-                    pair_token,
                     trading_strategy,
                     amount * *FUND_SCALE_FACTOR,
                     size_ratio,
