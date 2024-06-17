@@ -53,7 +53,7 @@ pub fn get(
         Some(Decimal::new(125, 3)),
         Some(Decimal::new(25, 2)),
         Some(Decimal::new(5, 1)),
-        Some(Decimal::new(1, 1)),
+        Some(Decimal::ONE),
     ];
 
     let open_hours_values = vec![3, 6, 12, 24];
