@@ -154,7 +154,7 @@ impl DBHandler {
                         },
                         _ => Decimal::ZERO,
                     },
-                    output_2: if position.pnl().is_sign_positive() {
+                    output_2: if position.pnl() / position.fee() > Decimal::new(10, 0) {
                         Decimal::ONE
                     } else {
                         Decimal::ZERO
