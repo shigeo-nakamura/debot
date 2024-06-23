@@ -182,7 +182,7 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
                     filled_side: Some(side),
                     filled_size: Some(size),
                     filled_value: Some(size * price),
-                    filled_fee: Some(Decimal::new(0, 0)),
+                    filled_fee: Some(size * price * Decimal::new(2, 4)),
                     is_rejected: false,
                 })
                 .collect(),
