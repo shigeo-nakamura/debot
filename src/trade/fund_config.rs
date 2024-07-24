@@ -78,6 +78,26 @@ pub fn get(
                     ));
 
                     strategy_list.push((
+                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
+                        TradingStrategy::RandomWalk(TrendType::Down),
+                        Decimal::new(5000, 0), // initial amount (in USD)
+                        Decimal::new(8, 1),    // position size ratio
+                        take_profit_ratio,     // take profit ratioat
+                        atr_spread,            // spread by ATR
+                        open_hours,            // max open hours
+                    ));
+
+                    strategy_list.push((
+                        HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
+                        TradingStrategy::RandomWalk(TrendType::Up),
+                        Decimal::new(5000, 0), // initial amount (in USD)
+                        Decimal::new(8, 1),    // position size ratio
+                        take_profit_ratio,     // take profit ratio
+                        atr_spread,            // spread by ATR
+                        open_hours,            // max open hours
+                    ));
+
+                    strategy_list.push((
                         HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
                         TradingStrategy::RandomWalk(TrendType::Down),
                         Decimal::new(5000, 0), // initial amount (in USD)
