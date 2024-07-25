@@ -115,11 +115,11 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "1")?;
     let max_price_size: u32 = max_price_size_hours * 60 * 60 * 1000 / interval_msec as u32;
 
-    let max_error_duration = get_env_var("MAX_ERROR_DURATION", "10")?;
+    let max_error_duration = get_env_var("MAX_ERROR_DURATION", "60")?;
     let save_prices = get_bool_env_var("SAVE_PRICES", false);
     let load_prices = get_bool_env_var("LOAD_PRICES", false);
 
-    let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", false);
+    let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", true);
     let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1").map_err(ConfigError::from)?;
     let order_effective_duration_secs = get_env_var("ORDER_EFFECTIVE_DURATION_SECS", "300")?;
     let use_market_order = get_bool_env_var("USE_MARKET_ORDER", false);
@@ -130,7 +130,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let web_socket_endpoint =
         env::var("WEB_SOCKET_ENDPOINT").expect("WEB_SOCKET_ENDPOINT must be set");
 
-    let leverage = get_env_var("LEVERAGE", "5")?;
+    let leverage = get_env_var("LEVERAGE", "1")?;
 
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
         "randomwalk" => Some(TradingStrategy::RandomWalk(TrendType::Unknown)),
