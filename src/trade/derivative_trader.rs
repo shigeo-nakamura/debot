@@ -403,6 +403,7 @@ impl DerivativeTrader {
             prices.insert(token_name.to_owned(), price_min_tick);
         }
 
+        let mut saved_tokens = HashSet::new();
         for (key, market_data) in self.state.market_data_map.write().await.iter() {
             let token_name = &key.0;
             if let Some((price, min_tick)) = prices.get(token_name).and_then(|p| *p) {
@@ -412,7 +413,7 @@ impl DerivativeTrader {
                     .await
                     .add_price(Some(rounded_price), None);
 
-                if self.config.save_prices {
+                if self.config.save_prices && !saved_tokens.contains(token_name) {
                     // Save the price in the DB
                     log::trace!(
                         "{}: price = {:.5}, min_tick = {:.5?}, rounded_price = {:.5}",
@@ -428,6 +429,9 @@ impl DerivativeTrader {
                         .await
                         .log_price(market_data.read().await.name(), token_name, price_point)
                         .await;
+
+                    // Mark this token as saved
+                    saved_tokens.insert(token_name.clone());
                 }
             }
         }
