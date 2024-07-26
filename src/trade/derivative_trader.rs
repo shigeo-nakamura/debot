@@ -307,14 +307,18 @@ impl DerivativeTrader {
         token_name: &str,
         price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
     ) {
-        let mut market_data = market_data.write().await;
-        if let Some(price_points_map) = price_market_data.get(trader_name) {
-            if let Some(price_points) = price_points_map.get(token_name) {
-                for price_point in price_points {
-                    market_data.add_price(Some(price_point.price), Some(price_point.timestamp));
-                }
+        log::info!("restore_market_data enter: {}, {}", trader_name, token_name);
+        let price_points = price_market_data
+            .get(trader_name)
+            .and_then(|price_points_map| price_points_map.get(token_name).cloned());
+
+        if let Some(price_points) = price_points {
+            let mut market_data = market_data.write().await;
+            for price_point in price_points {
+                market_data.add_price(Some(price_point.price), Some(price_point.timestamp));
             }
         }
+        log::info!("restore_market_data return");
     }
 
     async fn create_market_data(
