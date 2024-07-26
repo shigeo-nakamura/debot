@@ -328,7 +328,6 @@ impl FundManager {
             (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
             (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
             (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
-            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
             Decimal::ZERO,
             Decimal::ZERO,
             Decimal::ZERO,
@@ -684,12 +683,10 @@ impl FundManager {
 
         if trade_action.is_open() {
             // create a new pending position
-            let id = self
-                .state
-                .db_handler
-                .lock()
-                .await
-                .increment_counter(debot_db::CounterType::Position);
+            let id = {
+                let db_handler = self.state.db_handler.lock().await;
+                db_handler.increment_counter(debot_db::CounterType::Position)
+            };
             if id.is_none() {
                 log::error!("Failed to increment the position ID");
                 return Err(());
@@ -713,7 +710,6 @@ impl FundManager {
                 market_data.adx(),
                 market_data.rsi(),
                 market_data.stochastic(),
-                market_data.bb_width(),
                 market_data.macd(),
                 self.config.take_profit_ratio.unwrap_or_default(),
                 self.config.atr_spread.unwrap_or_default(),
@@ -950,7 +946,7 @@ impl FundManager {
                 p
             }
             None => {
-                log::debug!(
+                log::trace!(
                     "{}: Filled position not found: order_id = {}",
                     self.fund_name(),
                     order_id
