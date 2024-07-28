@@ -44,7 +44,6 @@ pub struct EnvConfig {
     pub web_socket_endpoint: String,
     pub leverage: u32,
     pub strategy: Option<TradingStrategy>,
-    pub load_score: bool,
 }
 
 #[derive(Debug)]
@@ -138,8 +137,6 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         &_ => None,
     };
 
-    let load_score = get_bool_env_var("LOAD_SCORE", false);
-
     let env_config = EnvConfig {
         mongodb_uri,
         db_name,
@@ -159,7 +156,6 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         web_socket_endpoint,
         leverage,
         strategy,
-        load_score,
     };
 
     Ok(env_config)
