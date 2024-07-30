@@ -148,6 +148,16 @@ pub fn get(
                         atr_spread,         // spread by ATR
                         open_hours,         // max open hours
                     ));
+
+                    strategy_list.push((
+                        HYPERLIQUID_TOKEN_LIST[2].to_owned(), // SOL
+                        TradingStrategy::MachineLearning(TrendType::Up),
+                        initial_amount,     // initial amount (in USD)
+                        Decimal::new(4, 1), // position size ratio
+                        take_profit_ratio,  // take profit ratioat
+                        atr_spread,         // spread by ATR
+                        open_hours,         // max open hours
+                    ));
                 }
             }
         }
