@@ -43,9 +43,11 @@ pub fn get(
 )> {
     let take_profit_ratio_values = vec![
         None,
-        Some(Decimal::new(5, 3)),
-        Some(Decimal::new(1, 2)),
-        Some(Decimal::new(2, 2)),
+        Some(Decimal::new(50, 4)),
+        Some(Decimal::new(75, 4)),
+        Some(Decimal::new(100, 4)),
+        Some(Decimal::new(150, 4)),
+        Some(Decimal::new(200, 4)),
     ];
 
     let atr_spread_values = vec![
