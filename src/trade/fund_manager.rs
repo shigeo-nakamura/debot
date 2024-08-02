@@ -1192,18 +1192,6 @@ impl FundManager {
     }
 
     pub async fn liquidate(&mut self, reason: Option<String>) {
-        let res = self
-            .state
-            .dex_connector
-            .cancel_all_orders(Some(self.config.token_name.clone()))
-            .await;
-
-        if let Err(e) = res {
-            log::error!("liquidate failed (cancel): {:?}", e);
-        }
-
-        let res = self.state.dex_connector.close_all_positions(None).await;
-
         let market_data = self.state.market_data.read().await;
 
         for (_, position) in self.state.trade_positions.iter_mut() {
@@ -1219,11 +1207,6 @@ impl FundManager {
                 .await
                 .log_position(&position)
                 .await;
-        }
-
-        if let Err(e) = res {
-            log::error!("liquidate failed (close): {:?}", e);
-            return;
         }
 
         self.state.trade_positions.clear();
