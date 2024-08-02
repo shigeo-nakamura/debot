@@ -588,7 +588,7 @@ impl DerivativeTrader {
         true
     }
 
-    pub async fn liquidate(&mut self, reason: &str) {
+    pub async fn liquidate(&mut self, on_exit: bool, reason: &str) {
         let res = self.state.dex_connector.cancel_all_orders(None).await;
         if let Err(e) = res {
             log::error!("liquidate failed (cancel): {:?}", e);
@@ -599,8 +599,10 @@ impl DerivativeTrader {
             log::error!("liquidate failed (close position): {:?}", e);
         }
 
-        for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
-            fund_manager.liquidate(Some(reason.to_owned())).await;
+        if on_exit {
+            for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
+                fund_manager.liquidate(Some(reason.to_owned())).await;
+            }
         }
     }
 

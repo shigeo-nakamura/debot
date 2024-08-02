@@ -137,7 +137,7 @@ async fn main_loop(
     let mut sigterm_stream =
         tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
 
-    trader_instance.0.liquidate("start").await;
+    trader_instance.0.liquidate(false, "start").await;
 
     loop {
         let now = SystemTime::now();
@@ -188,7 +188,7 @@ async fn main_loop(
                 Ok(is_dd) => {
                     if is_dd {
                         log::error!("Draw down!");
-                        trader.liquidate("Draw down").await;
+                        trader.liquidate(true, "Draw down").await;
                         trader
                             .db_handler()
                             .lock()
@@ -228,7 +228,7 @@ async fn main_loop(
 
         if exit {
             if config.liquidate_when_exit {
-                trader.liquidate("reboot").await;
+                trader.liquidate(true, "reboot").await;
             }
             std::process::exit(0);
         }
@@ -261,7 +261,7 @@ async fn main_loop(
 
         if exit {
             if config.liquidate_when_exit {
-                trader.liquidate("reboot").await;
+                trader.liquidate(true, "reboot").await;
             }
             std::process::exit(0);
         }
@@ -278,7 +278,7 @@ async fn handle_trader_activities(
     // Check if the error duration has passed
     if error_manager.has_error_duration_passed(error_duration) {
         log::error!("Error duration exceeded the limit");
-        trader.liquidate("Continous error").await;
+        trader.liquidate(true, "Continous error").await;
         trader
             .db_handler()
             .lock()
