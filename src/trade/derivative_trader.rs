@@ -163,6 +163,8 @@ impl DerivativeTrader {
         )
         .await;
 
+        log::info!("create_fund_managers() finished");
+
         let mut state = DerivativeTraderState {
             db_handler,
             dex_connector,
@@ -176,6 +178,8 @@ impl DerivativeTrader {
                 .fund_manager_map
                 .insert(fund_manager.fund_name().to_owned(), fund_manager);
         }
+
+        log::info!("fund_manager.initialize() finished");
 
         state
     }
