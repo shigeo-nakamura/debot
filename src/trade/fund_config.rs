@@ -133,7 +133,7 @@ pub fn get(
 
                     strategy_list.push((
                         HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
-                        TradingStrategy::MachineLearning(TrendType::Up),
+                        TradingStrategy::MachineLearning(TrendType::Down),
                         initial_amount,     // initial amount (in USD)
                         Decimal::new(8, 1), // position size ratio
                         take_profit_ratio,  // take profit ratioat
@@ -143,7 +143,7 @@ pub fn get(
 
                     strategy_list.push((
                         HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                        TradingStrategy::MachineLearning(TrendType::Down),
+                        TradingStrategy::MachineLearning(TrendType::Up),
                         initial_amount,     // initial amount (in USD)
                         Decimal::new(8, 1), // position size ratio
                         take_profit_ratio,  // take profit ratio
