@@ -123,15 +123,15 @@ impl FundManager {
     }
 
     pub async fn initialize(&self, leverage: u32) {
-        if self
-            .state
-            .dex_connector
-            .set_leverage(self.token_name(), leverage)
-            .await
-            .is_err()
-        {
-            panic!("Failed to set the leverage");
-        }
+        // if self
+        //     .state
+        //     .dex_connector
+        //     .set_leverage(self.token_name(), leverage)
+        //     .await
+        //     .is_err()
+        // {
+        //     panic!("Failed to set the leverage");
+        // }
     }
 
     pub fn fund_name(&self) -> &str {
