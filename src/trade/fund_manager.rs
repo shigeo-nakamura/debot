@@ -331,6 +331,7 @@ impl FundManager {
             Decimal::ZERO,
             Decimal::ZERO,
             Decimal::ZERO,
+            Decimal::ZERO,
         );
         positions_vec.push(dummy_position);
 
@@ -713,6 +714,7 @@ impl FundManager {
                 market_data.macd(),
                 self.config.take_profit_ratio.unwrap_or_default(),
                 self.config.atr_spread.unwrap_or_default(),
+                self.config.risk_reward,
             );
 
             position_cloned = position.clone();

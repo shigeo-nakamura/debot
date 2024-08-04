@@ -3,30 +3,15 @@ use lazy_static::lazy_static;
 use rust_decimal::Decimal;
 use std::env;
 
-pub const TOKEN_LIST_SIZE: u32 = 12;
+pub const TOKEN_LIST_SIZE: u32 = 3;
 
-pub const HYPERLIQUID_TOKEN_LIST: &[&str] = &[
-    "BTC-USD",
-    "ETH-USD",
-    "SOL-USD",
-    "BNB-USD",
-    "SUI-USD",
-    "AVAX-USD",
-    "BCH-USD",
-    "APT-USD",
-    "ARB-USD",
-    "OP-USD",
-    "MATIC-USD",
-    "NEAR-USD",
-];
-
-pub const RABBITX_TOKEN_LIST: &[&str] = &["BTC-USD", "ETH-USD"];
+pub const TOKEN_LIST: &[&str] = &["BTC-USD", "ETH-USD", "SOL-USD"];
 
 lazy_static! {
-    static ref FUND_SCALE_FACTOR: Decimal = env::var("FUND_SCALE_FACTOR")
+    static ref INITIAL_FUND_AMOUNT: Decimal = env::var("INITIAL_FUND_AMOUNT")
         .ok()
         .and_then(|val| val.parse::<Decimal>().ok())
-        .unwrap_or_else(|| Decimal::new(1, 0));
+        .unwrap_or_else(|| Decimal::new(50, 0));
 }
 
 pub fn get(
@@ -37,32 +22,38 @@ pub fn get(
     TradingStrategy,
     Decimal,
     Decimal,
+    Decimal,
     Option<Decimal>,
     Option<Decimal>,
     i64,
 )> {
-    let take_profit_ratio_values = vec![
-        None,
-        Some(Decimal::new(50, 4)),
-        Some(Decimal::new(75, 4)),
-        Some(Decimal::new(100, 4)),
-        Some(Decimal::new(150, 4)),
-        Some(Decimal::new(200, 4)),
-    ];
+    let take_profit_ratio_values =
+        vec![None, Some(Decimal::new(100, 4)), Some(Decimal::new(200, 4))];
 
     let atr_spread_values = vec![
         None,
-        Some(Decimal::new(125, 3)),
-        Some(Decimal::new(25, 2)),
-        Some(Decimal::new(5, 1)),
+        Some(Decimal::new(100, 3)),
+        Some(Decimal::new(200, 3)),
+        Some(Decimal::new(300, 3)),
+        Some(Decimal::new(400, 3)),
+        Some(Decimal::new(500, 3)),
+        Some(Decimal::new(750, 3)),
         Some(Decimal::ONE),
+    ];
+
+    let risk_reward_values = vec![
+        Decimal::new(50, 2),
+        Decimal::new(66, 2),
+        Decimal::ONE,
+        Decimal::new(150, 2),
+        Decimal::new(200, 2),
     ];
 
     let open_hours_values = vec![3, 6, 12, 24];
 
     let mut strategy_list = Vec::new();
 
-    let initial_amount = Decimal::new(5000, 0);
+    let initial_amount = *INITIAL_FUND_AMOUNT;
 
     if dex_name == "hyperliquid" {
         for take_profit_ratio in take_profit_ratio_values {
@@ -70,66 +61,52 @@ pub fn get(
                 if take_profit_ratio.is_none() && atr_spread.is_none() {
                     continue;
                 }
-                for open_hours in &open_hours_values {
-                    strategy_list.push((
-                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
-                        TradingStrategy::RandomWalk(TrendType::Up),
-                        initial_amount,     // initial amount (in USD)
-                        Decimal::new(8, 1), // position size ratio
-                        take_profit_ratio,  // take profit ratioat
-                        atr_spread,         // spread by ATR
-                        open_hours,         // max open hours
-                    ));
+                for risk_reward in risk_reward_values.clone() {
+                    for open_hours in &open_hours_values {
+                        strategy_list.push((
+                            TOKEN_LIST[0].to_owned(), // BTC
+                            TradingStrategy::RandomWalk(TrendType::Up),
+                            initial_amount,     // initial amount (in USD)
+                            Decimal::new(8, 1), // position size ratio
+                            risk_reward,
+                            take_profit_ratio,
+                            atr_spread, // spread by ATR
+                            open_hours, // max open hours
+                        ));
 
-                    strategy_list.push((
-                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
-                        TradingStrategy::RandomWalk(TrendType::Down),
-                        initial_amount,     // initial amount (in USD)
-                        Decimal::new(8, 1), // position size ratio
-                        take_profit_ratio,  // take profit ratioat
-                        atr_spread,         // spread by ATR
-                        open_hours,         // max open hours
-                    ));
+                        strategy_list.push((
+                            TOKEN_LIST[0].to_owned(), // BTC
+                            TradingStrategy::RandomWalk(TrendType::Down),
+                            initial_amount,     // initial amount (in USD)
+                            Decimal::new(8, 1), // position size ratio
+                            risk_reward,
+                            take_profit_ratio,
+                            atr_spread, // spread by ATR
+                            open_hours, // max open hours
+                        ));
 
-                    strategy_list.push((
-                        HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                        TradingStrategy::RandomWalk(TrendType::Up),
-                        initial_amount,     // initial amount (in USD)
-                        Decimal::new(8, 1), // position size ratio
-                        take_profit_ratio,  // take profit ratio
-                        atr_spread,         // spread by ATR
-                        open_hours,         // max open hours
-                    ));
+                        strategy_list.push((
+                            TOKEN_LIST[0].to_owned(), // BTC
+                            TradingStrategy::MachineLearning(TrendType::Up),
+                            initial_amount,     // initial amount (in USD)
+                            Decimal::new(8, 1), // position size ratio
+                            risk_reward,
+                            take_profit_ratio,
+                            atr_spread, // spread by ATR
+                            open_hours, // max open hours
+                        ));
 
-                    strategy_list.push((
-                        HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                        TradingStrategy::RandomWalk(TrendType::Down),
-                        initial_amount,     // initial amount (in USD)
-                        Decimal::new(8, 1), // position size ratio
-                        take_profit_ratio,  // take profit ratio
-                        atr_spread,         // spread by ATR
-                        open_hours,         // max open hours
-                    ));
-
-                    strategy_list.push((
-                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
-                        TradingStrategy::MachineLearning(TrendType::Up),
-                        initial_amount,     // initial amount (in USD)
-                        Decimal::new(8, 1), // position size ratio
-                        take_profit_ratio,  // take profit ratioat
-                        atr_spread,         // spread by ATR
-                        open_hours,         // max open hours
-                    ));
-
-                    strategy_list.push((
-                        HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
-                        TradingStrategy::MachineLearning(TrendType::Down),
-                        initial_amount,     // initial amount (in USD)
-                        Decimal::new(8, 1), // position size ratio
-                        take_profit_ratio,  // take profit ratioat
-                        atr_spread,         // spread by ATR
-                        open_hours,         // max open hours
-                    ));
+                        strategy_list.push((
+                            TOKEN_LIST[0].to_owned(), // BTC
+                            TradingStrategy::MachineLearning(TrendType::Down),
+                            initial_amount,     // initial amount (in USD)
+                            Decimal::new(8, 1), // position size ratio
+                            risk_reward,
+                            take_profit_ratio,
+                            atr_spread, // spread by ATR
+                            open_hours, // max open hours
+                        ));
+                    }
                 }
             }
         }
@@ -144,7 +121,7 @@ pub fn get(
 
     strategy_list
         .into_iter()
-        .filter(|(_, trading_strategy, _, _, _, _, _)| {
+        .filter(|(_, trading_strategy, _, _, _, _, _, _)| {
             strategy.is_none() || strategy == Some(trading_strategy)
         })
         .map(
@@ -153,6 +130,7 @@ pub fn get(
                 trading_strategy,
                 amount,
                 size_ratio,
+                risk_reward,
                 take_profit_ratio,
                 atr_spread,
                 open_hours,
@@ -160,8 +138,9 @@ pub fn get(
                 (
                     token,
                     trading_strategy,
-                    amount * *FUND_SCALE_FACTOR,
+                    amount,
                     size_ratio,
+                    risk_reward,
                     take_profit_ratio,
                     atr_spread,
                     *open_hours,

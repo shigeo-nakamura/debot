@@ -115,7 +115,6 @@ async fn prepare_trader_instance(
         config.max_dd_ratio,
         config.order_effective_duration_secs,
         config.use_market_order,
-        config.risk_reward,
         &config.rest_endpoint,
         &config.web_socket_endpoint,
         config.leverage,
@@ -309,15 +308,11 @@ async fn handle_trader_activities(
 
 #[cfg(test)]
 mod tests {
+    use crate::config::get_hyperliquid_config_from_env;
     use dex_connector::{DexConnector, HyperliquidConnector, OrderSide, RabbitxConnector};
     use rust_decimal::Decimal;
     use std::{env, sync::Arc, time::Duration};
     use tokio::time::sleep;
-
-    use crate::{
-        config::{get_hyperliquid_config_from_env, get_rabbitx_config_from_env},
-        trade::RABBITX_TOKEN_LIST,
-    };
 
     #[ctor::ctor]
     fn setup() {
@@ -330,26 +325,6 @@ mod tests {
             env::var("WEB_SOCKET_ENDPOINT").expect("WEB_SOCKET_ENDPOINT must be set");
 
         let connector: Arc<dyn DexConnector> = match dex_name {
-            "rabbitx" => {
-                let rabbitx_config = get_rabbitx_config_from_env().await.unwrap();
-                let market_ids: Vec<String> =
-                    RABBITX_TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
-                Arc::new(
-                    RabbitxConnector::new(
-                        &rest_endpoint,
-                        &web_socket_endpoint,
-                        &rabbitx_config.profile_id,
-                        &rabbitx_config.api_key,
-                        &rabbitx_config.public_jwt,
-                        &rabbitx_config.refresh_token,
-                        &rabbitx_config.secret,
-                        &rabbitx_config.private_jwt,
-                        &market_ids,
-                    )
-                    .await
-                    .expect("Failed to initialize DexConnector"),
-                )
-            }
             "hyperliquid" => {
                 let hyperliquid_config = get_hyperliquid_config_from_env().await.unwrap();
                 Arc::new(

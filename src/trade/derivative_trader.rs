@@ -82,7 +82,6 @@ impl DerivativeTrader {
         max_dd_ratio: Decimal,
         order_effective_duration_secs: i64,
         use_market_order: bool,
-        risk_reward: Decimal,
         rest_endpoint: &str,
         web_socket_endpoint: &str,
         leverage: u32,
@@ -117,7 +116,6 @@ impl DerivativeTrader {
             load_prices,
             order_effective_duration_secs,
             use_market_order,
-            risk_reward,
             leverage,
             strategy,
         )
@@ -138,7 +136,6 @@ impl DerivativeTrader {
         load_prices: bool,
         order_effective_duration_secs: i64,
         use_market_order: bool,
-        risk_reward: Decimal,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
     ) -> DerivativeTraderState {
@@ -157,7 +154,6 @@ impl DerivativeTrader {
             load_prices,
             order_effective_duration_secs,
             use_market_order,
-            risk_reward,
             strategy,
             market_data_map.clone(),
         )
@@ -192,7 +188,6 @@ impl DerivativeTrader {
         load_prices: bool,
         order_effective_duration_secs: i64,
         use_market_order: bool,
-        risk_reward: Decimal,
         strategy: Option<&TradingStrategy>,
         market_data_map: Arc<RwLock<HashMap<(String, TradingStrategy), Arc<RwLock<MarketData>>>>>,
     ) -> Vec<FundManager> {
@@ -206,6 +201,7 @@ impl DerivativeTrader {
             strategy,
             initial_amount,
             position_size_ratio,
+            risk_reward,
             take_profit_ratio,
             atr_spread,
             max_open_hours,
