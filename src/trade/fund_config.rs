@@ -125,26 +125,6 @@ pub fn get(
                         HYPERLIQUID_TOKEN_LIST[0].to_owned(), // BTC
                         TradingStrategy::MachineLearning(TrendType::Down),
                         initial_amount,     // initial amount (in USD)
-                        Decimal::new(4, 1), // position size ratio
-                        take_profit_ratio,  // take profit ratioat
-                        atr_spread,         // spread by ATR
-                        open_hours,         // max open hours
-                    ));
-
-                    strategy_list.push((
-                        HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                        TradingStrategy::MachineLearning(TrendType::Up),
-                        initial_amount,     // initial amount (in USD)
-                        Decimal::new(4, 1), // position size ratio
-                        take_profit_ratio,  // take profit ratioat
-                        atr_spread,         // spread by ATR
-                        open_hours,         // max open hours
-                    ));
-
-                    strategy_list.push((
-                        HYPERLIQUID_TOKEN_LIST[1].to_owned(), // ETH
-                        TradingStrategy::MachineLearning(TrendType::Down),
-                        initial_amount,     // initial amount (in USD)
                         Decimal::new(8, 1), // position size ratio
                         take_profit_ratio,  // take profit ratioat
                         atr_spread,         // spread by ATR
