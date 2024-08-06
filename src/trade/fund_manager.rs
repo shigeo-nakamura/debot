@@ -22,6 +22,7 @@ struct TradeChance {
 
 struct FundManagerState {
     amount: Decimal,
+    initial_amount: Decimal,
     trade_positions: HashMap<u32, TradePosition>,
     latest_open_position_id: Option<u32>,
     db_handler: Arc<Mutex<DBHandler>>,
@@ -103,6 +104,7 @@ impl FundManager {
 
         let state = FundManagerState {
             amount: initial_amount,
+            initial_amount,
             trade_positions: HashMap::new(),
             db_handler,
             dex_connector,
@@ -220,6 +222,7 @@ impl FundManager {
             self.config.atr_spread,
             self.config.max_open_duration_secs,
             self.config.risk_reward,
+            self.pnl_ratio(),
         );
 
         self.handle_open_chances(current_price, &actions).await
@@ -330,6 +333,7 @@ impl FundManager {
             (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
             (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
             (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
+            Decimal::ZERO,
             Decimal::ZERO,
             Decimal::ZERO,
             Decimal::ZERO,
@@ -716,6 +720,7 @@ impl FundManager {
                 self.config.take_profit_ratio.unwrap_or_default(),
                 self.config.atr_spread.unwrap_or_default(),
                 self.config.risk_reward,
+                self.pnl_ratio(),
             );
 
             position_cloned = position.clone();
@@ -1105,6 +1110,10 @@ impl FundManager {
             OrderSide::Long => Some(filled_price - cut_loss_distance),
             _ => Some(filled_price + cut_loss_distance),
         }
+    }
+
+    fn pnl_ratio(&self) -> Decimal {
+        (self.state.amount - self.state.initial_amount) / self.state.initial_amount
     }
 
     pub fn clean_canceled_position(&mut self) {

@@ -140,7 +140,7 @@ impl DBHandler {
                     input_12: position.atr_spread().round_dp(4),
                     input_13: position.max_open_duration().into(),
                     input_14: position.risk_reward().round_dp(4),
-                    input_15: Decimal::ZERO,
+                    input_15: position.pnl_ratio().round_dp(4),
                     input_16: Decimal::ZERO,
                     input_17: Decimal::ZERO,
                     input_18: Decimal::ZERO,
