@@ -602,9 +602,17 @@ impl DerivativeTrader {
         }
 
         if on_exit {
+            let mut tasks = vec![];
+
             for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
-                fund_manager.liquidate(Some(reason.to_owned())).await;
+                let reason = reason.to_owned();
+                let task = async move {
+                    fund_manager.liquidate(Some(reason)).await;
+                };
+                tasks.push(task);
             }
+
+            join_all(tasks).await;
         }
     }
 
