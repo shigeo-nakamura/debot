@@ -464,7 +464,9 @@ impl DerivativeTrader {
                     match timeout(Duration::from_secs(5), self.state.db_handler.lock()).await {
                         Ok(db_handler) => {
                             log::info!("Lock acquired for db_handler");
-                            db_handler.log_price(&key.0, token_name, price_point).await;
+                            db_handler
+                                .log_price(&self.config.trader_name, token_name, price_point)
+                                .await;
                         }
                         Err(_) => {
                             log::error!("Timeout while trying to acquire lock for DBHandler");
