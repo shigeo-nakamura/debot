@@ -39,7 +39,8 @@ struct FundManagerConfig {
     strategy: TradingStrategy,
     trading_amount: Decimal,
     initial_amount: Decimal,
-    order_effective_duration_secs: i64,
+    open_order_effective_duration_secs: i64,
+    close_order_effective_duration_secs: i64,
     max_open_duration_secs: i64,
     execution_delay_secs: i64,
     use_market_order: bool,
@@ -77,7 +78,8 @@ impl FundManager {
         initial_amount: Decimal,
         db_handler: Arc<Mutex<DBHandler>>,
         dex_connector: Arc<DexConnectorBox>,
-        order_effective_duration_secs: i64,
+        open_order_effective_duration_secs: i64,
+        close_order_effective_duration_secs: i64,
         max_open_duration_secs: i64,
         use_market_order: bool,
         take_profit_ratio: Option<Decimal>,
@@ -91,12 +93,13 @@ impl FundManager {
             strategy,
             trading_amount,
             initial_amount,
-            order_effective_duration_secs,
+            open_order_effective_duration_secs,
+            close_order_effective_duration_secs,
             max_open_duration_secs,
             use_market_order,
             take_profit_ratio,
             risk_reward,
-            execution_delay_secs: order_effective_duration_secs,
+            execution_delay_secs: open_order_effective_duration_secs,
             atr_spread,
         };
 
@@ -190,7 +193,7 @@ impl FundManager {
             .state
             .trade_positions
             .iter()
-            .filter(|(_k, v)| v.should_cancel_order(None))
+            .filter(|(_k, v)| v.should_cancel_order())
             .map(|(_k, v)| v.clone())
             .collect();
 
@@ -322,6 +325,7 @@ impl FundManager {
             "",
             current_price,
             decimal_0,
+            0,
             0,
             0,
             "",
@@ -706,7 +710,8 @@ impl FundManager {
                 order_id,
                 ordered_price.unwrap(),
                 ordered_amount,
-                self.config.order_effective_duration_secs,
+                self.config.open_order_effective_duration_secs,
+                self.config.close_order_effective_duration_secs,
                 self.config.max_open_duration_secs,
                 token_name,
                 position_type,

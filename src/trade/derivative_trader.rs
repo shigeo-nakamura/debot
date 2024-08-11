@@ -46,7 +46,8 @@ struct DerivativeTraderConfig {
     short_trade_period: usize,
     long_trade_period: usize,
     trade_period: usize,
-    order_effective_duration_secs: i64,
+    open_order_effective_duration_secs: i64,
+    close_order_effective_duration_secs: i64,
     max_price_size: u32,
     initial_balance: Decimal,
     max_dd_ratio: Decimal,
@@ -80,7 +81,8 @@ impl DerivativeTrader {
         load_prices: bool,
         save_prices: bool,
         max_dd_ratio: Decimal,
-        order_effective_duration_secs: i64,
+        open_order_effective_duration_secs: i64,
+        close_order_effective_duration_secs: i64,
         use_market_order: bool,
         rest_endpoint: &str,
         web_socket_endpoint: &str,
@@ -100,7 +102,8 @@ impl DerivativeTrader {
             long_trade_period: sample_interval.long_term * SECONDS_IN_MINUTE
                 / interval_secs as usize,
             trade_period: trade_interval * SECONDS_IN_MINUTE / interval_secs as usize,
-            order_effective_duration_secs,
+            open_order_effective_duration_secs,
+            close_order_effective_duration_secs,
             max_price_size: max_price_size,
             initial_balance: Decimal::new(0, 0),
             max_dd_ratio,
@@ -114,7 +117,8 @@ impl DerivativeTrader {
             db_handler,
             price_market_data,
             load_prices,
-            order_effective_duration_secs,
+            open_order_effective_duration_secs,
+            close_order_effective_duration_secs,
             use_market_order,
             leverage,
             strategy,
@@ -134,7 +138,8 @@ impl DerivativeTrader {
         db_handler: Arc<Mutex<DBHandler>>,
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
-        order_effective_duration_secs: i64,
+        open_order_effective_duration_secs: i64,
+        close_order_effective_duration_secs: i64,
         use_market_order: bool,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
@@ -152,7 +157,8 @@ impl DerivativeTrader {
             dex_connector.clone(),
             &price_market_data,
             load_prices,
-            order_effective_duration_secs,
+            open_order_effective_duration_secs,
+            close_order_effective_duration_secs,
             use_market_order,
             strategy,
             market_data_map.clone(),
@@ -186,7 +192,8 @@ impl DerivativeTrader {
         dex_connector: Arc<DexConnectorBox>,
         price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
-        order_effective_duration_secs: i64,
+        open_order_effective_duration_secs: i64,
+        close_order_effective_duration_secs: i64,
         use_market_order: bool,
         strategy: Option<&TradingStrategy>,
         market_data_map: Arc<RwLock<HashMap<(String, TradingStrategy), Arc<RwLock<MarketData>>>>>,
@@ -212,7 +219,7 @@ impl DerivativeTrader {
             let config = config.clone();
             let price_market_data = price_market_data.clone();
             let load_prices = load_prices;
-            let order_effective_duration_secs = order_effective_duration_secs;
+            let open_order_effective_duration_secs = open_order_effective_duration_secs;
             let use_market_order = use_market_order;
             let risk_reward = risk_reward;
             let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
@@ -274,7 +281,8 @@ impl DerivativeTrader {
                     initial_amount,
                     db_handler,
                     dex_connector,
-                    order_effective_duration_secs,
+                    open_order_effective_duration_secs,
+                    close_order_effective_duration_secs,
                     max_open_hours * 60 * 60,
                     use_market_order,
                     take_profit_ratio,
@@ -351,7 +359,7 @@ impl DerivativeTrader {
             config.long_trade_period,
             config.trade_period,
             config.max_price_size as usize,
-            config.order_effective_duration_secs,
+            config.open_order_effective_duration_secs,
             random_foreset,
         )
     }
