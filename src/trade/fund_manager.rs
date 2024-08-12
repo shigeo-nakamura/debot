@@ -401,7 +401,7 @@ impl FundManager {
         match self.config.strategy {
             TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_) => {
                 log::info!(
-                    "{} pnl: {:.3}/{:.3}({:.3}%) profit/loss/expired = {}/{}/{}, min position = {:.1}, trend = {:?}",
+                    "{} pnl: {:.3}/{:.3}({:.3}%) profit/loss/expired = {}/{}/{}",
                     format!("{}-{}", self.config.token_name, self.config.index),
                     self.statistics.pnl,
                     pnl,
@@ -409,8 +409,6 @@ impl FundManager {
                     self.statistics.take_profit_count,
                     self.statistics.cut_loss_count,
                     self.statistics.expired_count,
-                    self.statistics.min_amount,
-                    self.state.market_data.read().await.trend()
                 );
             }
         }
