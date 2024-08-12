@@ -170,8 +170,23 @@ impl DerivativeTrader {
             market_data_map,
         };
 
+        let mut processed_tokens = HashSet::new();
         for fund_manager in fund_managers {
-            fund_manager.initialize(leverage).await;
+            let token_name = fund_manager.token_name();
+
+            if !processed_tokens.contains(token_name) {
+                if state
+                    .dex_connector
+                    .set_leverage(token_name, leverage)
+                    .await
+                    .is_err()
+                {
+                    panic!("Failed to set the leverage");
+                }
+
+                processed_tokens.insert(token_name.to_owned());
+            }
+
             state
                 .fund_manager_map
                 .insert(fund_manager.fund_name().to_owned(), fund_manager);
