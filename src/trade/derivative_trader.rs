@@ -46,7 +46,6 @@ struct DerivativeTraderConfig {
     short_trade_period: usize,
     long_trade_period: usize,
     trade_period: usize,
-    open_order_effective_duration_secs: i64,
     max_price_size: u32,
     initial_balance: Decimal,
     max_dd_ratio: Decimal,
@@ -101,7 +100,6 @@ impl DerivativeTrader {
             long_trade_period: sample_interval.long_term * SECONDS_IN_MINUTE
                 / interval_secs as usize,
             trade_period: trade_interval * SECONDS_IN_MINUTE / interval_secs as usize,
-            open_order_effective_duration_secs,
             max_price_size: max_price_size,
             initial_balance: Decimal::new(0, 0),
             max_dd_ratio,
@@ -357,7 +355,6 @@ impl DerivativeTrader {
             config.long_trade_period,
             config.trade_period,
             config.max_price_size as usize,
-            config.open_order_effective_duration_secs,
             random_foreset,
         )
     }
