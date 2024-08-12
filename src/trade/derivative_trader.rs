@@ -413,31 +413,27 @@ impl DerivativeTrader {
             let (token_name, price_min_tick) = result?;
             prices.insert(token_name.to_owned(), price_min_tick);
         }
-        log::info!("Prices obtained: {:?}", prices);
+        log::debug!("Prices obtained: {:?}", prices);
 
         let mut saved_tokens = HashSet::new();
         let market_data_keys: Vec<_> = {
-            log::info!("Acquiring read lock for market_data_map...");
             let market_data_map = self.state.market_data_map.read().await;
-            log::info!("Read lock acquired for market_data_map");
             market_data_map.keys().cloned().collect()
         };
-        log::info!("Market data keys obtained: {:?}", market_data_keys);
+        log::debug!("Market data keys obtained: {:?}", market_data_keys);
 
         for key in market_data_keys {
             let token_name = &key.0;
-            log::info!("Processing market data key: {:?}", key);
+            log::debug!("Processing market data key: {:?}", key);
             if let Some((price, min_tick)) = prices.get(token_name).and_then(|p| *p) {
                 let rounded_price = Self::round_price(price, Some(min_tick));
-                log::info!("Rounded price for {}: {:.5}", token_name, rounded_price);
+                log::debug!("Rounded price for {}: {:.5}", token_name, rounded_price);
 
                 let market_data_clone = {
-                    log::info!("Acquiring read lock for market_data_map...");
                     let market_data_map = self.state.market_data_map.read().await;
-                    log::info!("Read lock acquired for market_data_map");
                     market_data_map.get(&key).cloned().unwrap()
                 };
-                log::info!("Market data clone obtained for key: {:?}", key);
+                log::debug!("Market data clone obtained for key: {:?}", key);
 
                 let price_point =
                     match timeout(Duration::from_secs(5), market_data_clone.write()).await {
@@ -453,7 +449,7 @@ impl DerivativeTrader {
                             continue;
                         }
                     };
-                log::info!("Price point added for token: {}", token_name);
+                log::debug!("Price point added for token: {}", token_name);
 
                 if self.config.save_prices && !saved_tokens.contains(token_name) {
                     log::trace!(
@@ -466,7 +462,6 @@ impl DerivativeTrader {
 
                     match timeout(Duration::from_secs(5), self.state.db_handler.lock()).await {
                         Ok(db_handler) => {
-                            log::info!("Lock acquired for db_handler");
                             db_handler
                                 .log_price(&self.config.trader_name, token_name, price_point)
                                 .await;
@@ -476,7 +471,7 @@ impl DerivativeTrader {
                             continue;
                         }
                     }
-                    log::info!("Price logged for token: {}", token_name);
+                    log::debug!("Price logged for token: {}", token_name);
 
                     saved_tokens.insert(token_name.clone());
                 }
@@ -537,7 +532,7 @@ impl DerivativeTrader {
                 filled_orders_map_clone
             );
         }
-        log::info!("3. Check filled orders: finished");
+        log::debug!("3. Check filled orders: finished");
 
         // 3. Find trade chanes
         let find_futures: Vec<_> = self
