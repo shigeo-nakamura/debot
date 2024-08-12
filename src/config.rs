@@ -162,39 +162,6 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     Ok(env_config)
 }
 
-pub async fn get_rabbitx_config_from_env() -> Result<RabbitxConfig, ConfigError> {
-    let profile_id = env::var("RABBITX_PROFILE_ID").expect("RABBITX_PROFILE_ID must be set");
-    let api_key = env::var("RABBITX_API_KEY").expect("RABBITX_API_KEY must be set");
-    let public_jwt = env::var("RABBITX_PUBLIC_JWT").expect("RABBITX_PUBLIC_JWT must be set");
-    let refresh_token =
-        env::var("RABBITX_REFRESH_TOKEN").expect("RABBITX_REFRESH_TOKEN must be set");
-    let secret = env::var("RABBITX_SECRET").expect("RABBITX_SECRET must be set");
-    let private_jwt = env::var("RABBITX_PRIVATE_JWT").expect("RABBITX_PRIVATE_JWT must be set");
-
-    let encrypted_data_key = env::var("ENCRYPTED_DATA_KEY")
-        .expect("ENCRYPTED_DATA_KEY must be set")
-        .replace(" ", ""); // Remove whitespace characters
-
-    let secret_vec = decrypt_data_with_kms(&encrypted_data_key, secret, true)
-        .await
-        .map_err(|_| ConfigError::OtherError("decrypt secret".to_owned()))?;
-    let secret = String::from_utf8(secret_vec).unwrap();
-
-    let private_jwt_vec = decrypt_data_with_kms(&encrypted_data_key, private_jwt, false)
-        .await
-        .map_err(|_| ConfigError::OtherError("decrypt private_jwt".to_owned()))?;
-    let private_jwt = String::from_utf8(private_jwt_vec).unwrap();
-
-    Ok(RabbitxConfig {
-        profile_id,
-        api_key,
-        public_jwt,
-        refresh_token,
-        secret,
-        private_jwt,
-    })
-}
-
 pub async fn get_hyperliquid_config_from_env() -> Result<HyperliquidConfig, ConfigError> {
     let agent_private_key = env::var("HYPERLIQUID_AGENT_PRIVATE_KEY")
         .expect("HYPERLIQUID_AGENT_PRIVATE_KEY must be set");

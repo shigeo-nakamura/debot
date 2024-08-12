@@ -310,7 +310,7 @@ async fn handle_trader_activities(
 #[cfg(test)]
 mod tests {
     use crate::config::get_hyperliquid_config_from_env;
-    use dex_connector::{DexConnector, HyperliquidConnector, OrderSide, RabbitxConnector};
+    use dex_connector::{DexConnector, HyperliquidConnector, OrderSide};
     use rust_decimal::Decimal;
     use std::{env, sync::Arc, time::Duration};
     use tokio::time::sleep;
@@ -349,7 +349,6 @@ mod tests {
     lazy_static! {
         static ref DEX_TEST_CONFIG: Vec<(&'static str, &'static str)> =
             vec![("hyperliquid", "BTC-USD")];
-            // vec![("rabbitx", "BTC-USD")];
     }
 
     // #[tokio::test]

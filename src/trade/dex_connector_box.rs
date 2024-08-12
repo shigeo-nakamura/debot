@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use dex_connector::{
     BalanceResponse, CreateOrderResponse, DexConnector, DexError, FilledOrdersResponse,
-    HyperliquidConnector, LastTradeResponse, OrderSide, RabbitxConnector, TickerResponse,
+    HyperliquidConnector, OrderSide, TickerResponse,
 };
 use rust_decimal::Decimal;
 
-use super::{dex_emulator::DexEmulator, fund_config::TOKEN_LIST};
-use crate::config::{get_hyperliquid_config_from_env, get_rabbitx_config_from_env};
+use super::dex_emulator::DexEmulator;
+use crate::config::get_hyperliquid_config_from_env;
 use lazy_static::lazy_static;
 use std::env;
 
@@ -31,43 +31,6 @@ impl DexConnectorBox {
         dry_run: bool,
     ) -> Result<Self, DexError> {
         match dex_name {
-            "rabbitx" => {
-                let rabbitx_config = match get_rabbitx_config_from_env().await {
-                    Ok(v) => v,
-                    Err(_) => {
-                        return Err(DexError::Other("Some env vars are missing".to_string()));
-                    }
-                };
-
-                let market_ids: Vec<String> = TOKEN_LIST.iter().map(|&s| s.to_string()).collect();
-                let connector = RabbitxConnector::new(
-                    rest_endpoint,
-                    web_socket_endpoint,
-                    &rabbitx_config.profile_id,
-                    &rabbitx_config.api_key,
-                    &rabbitx_config.public_jwt,
-                    &rabbitx_config.refresh_token,
-                    &rabbitx_config.secret,
-                    &rabbitx_config.private_jwt,
-                    &market_ids,
-                )
-                .await?;
-
-                if dry_run {
-                    let dex_emulator = DexEmulator::new(
-                        connector,
-                        *FILLED_PROBABILITY_IN_EMULATION,
-                        Decimal::new(5, 3),
-                    );
-                    Ok(DexConnectorBox {
-                        inner: Box::new(dex_emulator),
-                    })
-                } else {
-                    Ok(DexConnectorBox {
-                        inner: Box::new(connector),
-                    })
-                }
-            }
             "hyperliquid" => {
                 let hyperliquid_config = match get_hyperliquid_config_from_env().await {
                     Ok(v) => v,
@@ -162,10 +125,6 @@ impl DexConnector for DexConnectorBox {
 
     async fn close_all_positions(&self, symbol: Option<String>) -> Result<(), DexError> {
         self.inner.close_all_positions(symbol).await
-    }
-
-    async fn get_last_trades(&self, symbol: &str) -> Result<LastTradeResponse, DexError> {
-        self.inner.get_last_trades(symbol).await
     }
 
     async fn clear_last_trades(&self, symbol: &str) -> Result<(), DexError> {

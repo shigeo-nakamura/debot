@@ -452,10 +452,7 @@ impl DerivativeTrader {
 
                 let price_point =
                     match timeout(Duration::from_secs(5), market_data_clone.write()).await {
-                        Ok(mut market_data) => {
-                            log::info!("Write lock acquired for market_data_clone");
-                            market_data.add_price(Some(rounded_price), None)
-                        }
+                        Ok(mut market_data) => market_data.add_price(Some(rounded_price), None),
                         Err(_) => {
                             log::error!(
                                 "Timeout while trying to acquire write lock for market data: {:?}",

@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use dex_connector::{
     BalanceResponse, CreateOrderResponse, DexConnector, DexError, FilledOrder,
-    FilledOrdersResponse, LastTradeResponse, OrderSide, TickerResponse,
+    FilledOrdersResponse, OrderSide, TickerResponse,
 };
 use futures::lock::Mutex;
 use num::FromPrimitive;
@@ -301,10 +301,6 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
 
     async fn close_all_positions(&self, _symbol: Option<String>) -> Result<(), DexError> {
         Ok(())
-    }
-
-    async fn get_last_trades(&self, symbol: &str) -> Result<LastTradeResponse, DexError> {
-        self.dex_connector.get_last_trades(symbol).await
     }
 
     async fn clear_last_trades(&self, symbol: &str) -> Result<(), DexError> {
