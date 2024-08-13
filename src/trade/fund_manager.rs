@@ -675,7 +675,6 @@ impl FundManager {
         } else {
             PositionType::Short
         };
-        let position_cloned;
 
         if trade_action.is_open() {
             // create a new pending position
@@ -714,7 +713,6 @@ impl FundManager {
                 self.pnl_ratio(),
             );
 
-            position_cloned = position.clone();
             self.state.trade_positions.insert(position.id(), position);
         } else {
             if let Some(position_id) = position_id {
@@ -728,7 +726,6 @@ impl FundManager {
                 }
                 let position = position.unwrap();
                 position.request_close(order_id, &reason_for_close.clone().unwrap().to_string())?;
-                position_cloned = position.clone();
             } else {
                 log::warn!("prepare_position: position not found(None)");
                 return Err(());
@@ -736,14 +733,6 @@ impl FundManager {
         }
 
         self.statistics.order_count += 1;
-
-        // Save the position in the DB
-        self.state
-            .db_handler
-            .lock()
-            .await
-            .log_position(&position_cloned)
-            .await;
 
         return Ok(());
     }
@@ -1144,8 +1133,6 @@ impl FundManager {
             }
         };
 
-        let mut position_cloned = position.clone();
-
         match cancel_result {
             debot_position_manager::CancelResult::OpeningCanceled => {
                 // Opening --> Canceled
@@ -1162,7 +1149,6 @@ impl FundManager {
                 } else {
                     // Ignore the paritally filled position
                     position.ignore();
-                    position_cloned = position.clone();
                     // dito
                     //self.state.trade_positions.remove(&position_id);
                 }
@@ -1170,14 +1156,6 @@ impl FundManager {
         }
 
         log::info!("cancel_order succeeded: order_id = {}", order_id);
-
-        // Save the position in the DB
-        self.state
-            .db_handler
-            .lock()
-            .await
-            .log_position(&position_cloned)
-            .await;
     }
 
     pub async fn cancel_all_orders(&mut self) {

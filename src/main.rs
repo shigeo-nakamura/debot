@@ -66,7 +66,7 @@ async fn main() -> std::io::Result<()> {
         DBHandler::new(
             max_position_counter,
             config.max_price_size * trade::TOKEN_LIST_SIZE,
-            config.log_limit,
+            365,
             &config.mongodb_uri,
             &config.db_name,
         )

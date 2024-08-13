@@ -97,10 +97,8 @@ impl DBHandler {
         if *SAVE_POSITION == false {
             return;
         }
-        if matches!(
-            position.state(),
-            State::Opening | State::Closing(_) | State::Canceled(_)
-        ) {
+
+        if !matches!(position.state(), State::Closed(_)) {
             return;
         }
 

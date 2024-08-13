@@ -8,16 +8,6 @@ use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
 
 #[derive(Debug)]
-pub struct RabbitxConfig {
-    pub profile_id: String,
-    pub api_key: String,
-    pub public_jwt: String,
-    pub refresh_token: String,
-    pub secret: String,
-    pub private_jwt: String,
-}
-
-#[derive(Debug)]
 pub struct HyperliquidConfig {
     pub agent_private_key: String,
     pub evm_wallet_address: String,
