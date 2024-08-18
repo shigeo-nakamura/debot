@@ -79,7 +79,6 @@ impl DerivativeTrader {
         load_prices: bool,
         save_prices: bool,
         max_dd_ratio: Decimal,
-        open_order_effective_duration_secs: i64,
         close_order_effective_duration_secs: i64,
         use_market_order: bool,
         rest_endpoint: &str,
@@ -113,7 +112,6 @@ impl DerivativeTrader {
             db_handler,
             price_market_data,
             load_prices,
-            open_order_effective_duration_secs,
             close_order_effective_duration_secs,
             use_market_order,
             leverage,
@@ -134,7 +132,6 @@ impl DerivativeTrader {
         db_handler: Arc<Mutex<DBHandler>>,
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
-        open_order_effective_duration_secs: i64,
         close_order_effective_duration_secs: i64,
         use_market_order: bool,
         leverage: u32,
@@ -153,7 +150,6 @@ impl DerivativeTrader {
             dex_connector.clone(),
             &price_market_data,
             load_prices,
-            open_order_effective_duration_secs,
             close_order_effective_duration_secs,
             use_market_order,
             strategy,
@@ -203,7 +199,6 @@ impl DerivativeTrader {
         dex_connector: Arc<DexConnectorBox>,
         price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
         load_prices: bool,
-        open_order_effective_duration_secs: i64,
         close_order_effective_duration_secs: i64,
         use_market_order: bool,
         strategy: Option<&TradingStrategy>,
@@ -230,7 +225,8 @@ impl DerivativeTrader {
             let config = config.clone();
             let price_market_data = price_market_data.clone();
             let load_prices = load_prices;
-            let open_order_effective_duration_secs = open_order_effective_duration_secs;
+            let max_open_duration_secs = max_open_hours * 60 * 60;
+            let open_order_effective_duration_secs = max_open_duration_secs;
             let use_market_order = use_market_order;
             let risk_reward = risk_reward;
             let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
@@ -294,7 +290,7 @@ impl DerivativeTrader {
                     dex_connector,
                     open_order_effective_duration_secs,
                     close_order_effective_duration_secs,
-                    max_open_hours * 60 * 60,
+                    max_open_duration_secs,
                     use_market_order,
                     take_profit_ratio,
                     risk_reward,

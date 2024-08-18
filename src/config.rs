@@ -27,7 +27,6 @@ pub struct EnvConfig {
     pub interval_msec: u64,
     pub liquidate_when_exit: bool,
     pub max_dd_ratio: Decimal,
-    pub open_order_effective_duration_secs: i64,
     pub close_order_effective_duration_secs: i64,
     pub use_market_order: bool,
     pub rest_endpoint: String,
@@ -110,8 +109,6 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let liquidate_when_exit = get_bool_env_var("LIQUIDATE_WHEN_EXIT", true);
     let max_dd_ratio = get_env_var("MAX_DD_RATIO", "0.1").map_err(ConfigError::from)?;
-    let open_order_effective_duration_secs =
-        get_env_var("OPEN_ORDER_EFFECTIVE_DURATION_SECS", "300")?;
     let close_order_effective_duration_secs =
         get_env_var("CLOSE_ORDER_EFFECTIVE_DURATION_SECS", "300")?;
     let use_market_order = get_bool_env_var("USE_MARKET_ORDER", false);
@@ -140,7 +137,6 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         interval_msec,
         liquidate_when_exit,
         max_dd_ratio,
-        open_order_effective_duration_secs,
         close_order_effective_duration_secs,
         use_market_order,
         rest_endpoint,
