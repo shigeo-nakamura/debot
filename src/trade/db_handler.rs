@@ -153,10 +153,11 @@ impl DBHandler {
                         _ => Decimal::ZERO,
                     },
                     output_2: if position.fee() == Decimal::ZERO {
-                        log::error!("fee is zero");
-                        Decimal::ZERO
-                    } else if position.pnl() / position.fee() > Decimal::new(10, 0) {
+                        return;
+                    } else if position.pnl() / position.fee() > Decimal::ZERO {
                         Decimal::ONE
+                    } else if (position.pnl() / position.fee()).abs() < Decimal::new(10, 1) {
+                        return;
                     } else {
                         Decimal::ZERO
                     },
