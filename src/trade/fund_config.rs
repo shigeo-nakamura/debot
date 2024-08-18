@@ -31,7 +31,6 @@ pub fn get(
         vec![None, Some(Decimal::new(100, 4)), Some(Decimal::new(200, 4))];
 
     let atr_spread_values = vec![
-        None,
         Some(Decimal::new(100, 3)),
         Some(Decimal::new(200, 3)),
         Some(Decimal::new(300, 3)),
