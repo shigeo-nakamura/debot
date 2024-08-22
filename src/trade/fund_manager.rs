@@ -200,7 +200,7 @@ impl FundManager {
         let mut actions: Vec<TradeAction> = vec![];
 
         match self.config.strategy {
-            TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_) => {
+            TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_) => {
                 if !self.can_execute_new_trade() {
                     return self.handle_open_chances(current_price, &actions).await;
                 }
@@ -213,7 +213,6 @@ impl FundManager {
             self.config.atr_spread,
             self.config.max_open_duration_secs,
             self.config.risk_reward,
-            self.pnl_ratio(),
         );
 
         self.handle_open_chances(current_price, &actions).await
@@ -319,13 +318,46 @@ impl FundManager {
             "",
             PositionType::Long,
             Decimal::ZERO,
-            Decimal::ZERO,
-            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
-            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
-            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
-            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
-            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
-            Decimal::ZERO,
+            (
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            (
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            (
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            (
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            (
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
             Decimal::ZERO,
             Decimal::ZERO,
             Decimal::ZERO,
@@ -399,7 +431,7 @@ impl FundManager {
         let (pnl, ratio) = self.unrealized_pnl_of_open_position(current_price);
 
         match self.config.strategy {
-            TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_) => {
+            TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_) => {
                 log::info!(
                     "{} pnl: {:.3}/{:.3}({:.3}%) profit/loss/expired = {}/{}/{}",
                     format!("{}-{}", self.config.token_name, self.config.index),
@@ -504,7 +536,7 @@ impl FundManager {
                 }
             } else if matches!(
                 self.config.strategy,
-                TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_)
+                TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_)
             ) {
                 if position.should_open_expired() {
                     reason_for_close = Some(ReasonForClose::Expired);
@@ -540,14 +572,14 @@ impl FundManager {
     fn can_execute_new_trade(&self) -> bool {
         if matches!(
             self.config.strategy,
-            TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_)
+            TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_)
         ) && !self.state.trade_positions.is_empty()
         {
             return false;
         }
 
         match self.config.strategy {
-            TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_) => {
+            TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_) => {
                 if let Some(last_trade_time) = self.state.last_trade_time {
                     let current_time = chrono::Utc::now().timestamp();
                     let delay_secs = self.config.execution_delay_secs;
@@ -701,7 +733,6 @@ impl FundManager {
                 token_name,
                 position_type,
                 target_price.unwrap(),
-                market_data.price_variance(),
                 market_data.atr(),
                 market_data.adx(),
                 market_data.rsi(),
@@ -710,7 +741,6 @@ impl FundManager {
                 self.config.take_profit_ratio.unwrap_or_default(),
                 self.config.atr_spread.unwrap_or_default(),
                 self.config.risk_reward,
-                self.pnl_ratio(),
             );
 
             self.state.trade_positions.insert(position.id(), position);
@@ -1068,7 +1098,7 @@ impl FundManager {
         };
 
         match self.config.strategy {
-            TradingStrategy::RandomWalk(_) | TradingStrategy::MachineLearning(_) => match side {
+            TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_) => match side {
                 OrderSide::Long => Some(current_price + take_profit_distance),
                 _ => Some(current_price - take_profit_distance),
             },
@@ -1090,10 +1120,6 @@ impl FundManager {
             OrderSide::Long => Some(filled_price - cut_loss_distance),
             _ => Some(filled_price + cut_loss_distance),
         }
-    }
-
-    fn pnl_ratio(&self) -> Decimal {
-        (self.state.amount - self.state.initial_amount) / self.state.initial_amount
     }
 
     pub fn clean_canceled_position(&mut self) {

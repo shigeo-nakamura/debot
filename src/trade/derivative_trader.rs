@@ -348,7 +348,7 @@ impl DerivativeTrader {
         strategy: &TradingStrategy,
     ) -> MarketData {
         let random_foreset = match strategy {
-            TradingStrategy::MachineLearning(trend_type) => {
+            TradingStrategy::MeanReversion(trend_type) => {
                 let position_type = match trend_type {
                     debot_market_analyzer::TrendType::Up => "Long",
                     debot_market_analyzer::TrendType::Down => "Short",

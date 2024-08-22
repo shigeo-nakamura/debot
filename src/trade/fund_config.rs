@@ -31,22 +31,15 @@ pub fn get(
         vec![None, Some(Decimal::new(100, 4)), Some(Decimal::new(200, 4))];
 
     let atr_spread_values = vec![
+        None,
         Some(Decimal::new(100, 3)),
         Some(Decimal::new(200, 3)),
         Some(Decimal::new(300, 3)),
         Some(Decimal::new(400, 3)),
         Some(Decimal::new(500, 3)),
-        Some(Decimal::new(750, 3)),
-        Some(Decimal::ONE),
     ];
 
-    let risk_reward_values = vec![
-        Decimal::new(50, 2),
-        Decimal::new(66, 2),
-        Decimal::ONE,
-        Decimal::new(150, 2),
-        Decimal::new(200, 2),
-    ];
+    let risk_reward_values = vec![Decimal::new(50, 2), Decimal::ONE, Decimal::new(200, 2)];
 
     let open_hours_values = vec![3, 6, 12, 24];
 
@@ -86,7 +79,7 @@ pub fn get(
 
                         strategy_list.push((
                             TOKEN_LIST[0].to_owned(), // BTC
-                            TradingStrategy::MachineLearning(TrendType::Up),
+                            TradingStrategy::MeanReversion(TrendType::Up),
                             initial_amount,     // initial amount (in USD)
                             Decimal::new(8, 1), // position size ratio
                             risk_reward,
@@ -97,7 +90,7 @@ pub fn get(
 
                         strategy_list.push((
                             TOKEN_LIST[0].to_owned(), // BTC
-                            TradingStrategy::MachineLearning(TrendType::Down),
+                            TradingStrategy::MeanReversion(TrendType::Down),
                             initial_amount,     // initial amount (in USD)
                             Decimal::new(8, 1), // position size ratio
                             risk_reward,
