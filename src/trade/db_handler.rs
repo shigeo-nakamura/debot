@@ -154,10 +154,8 @@ impl DBHandler {
                     },
                     output_2: if position.fee() == Decimal::ZERO {
                         return;
-                    } else if position.pnl() / position.fee() > Decimal::ZERO {
+                    } else if position.pnl() > Decimal::ZERO {
                         Decimal::ONE
-                    } else if (position.pnl() / position.fee()).abs() < Decimal::new(10, 1) {
-                        return;
                     } else {
                         Decimal::ZERO
                     },
