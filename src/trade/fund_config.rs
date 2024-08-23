@@ -27,8 +27,12 @@ pub fn get(
     Option<Decimal>,
     i64,
 )> {
-    let take_profit_ratio_values =
-        vec![None, Some(Decimal::new(100, 4)), Some(Decimal::new(200, 4))];
+    let take_profit_ratio_values = vec![
+        None,
+        Some(Decimal::new(500, 5)),
+        Some(Decimal::new(100, 4)),
+        Some(Decimal::new(200, 4)),
+    ];
 
     let atr_spread_values = vec![
         None,
