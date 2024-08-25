@@ -10,13 +10,13 @@ pub fn get(strategy: Option<&TradingStrategy>) -> Vec<(usize, SampleInterval, St
     vec![
         (
             TradingStrategy::RandomWalk(TrendType::Unknown),
-            24 * 60,
+            3 * 60,
             SampleInterval::new(12 * 60, 26 * 60),
             dex_name.to_owned(),
         ),
         (
             TradingStrategy::MeanReversion(TrendType::Unknown),
-            24 * 60,
+            3 * 60,
             SampleInterval::new(12 * 60, 26 * 60),
             dex_name.to_owned(),
         ),
