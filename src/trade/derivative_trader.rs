@@ -334,6 +334,7 @@ impl DerivativeTrader {
 
         if let Some(price_points) = price_points {
             let mut market_data = market_data.write().await;
+            log::info!("num of data = {}", price_points.len());
             for price_point in price_points {
                 market_data.add_price(Some(price_point.price), Some(price_point.timestamp));
             }
@@ -578,13 +579,11 @@ impl DerivativeTrader {
     pub async fn reset_dex_client(&mut self) -> bool {
         log::info!("reset dex_client");
 
-        if self.state.dex_connector.stop().await.is_err() {
-            log::error!("Failed to stop the dex_connector");
-        }
+        let mut result = true;
 
-        if self.state.dex_connector.start().await.is_err() {
+        if self.state.dex_connector.restart().await.is_err() {
             log::error!("Failed to restart the dex_connector");
-            return false;
+            result = false;
         }
 
         for fund_manager in self.state.fund_manager_map.iter_mut() {
@@ -593,7 +592,7 @@ impl DerivativeTrader {
                 .reset_dex_client(self.state.dex_connector.clone());
         }
 
-        true
+        result
     }
 
     pub async fn liquidate(&mut self, on_exit: bool, reason: &str) {

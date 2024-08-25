@@ -108,6 +108,10 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
         self.dex_connector.stop().await
     }
 
+    async fn restart(&self) -> Result<(), DexError> {
+        self.dex_connector.restart().await
+    }
+
     async fn set_leverage(&self, _symbol: &str, _leverage: u32) -> Result<(), DexError> {
         Ok(())
     }

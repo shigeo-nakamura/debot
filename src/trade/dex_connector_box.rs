@@ -78,6 +78,10 @@ impl DexConnector for DexConnectorBox {
         self.inner.stop().await
     }
 
+    async fn restart(&self) -> Result<(), DexError> {
+        self.inner.restart().await
+    }
+
     async fn set_leverage(&self, symbol: &str, leverage: u32) -> Result<(), DexError> {
         self.inner.set_leverage(symbol, leverage).await
     }
