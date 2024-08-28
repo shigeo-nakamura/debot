@@ -29,29 +29,63 @@ pub fn get(
 )> {
     let take_profit_ratio_values = vec![
         None,
-        Some(Decimal::new(500, 5)),
         Some(Decimal::new(100, 4)),
+        Some(Decimal::new(150, 4)),
         Some(Decimal::new(200, 4)),
+        Some(Decimal::new(300, 4)),
     ];
 
-    let atr_spread_values = vec![
-        None,
+    let atr_spread_values_randomwalk = vec![
         Some(Decimal::new(100, 3)),
         Some(Decimal::new(200, 3)),
         Some(Decimal::new(300, 3)),
         Some(Decimal::new(400, 3)),
         Some(Decimal::new(500, 3)),
+        Some(Decimal::new(600, 3)),
+        Some(Decimal::new(700, 3)),
+        Some(Decimal::new(800, 3)),
+        Some(Decimal::new(900, 3)),
+        Some(Decimal::new(1000, 3)),
     ];
 
-    let risk_reward_values = vec![Decimal::new(50, 2), Decimal::ONE, Decimal::new(200, 2)];
+    let risk_reward_values = vec![Decimal::ONE];
 
-    let open_hours_values = vec![3, 6, 12, 24];
+    let open_hours_values_randomwalk = vec![3, 6, 9, 12, 15, 21, 24];
+
+    let atr_spread_values_meanreversion = vec![
+        Some(Decimal::new(100, 3)),
+        Some(Decimal::new(200, 3)),
+        Some(Decimal::new(300, 3)),
+        Some(Decimal::new(500, 3)),
+        Some(Decimal::new(800, 3)),
+    ];
+
+    let risk_reward_values_meanreversion =
+        vec![Decimal::new(50, 2), Decimal::ONE, Decimal::new(200, 2)];
+
+    let open_hours_values_meanreversion = vec![3, 6, 12, 24];
 
     let mut strategy_list = Vec::new();
 
     let initial_amount = *INITIAL_FUND_AMOUNT;
 
     if dex_name == "hyperliquid" {
+        let (take_profit_ratio_values, atr_spread_values, risk_reward_values, open_hours_values) =
+            match strategy {
+                Some(TradingStrategy::RandomWalk(_)) => (
+                    take_profit_ratio_values,
+                    atr_spread_values_randomwalk,
+                    risk_reward_values,
+                    open_hours_values_randomwalk,
+                ),
+                Some(TradingStrategy::MeanReversion(_)) | None => (
+                    take_profit_ratio_values,
+                    atr_spread_values_meanreversion,
+                    risk_reward_values_meanreversion,
+                    open_hours_values_meanreversion,
+                ),
+            };
+
         for take_profit_ratio in take_profit_ratio_values {
             for atr_spread in atr_spread_values.clone() {
                 if take_profit_ratio.is_none() && atr_spread.is_none() {
@@ -66,8 +100,8 @@ pub fn get(
                             Decimal::new(8, 1), // position size ratio
                             risk_reward,
                             take_profit_ratio,
-                            atr_spread, // spread by ATR
-                            open_hours, // max open hours
+                            atr_spread,  // spread by ATR
+                            *open_hours, // max open hours
                         ));
 
                         strategy_list.push((
@@ -77,8 +111,8 @@ pub fn get(
                             Decimal::new(8, 1), // position size ratio
                             risk_reward,
                             take_profit_ratio,
-                            atr_spread, // spread by ATR
-                            open_hours, // max open hours
+                            atr_spread,  // spread by ATR
+                            *open_hours, // max open hours
                         ));
 
                         strategy_list.push((
@@ -88,8 +122,8 @@ pub fn get(
                             Decimal::new(8, 1), // position size ratio
                             risk_reward,
                             take_profit_ratio,
-                            atr_spread, // spread by ATR
-                            open_hours, // max open hours
+                            atr_spread,  // spread by ATR
+                            *open_hours, // max open hours
                         ));
 
                         strategy_list.push((
@@ -99,8 +133,8 @@ pub fn get(
                             Decimal::new(8, 1), // position size ratio
                             risk_reward,
                             take_profit_ratio,
-                            atr_spread, // spread by ATR
-                            open_hours, // max open hours
+                            atr_spread,  // spread by ATR
+                            *open_hours, // max open hours
                         ));
                     }
                 }
@@ -139,7 +173,7 @@ pub fn get(
                     risk_reward,
                     take_profit_ratio,
                     atr_spread,
-                    *open_hours,
+                    open_hours,
                 )
             },
         )

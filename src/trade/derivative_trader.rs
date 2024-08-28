@@ -233,13 +233,13 @@ impl DerivativeTrader {
             *token_name_indices.get_mut(&token_name).unwrap() += 1;
 
             let fund_name = format!(
-                "{}-{:?}-{}-{}-{:?}-{:?}",
+                "{}-{:?}-{}-{}-p/l({:?})-spread({:?})",
                 if config.dry_run { "test" } else { "prod" },
                 strategy,
                 token_name,
                 index,
-                take_profit_ratio,
-                atr_spread,
+                take_profit_ratio.unwrap_or_default(),
+                atr_spread.unwrap_or_default(),
             );
 
             let market_data_key = (token_name.clone(), strategy.clone());
