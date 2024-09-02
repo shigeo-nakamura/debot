@@ -5,7 +5,7 @@ use std::env;
 
 pub const TOKEN_LIST_SIZE: u32 = 3;
 
-pub const TOKEN_LIST: &[&str] = &["BTC-USD", "ETH-USD", "SOL-USD"];
+pub const TOKEN_LIST: &[&str] = &["BTC-USD"];
 
 lazy_static! {
     static ref INITIAL_FUND_AMOUNT: Decimal = env::var("INITIAL_FUND_AMOUNT")
