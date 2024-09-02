@@ -1072,17 +1072,17 @@ impl FundManager {
         let market_data = self.state.market_data.read().await;
         match self.config.take_profit_ratio {
             Some(v) => Some(v * current_price),
-            None => match self.config.atr_spread {
-                Some(v) => {
-                    let atr = market_data.atr().0;
-                    if atr == Decimal::ZERO {
-                        None
-                    } else {
-                        Some(atr * v)
-                    }
+            None => {
+                let atr = market_data.atr().0;
+                if atr == Decimal::ZERO {
+                    None
+                } else {
+                    Some(
+                        atr * (Decimal::ONE - self.config.atr_spread.unwrap_or_default())
+                            * self.config.risk_reward,
+                    )
                 }
-                None => None,
-            },
+            }
         }
     }
 

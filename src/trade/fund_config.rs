@@ -27,13 +27,7 @@ pub fn get(
     Option<Decimal>,
     i64,
 )> {
-    let take_profit_ratio_values = vec![
-        None,
-        Some(Decimal::new(100, 4)),
-        Some(Decimal::new(150, 4)),
-        Some(Decimal::new(200, 4)),
-        Some(Decimal::new(300, 4)),
-    ];
+    let take_profit_ratio_values = vec![None, Some(Decimal::new(1, 2))];
 
     let atr_spread_values_randomwalk = vec![
         Some(Decimal::new(100, 3)),
@@ -44,11 +38,9 @@ pub fn get(
         Some(Decimal::new(600, 3)),
         Some(Decimal::new(700, 3)),
         Some(Decimal::new(800, 3)),
-        Some(Decimal::new(900, 3)),
-        Some(Decimal::new(1000, 3)),
     ];
 
-    let risk_reward_values = vec![Decimal::ONE];
+    let risk_reward_values = vec![Decimal::ONE, Decimal::new(15, 1), Decimal::new(20, 1)];
 
     let open_hours_values_randomwalk = vec![3, 6, 9, 12, 15, 21, 24];
 
@@ -59,9 +51,6 @@ pub fn get(
         Some(Decimal::new(500, 3)),
         Some(Decimal::new(800, 3)),
     ];
-
-    let risk_reward_values_meanreversion =
-        vec![Decimal::new(50, 2), Decimal::ONE, Decimal::new(200, 2)];
 
     let open_hours_values_meanreversion = vec![3, 6, 12, 24];
 
@@ -81,16 +70,13 @@ pub fn get(
                 Some(TradingStrategy::MeanReversion(_)) | None => (
                     take_profit_ratio_values,
                     atr_spread_values_meanreversion,
-                    risk_reward_values_meanreversion,
+                    risk_reward_values,
                     open_hours_values_meanreversion,
                 ),
             };
 
         for take_profit_ratio in take_profit_ratio_values {
             for atr_spread in atr_spread_values.clone() {
-                if take_profit_ratio.is_none() && atr_spread.is_none() {
-                    continue;
-                }
                 for risk_reward in risk_reward_values.clone() {
                     for open_hours in &open_hours_values {
                         strategy_list.push((
