@@ -68,7 +68,8 @@ async fn main() -> std::io::Result<()> {
             config.max_price_size * trade::TOKEN_LIST_SIZE,
             365,
             &config.mongodb_uri,
-            &config.db_name,
+            &config.db_w_name,
+            &config.db_r_name,
         )
         .await,
     ));
@@ -119,6 +120,7 @@ async fn prepare_trader_instance(
         &config.web_socket_endpoint,
         config.leverage,
         config.strategy.as_ref(),
+        config.only_read_price,
     )
     .await;
 

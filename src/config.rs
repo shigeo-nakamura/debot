@@ -17,7 +17,8 @@ pub struct HyperliquidConfig {
 #[derive(Debug)]
 pub struct EnvConfig {
     pub mongodb_uri: String,
-    pub db_name: String,
+    pub db_w_name: String,
+    pub db_r_name: String,
     pub log_limit: u32,
     pub dry_run: bool,
     pub max_price_size: u32,
@@ -33,6 +34,7 @@ pub struct EnvConfig {
     pub web_socket_endpoint: String,
     pub leverage: u32,
     pub strategy: Option<TradingStrategy>,
+    pub only_read_price: bool,
 }
 
 #[derive(Debug)]
@@ -95,7 +97,8 @@ fn get_bool_env_var(var: &str, default: bool) -> bool {
 
 pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
-    let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
+    let db_r_name = env::var("DB_R_NAME").expect("DB_R_NAME must be set");
+    let db_w_name = env::var("DB_W_NAME").expect("DB_W_NAME must be set");
     let log_limit = get_env_var("LOG_LIMIT", "100000")?;
     let dry_run = get_bool_env_var("DRY_RUN", true);
     let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
@@ -125,9 +128,12 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         &_ => None,
     };
 
+    let only_read_price = get_bool_env_var("ONLY_READ_PRICE", false);
+
     let env_config = EnvConfig {
         mongodb_uri,
-        db_name,
+        db_r_name,
+        db_w_name,
         log_limit,
         dry_run,
         max_price_size,
@@ -143,6 +149,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         web_socket_endpoint,
         leverage,
         strategy,
+        only_read_price,
     };
 
     Ok(env_config)

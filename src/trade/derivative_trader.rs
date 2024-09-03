@@ -52,6 +52,7 @@ struct DerivativeTraderConfig {
     rest_endpoint: String,
     web_socket_endpoint: String,
     save_prices: bool,
+    only_read_price: bool,
 }
 
 struct DerivativeTraderState {
@@ -85,6 +86,7 @@ impl DerivativeTrader {
         web_socket_endpoint: &str,
         leverage: u32,
         strategy: Option<&TradingStrategy>,
+        only_read_price: bool,
     ) -> Self {
         log::info!("DerivativeTrader::new");
         const SECONDS_IN_MINUTE: usize = 60;
@@ -105,6 +107,7 @@ impl DerivativeTrader {
             rest_endpoint: rest_endpoint.to_owned(),
             web_socket_endpoint: web_socket_endpoint.to_owned(),
             save_prices,
+            only_read_price,
         };
 
         let state = Self::initialize_state(
@@ -487,6 +490,10 @@ impl DerivativeTrader {
             }
         }
         log::info!("All market data processed.");
+
+        if self.config.only_read_price {
+            return Ok(());
+        }
 
         // 2. Check newly filled orders after the new price is queried; otherwise DexEmulator can't fill any orders
         log::info!("2. Check filled orders: started");

@@ -30,7 +30,8 @@ impl DBHandler {
         max_price_counter: u32,
         max_balance_counter: u32,
         mongodb_uri: &str,
-        db_name: &str,
+        db_w_name: &str,
+        db_r_name: &str,
     ) -> Self {
         let transaction_log = Arc::new(
             TransactionLog::new(
@@ -38,12 +39,13 @@ impl DBHandler {
                 max_price_counter,
                 max_balance_counter,
                 mongodb_uri,
-                db_name,
+                db_w_name,
+                db_r_name,
             )
             .await,
         );
 
-        let model_params = ModelParams::new(&mongodb_uri, &db_name).await;
+        let model_params = ModelParams::new(&mongodb_uri, &db_w_name).await;
         let model_params = Arc::new(model_params);
 
         Self {
@@ -57,7 +59,7 @@ impl DBHandler {
     pub async fn log_pnl(&self, pnl: Decimal) {
         log::info!("log_pnl: {:6.6}", pnl);
 
-        if let Some(db) = self.transaction_log.get_db().await {
+        if let Some(db) = self.transaction_log.get_w_db().await {
             let mut item = PnlLog::default();
             item.id = self.increment_counter(CounterType::Pnl);
             item.date = DateTimeUtils::get_current_date_string();
@@ -78,7 +80,7 @@ impl DBHandler {
     ) {
         log::info!("log_app_state: {:?}", last_execution_time);
 
-        if let Some(db) = self.transaction_log.get_db().await {
+        if let Some(db) = self.transaction_log.get_w_db().await {
             if let Err(e) = TransactionLog::update_app_state(
                 &db,
                 last_execution_time,
@@ -102,7 +104,7 @@ impl DBHandler {
             return;
         }
 
-        if let Some(db) = self.transaction_log.get_db().await {
+        if let Some(db) = self.transaction_log.get_w_db().await {
             let position_log = PositionLog {
                 id: Some(position.id()),
                 fund_name: position.fund_name().to_owned(),
@@ -189,7 +191,7 @@ impl DBHandler {
     }
 
     pub async fn log_price(&self, name: &str, token_name: &str, price_point: PricePoint) {
-        if let Some(db) = self.transaction_log.get_db().await {
+        if let Some(db) = self.transaction_log.get_w_db().await {
             let mut item = PriceLog::default();
             item.id = self.increment_counter(CounterType::Price);
             item.name = name.to_owned();
@@ -211,7 +213,7 @@ impl DBHandler {
     }
 
     pub async fn get_app_state(&self) -> (Option<SystemTime>, Option<Decimal>, bool) {
-        if let Some(db) = self.transaction_log.get_db().await {
+        if let Some(db) = self.transaction_log.get_w_db().await {
             let app_state = TransactionLog::get_app_state(&db).await;
             (
                 app_state.last_execution_time,
@@ -224,7 +226,7 @@ impl DBHandler {
     }
 
     pub async fn get_price_market_data(&self) -> HashMap<String, HashMap<String, Vec<PricePoint>>> {
-        if let Some(db) = self.transaction_log.get_db().await {
+        if let Some(db) = self.transaction_log.get_r_db().await {
             TransactionLog::get_price_market_data(&db).await
         } else {
             HashMap::new()
