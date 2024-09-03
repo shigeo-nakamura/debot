@@ -1075,14 +1075,11 @@ impl FundManager {
         match self.config.take_profit_ratio {
             Some(v) => Some(v * current_price),
             None => {
-                let atr = market_data.atr().0;
+                let atr = market_data.atr().1;
                 if atr == Decimal::ZERO {
                     None
                 } else {
-                    Some(
-                        atr * (Decimal::ONE - self.config.atr_spread.unwrap_or_default())
-                            * self.config.risk_reward,
-                    )
+                    Some(atr * self.config.risk_reward)
                 }
             }
         }
@@ -1112,12 +1109,18 @@ impl FundManager {
     }
 
     async fn cut_loss_price(&self, filled_price: Decimal, side: OrderSide) -> Option<Decimal> {
-        let take_profit_distance = match self.take_profit_distance(filled_price).await {
+        let _take_profit_distance = match self.take_profit_distance(filled_price).await {
             Some(v) => v,
             None => return None,
         };
 
-        let cut_loss_distance = take_profit_distance / self.config.risk_reward;
+        let market_data = self.state.market_data.read().await;
+        let atr = market_data.atr().0;
+        let cut_loss_distance = if atr == Decimal::ZERO {
+            return None;
+        } else {
+            atr
+        };
         match side {
             OrderSide::Long => Some(filled_price - cut_loss_distance),
             _ => Some(filled_price + cut_loss_distance),

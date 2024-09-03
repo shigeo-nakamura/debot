@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use rust_decimal::Decimal;
 use std::env;
 
-pub const TOKEN_LIST_SIZE: u32 = 3;
+pub const TOKEN_LIST_SIZE: u32 = 1;
 
 pub const TOKEN_LIST: &[&str] = &["BTC-USD"];
 
@@ -27,7 +27,13 @@ pub fn get(
     Option<Decimal>,
     i64,
 )> {
-    let take_profit_ratio_values = vec![None, Some(Decimal::new(1, 2))];
+    let take_profit_ratio_values = vec![
+        None,
+        Some(Decimal::new(5, 3)),
+        Some(Decimal::new(10, 3)),
+        Some(Decimal::new(15, 3)),
+        Some(Decimal::new(20, 3)),
+    ];
 
     let atr_spread_values_randomwalk = vec![
         Some(Decimal::new(100, 3)),
@@ -38,9 +44,11 @@ pub fn get(
         Some(Decimal::new(600, 3)),
         Some(Decimal::new(700, 3)),
         Some(Decimal::new(800, 3)),
+        Some(Decimal::new(900, 3)),
+        Some(Decimal::new(1000, 3)),
     ];
 
-    let risk_reward_values = vec![Decimal::ONE, Decimal::new(15, 1), Decimal::new(20, 1)];
+    let risk_reward_values = vec![Decimal::ONE];
 
     let open_hours_values_randomwalk = vec![3, 6, 9, 12, 15, 21, 24];
 
@@ -50,6 +58,7 @@ pub fn get(
         Some(Decimal::new(300, 3)),
         Some(Decimal::new(500, 3)),
         Some(Decimal::new(800, 3)),
+        Some(Decimal::new(1000, 3)),
     ];
 
     let open_hours_values_meanreversion = vec![3, 6, 12, 24];
