@@ -39,8 +39,8 @@ impl DBHandler {
                 max_price_counter,
                 max_balance_counter,
                 mongodb_uri,
-                db_w_name,
                 db_r_name,
+                db_w_name,
             )
             .await,
         );
