@@ -565,9 +565,9 @@ impl DerivativeTrader {
             })
             .collect();
 
-        log::info!("3. Find trade chanes: started");
+        log::info!("3. Find trade chances: started");
         let find_results = join_all(find_futures).await;
-        log::info!("3. Find trade chanes: finished");
+        log::info!("3. Find trade chances: finished");
 
         for result in find_results {
             if result.is_err() {
