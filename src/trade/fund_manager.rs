@@ -22,7 +22,6 @@ struct TradeChance {
 
 struct FundManagerState {
     amount: Decimal,
-    initial_amount: Decimal,
     trade_positions: HashMap<u32, TradePosition>,
     latest_open_position_id: Option<u32>,
     db_handler: Arc<Mutex<DBHandler>>,
@@ -107,7 +106,6 @@ impl FundManager {
 
         let state = FundManagerState {
             amount: initial_amount,
-            initial_amount,
             trade_positions: HashMap::new(),
             db_handler,
             dex_connector,

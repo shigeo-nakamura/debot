@@ -62,10 +62,11 @@ async fn main() -> std::io::Result<()> {
 
     // Set up the DB handler
     let max_position_counter = config.log_limit;
+    let max_price_size = config.max_price_size * trade::TOKEN_LIST_SIZE;
     let db_handler = Arc::new(Mutex::new(
         DBHandler::new(
             max_position_counter,
-            config.max_price_size * trade::TOKEN_LIST_SIZE,
+            max_price_size,
             365,
             &config.mongodb_uri,
             &config.db_w_name,
@@ -82,7 +83,11 @@ async fn main() -> std::io::Result<()> {
         loop {}
     }
 
-    let price_market_data = db_handler.lock().await.get_price_market_data().await;
+    let price_market_data = db_handler
+        .lock()
+        .await
+        .get_price_market_data(Some(max_price_size), None)
+        .await;
 
     // Initialize a trader instance
     let mut trader_instance = prepare_trader_instance(&config, db_handler, price_market_data).await;

@@ -244,9 +244,13 @@ impl DBHandler {
         }
     }
 
-    pub async fn get_price_market_data(&self) -> HashMap<String, HashMap<String, Vec<PricePoint>>> {
+    pub async fn get_price_market_data(
+        &self,
+        limit: Option<u32>,
+        id: Option<u32>,
+    ) -> HashMap<String, HashMap<String, Vec<PricePoint>>> {
         if let Some(db) = self.transaction_log.get_r_db().await {
-            TransactionLog::get_price_market_data(&db).await
+            TransactionLog::get_price_market_data(&db, limit, id).await
         } else {
             HashMap::new()
         }
