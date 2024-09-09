@@ -2,6 +2,7 @@
 
 use super::dex_connector_box::DexConnectorBox;
 use super::DBHandler;
+use debot_db::PricePoint;
 use debot_market_analyzer::{MarketData, TradeAction, TradeDetail, TradingStrategy};
 use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
@@ -38,9 +39,9 @@ struct FundManagerConfig {
     strategy: TradingStrategy,
     trading_amount: Decimal,
     initial_amount: Decimal,
-    open_order_effective_duration_secs: i64,
-    close_order_effective_duration_secs: i64,
-    max_open_duration_secs: i64,
+    open_order_tick_count_max: u32,
+    close_order_tick_count_max: u32,
+    open_tick_count_max: u32,
     execution_delay_secs: i64,
     use_market_order: bool,
     take_profit_ratio: Option<Decimal>,
@@ -77,9 +78,10 @@ impl FundManager {
         initial_amount: Decimal,
         db_handler: Arc<Mutex<DBHandler>>,
         dex_connector: Arc<DexConnectorBox>,
-        open_order_effective_duration_secs: i64,
-        close_order_effective_duration_secs: i64,
-        max_open_duration_secs: i64,
+        open_order_tick_count_max: u32,
+        close_order_tick_count_max: u32,
+        open_tick_count_max: u32,
+        execution_delay_secs: i64,
         use_market_order: bool,
         take_profit_ratio: Option<Decimal>,
         risk_reward: Decimal,
@@ -92,13 +94,13 @@ impl FundManager {
             strategy,
             trading_amount,
             initial_amount,
-            open_order_effective_duration_secs,
-            close_order_effective_duration_secs,
-            max_open_duration_secs,
+            open_order_tick_count_max,
+            close_order_tick_count_max,
+            open_tick_count_max,
+            execution_delay_secs,
             use_market_order,
             take_profit_ratio,
             risk_reward,
-            execution_delay_secs: open_order_effective_duration_secs,
             atr_spread,
         };
 
@@ -135,15 +137,15 @@ impl FundManager {
 
     pub async fn get_token_price(
         &mut self,
+        back_test_price: Option<PricePoint>,
     ) -> Result<(Decimal, Decimal), Box<dyn Error + Send + Sync>> {
         let token_name = &self.config.token_name;
-
-        // Get the token price
         let dex_connector = self.state.dex_connector.clone();
 
         // Get the token price
+        let test_price = back_test_price.and_then(|test_price| Some(test_price.price));
         let res = dex_connector
-            .get_ticker(token_name)
+            .get_ticker(token_name, test_price)
             .await
             .map_err(|e| format!("Failed to get price of {}: {:?}", token_name, e).to_owned())?;
 
@@ -158,6 +160,8 @@ impl FundManager {
         &mut self,
         price: Decimal,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.check_positions(price);
+
         self.find_expired_orders().await;
 
         self.find_close_chances(price)
@@ -168,8 +172,6 @@ impl FundManager {
             .await
             .map_err(|_| "Failed to find open chances".to_owned())?;
         self.state.last_price = price;
-
-        self.check_positions(price);
 
         Ok(())
     }
@@ -209,7 +211,7 @@ impl FundManager {
             self.config.strategy.clone(),
             self.config.take_profit_ratio.unwrap_or_default(),
             self.config.atr_spread,
-            self.config.max_open_duration_secs,
+            self.config.open_order_tick_count_max,
             self.config.risk_reward,
         );
 
@@ -726,9 +728,9 @@ impl FundManager {
                 order_id,
                 ordered_price.unwrap(),
                 ordered_amount,
-                self.config.open_order_effective_duration_secs,
-                self.config.close_order_effective_duration_secs,
-                self.config.max_open_duration_secs,
+                self.config.open_order_tick_count_max,
+                self.config.close_order_tick_count_max,
+                self.config.open_tick_count_max,
                 token_name,
                 position_type,
                 target_price.unwrap(),
@@ -1242,8 +1244,9 @@ impl FundManager {
         }
     }
 
-    pub fn check_positions(&self, price: Decimal) {
-        for (_, position) in &self.state.trade_positions {
+    pub fn check_positions(&mut self, price: Decimal) {
+        for (_, position) in &mut self.state.trade_positions {
+            position.update_counter();
             position.print_info(price);
         }
     }

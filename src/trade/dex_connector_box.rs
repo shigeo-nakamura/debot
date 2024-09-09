@@ -86,8 +86,12 @@ impl DexConnector for DexConnectorBox {
         self.inner.set_leverage(symbol, leverage).await
     }
 
-    async fn get_ticker(&self, symbol: &str) -> Result<TickerResponse, DexError> {
-        self.inner.get_ticker(symbol).await
+    async fn get_ticker(
+        &self,
+        symbol: &str,
+        test_price: Option<Decimal>,
+    ) -> Result<TickerResponse, DexError> {
+        self.inner.get_ticker(symbol, test_price).await
     }
 
     async fn get_filled_orders(&self, symbol: &str) -> Result<FilledOrdersResponse, DexError> {

@@ -53,6 +53,8 @@ struct DerivativeTraderConfig {
     web_socket_endpoint: String,
     save_prices: bool,
     only_read_price: bool,
+    back_test: bool,
+    interval_secs: i64,
 }
 
 struct DerivativeTraderState {
@@ -60,6 +62,8 @@ struct DerivativeTraderState {
     dex_connector: Arc<DexConnectorBox>,
     fund_manager_map: HashMap<String, FundManager>,
     market_data_map: Arc<RwLock<HashMap<(String, TradingStrategy), Arc<RwLock<MarketData>>>>>,
+    back_test_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
+    back_test_counter: usize,
 }
 
 pub struct DerivativeTrader {
@@ -87,6 +91,7 @@ impl DerivativeTrader {
         leverage: u32,
         strategy: Option<&TradingStrategy>,
         only_read_price: bool,
+        back_test: bool,
     ) -> Self {
         log::info!("DerivativeTrader::new");
         const SECONDS_IN_MINUTE: usize = 60;
@@ -108,6 +113,8 @@ impl DerivativeTrader {
             web_socket_endpoint: web_socket_endpoint.to_owned(),
             save_prices,
             only_read_price,
+            back_test,
+            interval_secs,
         };
 
         let state = Self::initialize_state(
@@ -160,14 +167,20 @@ impl DerivativeTrader {
         )
         .await;
 
-        log::info!("create_fund_managers() finished");
-
         let mut state = DerivativeTraderState {
             db_handler,
             dex_connector,
             fund_manager_map: HashMap::new(),
             market_data_map,
+            back_test_data: if config.back_test {
+                price_market_data
+            } else {
+                HashMap::new()
+            },
+            back_test_counter: 0,
         };
+
+        log::info!("create_fund_managers() finished");
 
         let mut processed_tokens = HashSet::new();
         for fund_manager in fund_managers {
@@ -228,8 +241,6 @@ impl DerivativeTrader {
             let config = config.clone();
             let price_market_data = price_market_data.clone();
             let load_prices = load_prices;
-            let max_open_duration_secs = max_open_hours * 60 * 60;
-            let open_order_effective_duration_secs = max_open_duration_secs;
             let use_market_order = use_market_order;
             let risk_reward = risk_reward;
             let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
@@ -264,7 +275,7 @@ impl DerivativeTrader {
                             .await,
                         ));
 
-                        if load_prices {
+                        if !config.back_test && load_prices {
                             Self::restore_market_data(
                                 new_market_data.clone(),
                                 &config.trader_name,
@@ -281,6 +292,22 @@ impl DerivativeTrader {
 
                 log::info!("create {}", fund_name);
 
+                let open_tick_count_max: u32 = (max_open_hours * 60 * 60 / config.interval_secs)
+                    .try_into()
+                    .unwrap();
+
+                let open_order_tick_count_max = open_tick_count_max;
+                let close_order_tick_count_max: u32 = (close_order_effective_duration_secs
+                    / config.interval_secs)
+                    .try_into()
+                    .unwrap();
+
+                let execution_delay_secs = if config.back_test {
+                    0
+                } else {
+                    max_open_hours * 60 * 60
+                };
+
                 Some(FundManager::new(
                     &fund_name,
                     index,
@@ -291,9 +318,10 @@ impl DerivativeTrader {
                     initial_amount,
                     db_handler,
                     dex_connector,
-                    open_order_effective_duration_secs,
-                    close_order_effective_duration_secs,
-                    max_open_duration_secs,
+                    open_order_tick_count_max,
+                    close_order_tick_count_max,
+                    open_tick_count_max,
+                    execution_delay_secs,
                     use_market_order,
                     take_profit_ratio,
                     risk_reward,
@@ -343,6 +371,36 @@ impl DerivativeTrader {
             }
         }
         log::info!("restore_market_data return");
+    }
+
+    fn get_back_test_price(
+        trader_name: &str,
+        token_name: &str,
+        price_market_data: &HashMap<String, HashMap<String, Vec<PricePoint>>>,
+        index: usize,
+    ) -> Option<PricePoint> {
+        if price_market_data.is_empty() {
+            return None;
+        }
+
+        let price_points = price_market_data
+            .get(trader_name)
+            .and_then(|price_points_map| price_points_map.get(token_name).cloned());
+
+        if price_points.is_none() {
+            return None;
+        }
+
+        let price_points = price_points.unwrap();
+        if price_points.len() <= index {
+            return None;
+        }
+
+        let price_point = price_points[index].clone();
+
+        log::debug!("back test data[{}] = {:?}", index, price_point);
+
+        Some(price_point)
     }
 
     async fn create_market_data(
@@ -411,9 +469,22 @@ impl DerivativeTrader {
             let token_name = fund_manager.token_name().to_owned();
             if !token_set.contains(&token_name) {
                 token_set.insert(token_name.to_owned());
+                let back_test_price = Self::get_back_test_price(
+                    &self.config.trader_name,
+                    &token_name,
+                    &self.state.back_test_data,
+                    self.state.back_test_counter,
+                );
+                if self.config.back_test && back_test_price.is_none() {
+                    panic!(
+                        "back test is not available: counter = {}",
+                        self.state.back_test_counter
+                    );
+                }
+
                 price_futures.push(async move {
                     fund_manager
-                        .get_token_price()
+                        .get_token_price(back_test_price)
                         .await
                         .map(|price| (token_name, Some(price)))
                 });
@@ -429,6 +500,8 @@ impl DerivativeTrader {
             prices.insert(token_name.to_owned(), price_min_tick);
         }
         log::debug!("Prices obtained: {:?}", prices);
+
+        self.state.back_test_counter += 1;
 
         let mut saved_tokens = HashSet::new();
         let market_data_keys: Vec<_> = {

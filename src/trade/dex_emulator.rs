@@ -116,8 +116,15 @@ impl<T: DexConnector> DexConnector for DexEmulator<T> {
         Ok(())
     }
 
-    async fn get_ticker(&self, symbol: &str) -> Result<TickerResponse, DexError> {
-        let res = self.dex_connector.get_ticker(symbol).await?;
+    async fn get_ticker(
+        &self,
+        symbol: &str,
+        test_price: Option<Decimal>,
+    ) -> Result<TickerResponse, DexError> {
+        let mut res = self.dex_connector.get_ticker(symbol, None).await?;
+        if let Some(price) = test_price {
+            res.price = price;
+        }
         let mut price_mutex = self.current_price.lock().await;
         price_mutex.insert(symbol.to_string(), res.price);
         Ok(res)

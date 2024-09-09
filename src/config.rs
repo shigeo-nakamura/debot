@@ -35,6 +35,7 @@ pub struct EnvConfig {
     pub leverage: u32,
     pub strategy: Option<TradingStrategy>,
     pub only_read_price: bool,
+    pub back_test: bool,
 }
 
 #[derive(Debug)]
@@ -129,6 +130,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     };
 
     let only_read_price = get_bool_env_var("ONLY_READ_PRICE", false);
+    let back_test = get_bool_env_var("BACK_TEST", false);
 
     let env_config = EnvConfig {
         mongodb_uri,
@@ -150,6 +152,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         leverage,
         strategy,
         only_read_price,
+        back_test,
     };
 
     Ok(env_config)

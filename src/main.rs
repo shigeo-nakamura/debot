@@ -71,6 +71,7 @@ async fn main() -> std::io::Result<()> {
             &config.mongodb_uri,
             &config.db_w_name,
             &config.db_r_name,
+            config.back_test,
         )
         .await,
     ));
@@ -83,10 +84,16 @@ async fn main() -> std::io::Result<()> {
         loop {}
     }
 
+    let price_size_to_load = if config.back_test {
+        None
+    } else {
+        Some(max_price_size)
+    };
+
     let price_market_data = db_handler
         .lock()
         .await
-        .get_price_market_data(Some(max_price_size), None)
+        .get_price_market_data(price_size_to_load, None)
         .await;
 
     // Initialize a trader instance
@@ -126,6 +133,7 @@ async fn prepare_trader_instance(
         config.leverage,
         config.strategy.as_ref(),
         config.only_read_price,
+        config.back_test,
     )
     .await;
 
@@ -153,10 +161,12 @@ async fn main_loop(
         let (trader, config, error_manager) = trader_instance;
 
         // Check if last_execution_time is None or it's been more than one day
-        if last_execution_time.map_or(true, |last_time| {
-            now.duration_since(last_time)
-                .map_or(false, |duration| duration > one_day)
-        }) {
+        if !config.back_test
+            && last_execution_time.map_or(true, |last_time| {
+                now.duration_since(last_time)
+                    .map_or(false, |duration| duration > one_day)
+            })
+        {
             // Update the last_execution_time to now
             last_execution_time = Some(now);
 
@@ -184,10 +194,12 @@ async fn main_loop(
 
         // check DD
         let now = SystemTime::now();
-        if last_dd_check_time.map_or(true, |last_time| {
-            now.duration_since(last_time)
-                .map_or(false, |duration| duration.as_secs() >= 3600) // 1 hour
-        }) {
+        if !config.back_test
+            && last_dd_check_time.map_or(true, |last_time| {
+                now.duration_since(last_time)
+                    .map_or(false, |duration| duration.as_secs() >= 3600) // 1 hour
+            })
+        {
             last_dd_check_time = Some(now);
 
             match trader.is_max_dd_occurred().await {
@@ -240,12 +252,16 @@ async fn main_loop(
         }
 
         let elapsed = loop_start.elapsed();
-        let sleep_duration = if let Some(remaining) =
-            Duration::from_millis(config.interval_msec).checked_sub(elapsed)
-        {
-            remaining
-        } else {
+        let sleep_duration = if config.back_test {
             Duration::from_secs(0)
+        } else {
+            if let Some(remaining) =
+                Duration::from_millis(config.interval_msec).checked_sub(elapsed)
+            {
+                remaining
+            } else {
+                Duration::from_secs(0)
+            }
         };
 
         let sleep = tokio::time::sleep(sleep_duration);

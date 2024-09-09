@@ -32,6 +32,7 @@ impl DBHandler {
         mongodb_uri: &str,
         db_w_name: &str,
         db_r_name: &str,
+        back_test: bool,
     ) -> Self {
         let transaction_log = Arc::new(
             TransactionLog::new(
@@ -41,11 +42,12 @@ impl DBHandler {
                 mongodb_uri,
                 db_r_name,
                 db_w_name,
+                back_test,
             )
             .await,
         );
 
-        let model_params = ModelParams::new(&mongodb_uri, &db_w_name).await;
+        let model_params = ModelParams::new(&mongodb_uri, &db_r_name).await;
         let model_params = Arc::new(model_params);
 
         Self {
@@ -143,7 +145,7 @@ impl DBHandler {
                     input_15: position.rsi().5.round_dp(4),
                     input_16: position.take_profit_ratio().round_dp(4),
                     input_17: position.atr_spread().round_dp(4),
-                    input_18: position.max_open_duration().into(),
+                    input_18: position.open_tick_count_max().into(),
                     input_19: position.risk_reward().round_dp(4),
                     input_20: position.candle_pattern().0[0],
                     input_21: position.candle_pattern().0[1],
