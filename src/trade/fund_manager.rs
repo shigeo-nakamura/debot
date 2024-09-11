@@ -3,7 +3,7 @@
 use super::dex_connector_box::DexConnectorBox;
 use super::DBHandler;
 use debot_db::PricePoint;
-use debot_market_analyzer::{MarketData, TradeAction, TradeDetail, TradingStrategy};
+use debot_market_analyzer::{MarketData, SampleTerm, TradeAction, TradeDetail, TradingStrategy};
 use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
 use rust_decimal::Decimal;
@@ -213,6 +213,7 @@ impl FundManager {
             self.config.atr_spread,
             self.config.open_order_tick_count_max,
             self.config.risk_reward,
+            SampleTerm::TradingTerm,
         );
 
         self.handle_open_chances(current_price, &actions).await
@@ -1058,7 +1059,7 @@ impl FundManager {
             Some(v) => Ok(v),
             None => match self.config.atr_spread {
                 Some(atr_spread) => {
-                    let spread = market_data.atr().0 * atr_spread;
+                    let spread = market_data.atr_by_term(SampleTerm::TradingTerm) * atr_spread;
                     if is_buy {
                         Ok(current_price - spread)
                     } else {
@@ -1109,13 +1110,8 @@ impl FundManager {
     }
 
     async fn cut_loss_price(&self, filled_price: Decimal, side: OrderSide) -> Option<Decimal> {
-        let _take_profit_distance = match self.take_profit_distance(filled_price).await {
-            Some(v) => v,
-            None => return None,
-        };
-
         let market_data = self.state.market_data.read().await;
-        let atr = market_data.atr().0;
+        let atr = market_data.atr_by_term(SampleTerm::TradingTerm);
         let cut_loss_distance = if atr == Decimal::ZERO {
             return None;
         } else {
