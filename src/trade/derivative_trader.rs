@@ -17,7 +17,6 @@ use std::collections::HashSet;
 use std::error::Error;
 use std::io;
 use std::io::ErrorKind;
-use std::process;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
@@ -650,13 +649,7 @@ impl DerivativeTrader {
         log::info!("3. Find trade chances: finished");
 
         for result in find_results {
-            if let Err(ref e) = result {
-                if let Some(io_error) = e.downcast_ref::<std::io::Error>() {
-                    if io_error.kind() == std::io::ErrorKind::InvalidData {
-                        log::info!("{:?}", io_error);
-                        process::exit(1);
-                    }
-                }
+            if result.is_err() {
                 return result;
             }
         }

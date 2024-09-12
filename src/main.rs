@@ -237,10 +237,16 @@ async fn main_loop(
                 log::info!("SIGINT received. Shutting down...");
                 exit = true;
             },
-            _ = trader_future => {
-                // The trader task has completed.
-                // Handle the result or re-schedule as needed.
-                exit = false;
+            result = trader_future => {
+                match result {
+                    Ok(_) => {
+                        exit = false;
+                    },
+                    Err(e) => {
+                        log::error!("Trader task failed with error: {:?}", e);
+                        exit = true;
+                    }
+                }
             }
         }
 
@@ -294,7 +300,7 @@ async fn handle_trader_activities(
     trader: &mut DerivativeTrader,
     config: &EnvConfig,
     error_manager: &mut ErrorManager,
-) {
+) -> Result<(), ()> {
     let error_duration = Duration::from_secs(config.max_error_duration);
 
     // Check if the error duration has passed
@@ -312,8 +318,7 @@ async fn handle_trader_activities(
                 Some(DateTimeUtils::get_current_datetime_string()),
             )
             .await;
-        //std::process::exit(1);
-        panic!("Intentionally crashing the app to trigger a restart.");
+        return Err(());
     }
 
     match trader.find_chances().await {
@@ -322,11 +327,18 @@ async fn handle_trader_activities(
         }
         Err(e) => {
             log::error!("Error while finding opportunities: {}", e);
+            if let Some(io_error) = e.downcast_ref::<std::io::Error>() {
+                if io_error.kind() == std::io::ErrorKind::InvalidData {
+                    return Err(());
+                }
+            }
             error_manager.save_first_error_time();
 
             let _ = trader.reset_dex_client().await;
         }
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
