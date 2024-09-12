@@ -129,7 +129,7 @@ impl DBHandler {
                 fee: position.fee(),
                 debug: DebugLog {
                     input_1: Decimal::ZERO,
-                    input_2: Decimal::ZERO,
+                    input_2: position.atr_term().round_dp(4),
                     input_3: position.price().3.round_dp(4),
                     input_4: position.price().4.round_dp(4),
                     input_5: position.price().5.round_dp(4),

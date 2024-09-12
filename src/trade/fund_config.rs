@@ -1,4 +1,4 @@
-use debot_market_analyzer::{TradingStrategy, TrendType};
+use debot_market_analyzer::{SampleTerm, TradingStrategy, TrendType};
 use lazy_static::lazy_static;
 use rust_decimal::Decimal;
 use std::env;
@@ -25,8 +25,15 @@ pub fn get(
     Decimal,
     Option<Decimal>,
     Option<Decimal>,
+    SampleTerm,
     i64,
 )> {
+    let atr_term_values = vec![
+        SampleTerm::TradingTerm,
+        SampleTerm::ShortTerm,
+        SampleTerm::LongTerm,
+    ];
+
     let take_profit_ratio_values = vec![
         None,
         Some(Decimal::new(5, 3)),
@@ -35,33 +42,17 @@ pub fn get(
         Some(Decimal::new(20, 3)),
     ];
 
-    let atr_spread_values_randomwalk = vec![
-        Some(Decimal::new(100, 3)),
-        Some(Decimal::new(200, 3)),
-        Some(Decimal::new(300, 3)),
-        Some(Decimal::new(400, 3)),
-        Some(Decimal::new(500, 3)),
-        Some(Decimal::new(600, 3)),
-        Some(Decimal::new(700, 3)),
-        Some(Decimal::new(800, 3)),
-        Some(Decimal::new(900, 3)),
-        Some(Decimal::new(1000, 3)),
-    ];
-
     let risk_reward_values = vec![Decimal::ONE];
 
-    let open_hours_values_randomwalk = vec![3, 6, 9, 12, 15, 21, 24];
-
-    let atr_spread_values_meanreversion = vec![
+    let atr_spread_values = vec![
         Some(Decimal::new(100, 3)),
         Some(Decimal::new(200, 3)),
-        Some(Decimal::new(300, 3)),
-        Some(Decimal::new(500, 3)),
+        Some(Decimal::new(400, 3)),
         Some(Decimal::new(800, 3)),
-        Some(Decimal::new(1000, 3)),
+        Some(Decimal::new(1600, 3)),
     ];
 
-    let open_hours_values_meanreversion = vec![3, 6, 12, 24];
+    let open_hours_values = vec![3, 6, 12, 24];
 
     let mut strategy_list = Vec::new();
 
@@ -72,65 +63,71 @@ pub fn get(
             match strategy {
                 Some(TradingStrategy::RandomWalk(_)) => (
                     take_profit_ratio_values,
-                    atr_spread_values_randomwalk,
+                    atr_spread_values,
                     risk_reward_values,
-                    open_hours_values_randomwalk,
+                    open_hours_values,
                 ),
                 Some(TradingStrategy::MeanReversion(_)) | None => (
                     take_profit_ratio_values,
-                    atr_spread_values_meanreversion,
+                    atr_spread_values,
                     risk_reward_values,
-                    open_hours_values_meanreversion,
+                    open_hours_values,
                 ),
             };
 
-        for take_profit_ratio in take_profit_ratio_values {
-            for atr_spread in atr_spread_values.clone() {
-                for risk_reward in risk_reward_values.clone() {
-                    for open_hours in &open_hours_values {
-                        strategy_list.push((
-                            TOKEN_LIST[0].to_owned(), // BTC
-                            TradingStrategy::RandomWalk(TrendType::Up),
-                            initial_amount,     // initial amount (in USD)
-                            Decimal::new(8, 1), // position size ratio
-                            risk_reward,
-                            take_profit_ratio,
-                            atr_spread,  // spread by ATR
-                            *open_hours, // max open hours
-                        ));
+        for atr_term in &atr_term_values {
+            for take_profit_ratio in take_profit_ratio_values.clone() {
+                for atr_spread in atr_spread_values.clone() {
+                    for risk_reward in risk_reward_values.clone() {
+                        for open_hours in &open_hours_values {
+                            strategy_list.push((
+                                TOKEN_LIST[0].to_owned(), // BTC
+                                TradingStrategy::RandomWalk(TrendType::Up),
+                                initial_amount,     // initial amount (in USD)
+                                Decimal::new(8, 1), // position size ratio
+                                risk_reward,
+                                take_profit_ratio,
+                                atr_spread,       // spread by ATR
+                                atr_term.clone(), // ATR SampleTerm
+                                *open_hours,      // max open hours
+                            ));
 
-                        strategy_list.push((
-                            TOKEN_LIST[0].to_owned(), // BTC
-                            TradingStrategy::RandomWalk(TrendType::Down),
-                            initial_amount,     // initial amount (in USD)
-                            Decimal::new(8, 1), // position size ratio
-                            risk_reward,
-                            take_profit_ratio,
-                            atr_spread,  // spread by ATR
-                            *open_hours, // max open hours
-                        ));
+                            strategy_list.push((
+                                TOKEN_LIST[0].to_owned(), // BTC
+                                TradingStrategy::RandomWalk(TrendType::Down),
+                                initial_amount,     // initial amount (in USD)
+                                Decimal::new(8, 1), // position size ratio
+                                risk_reward,
+                                take_profit_ratio,
+                                atr_spread,       // spread by ATR
+                                atr_term.clone(), // ATR SampleTerm
+                                *open_hours,      // max open hours
+                            ));
 
-                        strategy_list.push((
-                            TOKEN_LIST[0].to_owned(), // BTC
-                            TradingStrategy::MeanReversion(TrendType::Up),
-                            initial_amount,     // initial amount (in USD)
-                            Decimal::new(8, 1), // position size ratio
-                            risk_reward,
-                            take_profit_ratio,
-                            atr_spread,  // spread by ATR
-                            *open_hours, // max open hours
-                        ));
+                            strategy_list.push((
+                                TOKEN_LIST[0].to_owned(), // BTC
+                                TradingStrategy::MeanReversion(TrendType::Up),
+                                initial_amount,     // initial amount (in USD)
+                                Decimal::new(8, 1), // position size ratio
+                                risk_reward,
+                                take_profit_ratio,
+                                atr_spread,       // spread by ATR
+                                atr_term.clone(), // ATR SampleTerm
+                                *open_hours,      // max open hours
+                            ));
 
-                        strategy_list.push((
-                            TOKEN_LIST[0].to_owned(), // BTC
-                            TradingStrategy::MeanReversion(TrendType::Down),
-                            initial_amount,     // initial amount (in USD)
-                            Decimal::new(8, 1), // position size ratio
-                            risk_reward,
-                            take_profit_ratio,
-                            atr_spread,  // spread by ATR
-                            *open_hours, // max open hours
-                        ));
+                            strategy_list.push((
+                                TOKEN_LIST[0].to_owned(), // BTC
+                                TradingStrategy::MeanReversion(TrendType::Down),
+                                initial_amount,     // initial amount (in USD)
+                                Decimal::new(8, 1), // position size ratio
+                                risk_reward,
+                                take_profit_ratio,
+                                atr_spread,       // spread by ATR
+                                atr_term.clone(), // ATR SampleTerm
+                                *open_hours,      // max open hours
+                            ));
+                        }
                     }
                 }
             }
@@ -146,7 +143,7 @@ pub fn get(
 
     strategy_list
         .into_iter()
-        .filter(|(_, trading_strategy, _, _, _, _, _, _)| {
+        .filter(|(_, trading_strategy, _, _, _, _, _, _, _)| {
             strategy.is_none() || strategy == Some(trading_strategy)
         })
         .map(
@@ -158,6 +155,7 @@ pub fn get(
                 risk_reward,
                 take_profit_ratio,
                 atr_spread,
+                atr_term,
                 open_hours,
             )| {
                 (
@@ -168,6 +166,7 @@ pub fn get(
                     risk_reward,
                     take_profit_ratio,
                     atr_spread,
+                    atr_term,
                     open_hours,
                 )
             },

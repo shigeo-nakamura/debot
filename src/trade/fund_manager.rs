@@ -47,6 +47,7 @@ struct FundManagerConfig {
     take_profit_ratio: Option<Decimal>,
     risk_reward: Decimal,
     atr_spread: Option<Decimal>,
+    atr_term: SampleTerm,
 }
 
 #[derive(Default)]
@@ -86,6 +87,7 @@ impl FundManager {
         take_profit_ratio: Option<Decimal>,
         risk_reward: Decimal,
         atr_spread: Option<Decimal>,
+        atr_term: SampleTerm,
     ) -> Self {
         let config = FundManagerConfig {
             fund_name: fund_name.to_owned(),
@@ -102,6 +104,7 @@ impl FundManager {
             take_profit_ratio,
             risk_reward,
             atr_spread,
+            atr_term,
         };
 
         log::info!("initial amount = {}", initial_amount);
@@ -213,7 +216,7 @@ impl FundManager {
             self.config.atr_spread,
             self.config.open_order_tick_count_max,
             self.config.risk_reward,
-            SampleTerm::TradingTerm,
+            &self.config.atr_term,
         );
 
         self.handle_open_chances(current_price, &actions).await
@@ -360,6 +363,7 @@ impl FundManager {
                 Decimal::ZERO,
             ),
             ([Decimal::ZERO; 16], [Decimal::ZERO; 16]),
+            Decimal::ZERO,
             Decimal::ZERO,
             Decimal::ZERO,
             Decimal::ZERO,
@@ -744,6 +748,7 @@ impl FundManager {
                 self.config.take_profit_ratio.unwrap_or_default(),
                 self.config.atr_spread.unwrap_or_default(),
                 self.config.risk_reward,
+                self.config.atr_term.to_numeric(),
             );
 
             self.state.trade_positions.insert(position.id(), position);
@@ -1059,7 +1064,7 @@ impl FundManager {
             Some(v) => Ok(v),
             None => match self.config.atr_spread {
                 Some(atr_spread) => {
-                    let spread = market_data.atr_by_term(SampleTerm::TradingTerm) * atr_spread;
+                    let spread = market_data.atr_by_term(&self.config.atr_term) * atr_spread;
                     if is_buy {
                         Ok(current_price - spread)
                     } else {
@@ -1111,7 +1116,7 @@ impl FundManager {
 
     async fn cut_loss_price(&self, filled_price: Decimal, side: OrderSide) -> Option<Decimal> {
         let market_data = self.state.market_data.read().await;
-        let atr = market_data.atr_by_term(SampleTerm::TradingTerm);
+        let atr = market_data.atr_by_term(&self.config.atr_term);
         let cut_loss_distance = if atr == Decimal::ZERO {
             return None;
         } else {

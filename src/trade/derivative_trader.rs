@@ -234,6 +234,7 @@ impl DerivativeTrader {
             risk_reward,
             take_profit_ratio,
             atr_spread,
+            atr_term,
             max_open_hours,
         ) in fund_manager_configurations.into_iter()
         {
@@ -327,6 +328,7 @@ impl DerivativeTrader {
                     take_profit_ratio,
                     risk_reward,
                     atr_spread,
+                    atr_term,
                 ))
             };
 
