@@ -17,6 +17,7 @@ use std::collections::HashSet;
 use std::error::Error;
 use std::io;
 use std::io::ErrorKind;
+use std::process;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
@@ -476,10 +477,14 @@ impl DerivativeTrader {
                     self.state.back_test_counter,
                 );
                 if self.config.back_test && back_test_price.is_none() {
-                    panic!(
-                        "back test is not available: counter = {}",
+                    log::warn!(
+                        "Back test is not available: counter = {}",
                         self.state.back_test_counter
                     );
+                    return Err(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Back test is finished",
+                    )));
                 }
 
                 price_futures.push(async move {
@@ -643,12 +648,18 @@ impl DerivativeTrader {
         log::info!("3. Find trade chances: finished");
 
         for result in find_results {
-            if result.is_err() {
+            if let Err(ref e) = result {
+                if let Some(io_error) = e.downcast_ref::<std::io::Error>() {
+                    if io_error.kind() == std::io::ErrorKind::InvalidData {
+                        log::info!("{:?}", io_error);
+                        process::exit(1);
+                    }
+                }
                 return result;
             }
         }
 
-        // 6. Clean up the canceled positions
+        // 4. Clean up the canceled positions
         for fund_manager in self.state.fund_manager_map.values_mut() {
             fund_manager.clean_canceled_position();
         }
