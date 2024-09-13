@@ -242,8 +242,7 @@ async fn main_loop(
                     Ok(_) => {
                         exit = false;
                     },
-                    Err(e) => {
-                        log::error!("Trader task failed with error: {:?}", e);
+                    Err(_) => {
                         exit = true;
                     }
                 }
