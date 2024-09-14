@@ -61,13 +61,13 @@ async fn main() -> std::io::Result<()> {
     let config = config::get_config_from_env().expect("Invalid configuration");
 
     // Set up the DB handler
-    let max_position_counter = config.log_limit;
+    let max_position_counter = config.position_log_limit;
     let max_price_size = config.max_price_size * trade::TOKEN_LIST_SIZE;
     let db_handler = Arc::new(Mutex::new(
         DBHandler::new(
             max_position_counter,
-            max_price_size,
-            365,
+            Some(max_price_size),
+            Some(365),
             &config.mongodb_uri,
             &config.db_w_name,
             &config.db_r_name,

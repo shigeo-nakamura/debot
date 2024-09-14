@@ -19,7 +19,7 @@ pub struct EnvConfig {
     pub mongodb_uri: String,
     pub db_w_name: String,
     pub db_r_name: String,
-    pub log_limit: u32,
+    pub position_log_limit: Option<u32>,
     pub dry_run: bool,
     pub max_price_size: u32,
     pub max_error_duration: u64,
@@ -96,11 +96,18 @@ fn get_bool_env_var(var: &str, default: bool) -> bool {
     }
 }
 
+fn get_optional_env_var<T: std::str::FromStr>(var: &str) -> Option<T> {
+    match std::env::var(var) {
+        Ok(val) => val.parse::<T>().ok(),
+        Err(_) => None,
+    }
+}
+
 pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
     let db_r_name = env::var("DB_R_NAME").expect("DB_R_NAME must be set");
     let db_w_name = env::var("DB_W_NAME").expect("DB_W_NAME must be set");
-    let log_limit = get_env_var("LOG_LIMIT", "100000")?;
+    let position_log_limit: Option<u32> = get_optional_env_var("POSITION_LOG_LIMIT");
     let dry_run = get_bool_env_var("DRY_RUN", true);
     let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
 
@@ -136,7 +143,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         mongodb_uri,
         db_r_name,
         db_w_name,
-        log_limit,
+        position_log_limit,
         dry_run,
         max_price_size,
         max_error_duration,

@@ -26,9 +26,9 @@ lazy_static! {
 
 impl DBHandler {
     pub async fn new(
-        max_position_counter: u32,
-        max_price_counter: u32,
-        max_balance_counter: u32,
+        max_position_counter: Option<u32>,
+        max_price_counter: Option<u32>,
+        max_balance_counter: Option<u32>,
         mongodb_uri: &str,
         db_w_name: &str,
         db_r_name: &str,
