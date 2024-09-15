@@ -2,7 +2,7 @@
 
 use super::dex_connector_box::DexConnectorBox;
 use super::DBHandler;
-use debot_db::PricePoint;
+use debot_db::{CandlePattern, PricePoint};
 use debot_market_analyzer::{MarketData, SampleTerm, TradeAction, TradeDetail, TradingStrategy};
 use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
 use debot_utils::is_sunday;
@@ -366,7 +366,12 @@ impl FundManager {
                 Decimal::ZERO,
                 Decimal::ZERO,
             ),
-            ([Decimal::ZERO; 16], [Decimal::ZERO; 16]),
+            (
+                CandlePattern::None,
+                CandlePattern::None,
+                CandlePattern::None,
+                CandlePattern::None,
+            ),
             Decimal::ZERO,
             Decimal::ZERO,
             Decimal::ZERO,
