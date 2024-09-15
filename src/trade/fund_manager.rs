@@ -141,13 +141,14 @@ impl FundManager {
 
     pub async fn get_token_price(
         &mut self,
-        back_test_price: Option<PricePoint>,
-    ) -> Result<(Decimal, Decimal), Box<dyn Error + Send + Sync>> {
+        back_test_price: Option<&PricePoint>,
+    ) -> Result<(Decimal, Decimal, Option<i64>), Box<dyn Error + Send + Sync>> {
         let token_name = &self.config.token_name;
         let dex_connector = self.state.dex_connector.clone();
 
         // Get the token price
         let test_price = back_test_price.and_then(|test_price| Some(test_price.price));
+        let timestamp = back_test_price.and_then(|test_price| Some(test_price.timestamp));
         let res = dex_connector
             .get_ticker(token_name, test_price)
             .await
@@ -157,7 +158,7 @@ impl FundManager {
             return Err(format!("min_tick is not available").into());
         }
 
-        Ok((res.price, res.min_tick.unwrap()))
+        Ok((res.price, res.min_tick.unwrap(), timestamp))
     }
 
     pub async fn find_chances(

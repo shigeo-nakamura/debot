@@ -490,7 +490,7 @@ impl DerivativeTrader {
 
                 price_futures.push(async move {
                     fund_manager
-                        .get_token_price(back_test_price)
+                        .get_token_price(back_test_price.as_ref())
                         .await
                         .map(|price| (token_name, Some(price)))
                 });
@@ -500,7 +500,7 @@ impl DerivativeTrader {
         let price_results = join_all(price_futures).await;
         log::info!("1. Get token prices: completed");
 
-        let mut prices: HashMap<String, Option<(Decimal, Decimal)>> = HashMap::new();
+        let mut prices: HashMap<String, Option<(Decimal, Decimal, Option<i64>)>> = HashMap::new();
         for result in price_results {
             let (token_name, price_min_tick) = result?;
             prices.insert(token_name.to_owned(), price_min_tick);
@@ -519,7 +519,7 @@ impl DerivativeTrader {
         for key in market_data_keys {
             let token_name = &key.0;
             log::debug!("Processing market data key: {:?}", key);
-            if let Some((price, min_tick)) = prices.get(token_name).and_then(|p| *p) {
+            if let Some((price, min_tick, timestamp)) = prices.get(token_name).and_then(|p| *p) {
                 let rounded_price = Self::round_price(price, Some(min_tick));
                 log::debug!("Rounded price for {}: {:.5}", token_name, rounded_price);
 
@@ -529,17 +529,18 @@ impl DerivativeTrader {
                 };
                 log::debug!("Market data clone obtained for key: {:?}", key);
 
-                let price_point =
-                    match timeout(Duration::from_secs(5), market_data_clone.write()).await {
-                        Ok(mut market_data) => market_data.add_price(Some(rounded_price), None),
-                        Err(_) => {
-                            log::error!(
-                                "Timeout while trying to acquire write lock for market data: {:?}",
-                                key
-                            );
-                            continue;
-                        }
-                    };
+                let price_point = match timeout(Duration::from_secs(5), market_data_clone.write())
+                    .await
+                {
+                    Ok(mut market_data) => market_data.add_price(Some(rounded_price), timestamp),
+                    Err(_) => {
+                        log::error!(
+                            "Timeout while trying to acquire write lock for market data: {:?}",
+                            key
+                        );
+                        continue;
+                    }
+                };
                 log::debug!("Price point added for token: {}", token_name);
 
                 if self.config.save_prices && !saved_tokens.contains(token_name) {
@@ -636,7 +637,7 @@ impl DerivativeTrader {
             .values_mut()
             .filter_map(|fund_manager| {
                 let token_name = fund_manager.token_name();
-                if let Some((price, _min_tick)) = prices.get(token_name).and_then(|p| *p) {
+                if let Some((price, _min_tick, _)) = prices.get(token_name).and_then(|p| *p) {
                     Some(fund_manager.find_chances(price, self.config.dry_run))
                 } else {
                     None
