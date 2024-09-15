@@ -5,6 +5,7 @@ use super::DBHandler;
 use debot_db::PricePoint;
 use debot_market_analyzer::{MarketData, SampleTerm, TradeAction, TradeDetail, TradingStrategy};
 use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
+use debot_utils::is_sunday;
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
 use rust_decimal::Decimal;
 use std::collections::HashMap;
@@ -162,6 +163,7 @@ impl FundManager {
     pub async fn find_chances(
         &mut self,
         price: Decimal,
+        dry_run: bool,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.check_positions(price);
 
@@ -171,7 +173,7 @@ impl FundManager {
             .await
             .map_err(|_| "Failed to find close chances".to_owned())?;
 
-        self.find_open_chances(price)
+        self.find_open_chances(price, dry_run)
             .await
             .map_err(|_| "Failed to find open chances".to_owned())?;
         self.state.last_price = price;
@@ -195,7 +197,7 @@ impl FundManager {
         }
     }
 
-    async fn find_open_chances(&mut self, current_price: Decimal) -> Result<(), ()> {
+    async fn find_open_chances(&mut self, current_price: Decimal, dry_run: bool) -> Result<(), ()> {
         if self.config.trading_amount == Decimal::new(0, 0) {
             return Ok(());
         }
@@ -210,14 +212,16 @@ impl FundManager {
             }
         }
 
-        actions = self.state.market_data.read().await.is_open_signaled(
-            self.config.strategy.clone(),
-            self.config.take_profit_ratio.unwrap_or_default(),
-            self.config.atr_spread,
-            self.config.open_order_tick_count_max,
-            self.config.risk_reward,
-            &self.config.atr_term,
-        );
+        if dry_run || !is_sunday() {
+            actions = self.state.market_data.read().await.is_open_signaled(
+                self.config.strategy.clone(),
+                self.config.take_profit_ratio.unwrap_or_default(),
+                self.config.atr_spread,
+                self.config.open_order_tick_count_max,
+                self.config.risk_reward,
+                &self.config.atr_term,
+            );
+        }
 
         self.handle_open_chances(current_price, &actions).await
     }

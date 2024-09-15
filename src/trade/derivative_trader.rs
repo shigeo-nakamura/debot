@@ -637,7 +637,7 @@ impl DerivativeTrader {
             .filter_map(|fund_manager| {
                 let token_name = fund_manager.token_name();
                 if let Some((price, _min_tick)) = prices.get(token_name).and_then(|p| *p) {
-                    Some(fund_manager.find_chances(price))
+                    Some(fund_manager.find_chances(price, self.config.dry_run))
                 } else {
                     None
                 }
