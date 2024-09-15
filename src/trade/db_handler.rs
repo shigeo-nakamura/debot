@@ -108,6 +108,8 @@ impl DBHandler {
         }
 
         if let Some(db) = self.transaction_log.get_w_db().await {
+            log::debug!("candle_pattern = {:?}", position.candle_pattern());
+
             let position_log = PositionLog {
                 id: Some(position.id()),
                 fund_name: position.fund_name().to_owned(),
