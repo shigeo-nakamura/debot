@@ -131,7 +131,11 @@ impl DBHandler {
                 pnl: position.pnl(),
                 fee: position.fee(),
                 debug: DebugLog {
-                    input_1: Decimal::ZERO,
+                    input_1: if position.atr_spread().is_zero() {
+                        Decimal::ZERO
+                    } else {
+                        Decimal::ONE
+                    },
                     input_2: position.atr_term().round_dp(4),
                     input_3: position.price().3.round_dp(4),
                     input_4: position.price().4.round_dp(4),
