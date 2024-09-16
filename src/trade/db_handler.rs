@@ -131,7 +131,7 @@ impl DBHandler {
                 pnl: position.pnl().0,
                 fee: position.fee(),
                 debug: DebugLog {
-                    input_1: if position.atr_spread().is_zero() {
+                    input_1: if position.take_profit_ratio().is_zero() {
                         Decimal::ZERO
                     } else {
                         Decimal::ONE
