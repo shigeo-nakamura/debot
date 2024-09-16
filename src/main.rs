@@ -1,8 +1,10 @@
 // main.rs
 
+use backtest::download_data;
 use chrono::{DateTime, FixedOffset, Utc};
 use config::EnvConfig;
-use debot_db::PricePoint;
+use debot_db::{ModelParams, PricePoint, TransactionLog};
+use debot_ml::{grid_search_and_train_classifier, grid_search_and_train_regressor};
 use debot_utils::DateTimeUtils;
 use env_logger::Builder;
 use error_manager::ErrorManager;
@@ -20,6 +22,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
+mod backtest;
 mod config;
 mod error_manager;
 mod trade;
@@ -56,6 +59,45 @@ async fn main() -> std::io::Result<()> {
                 .unwrap_or(LevelFilter::Debug),
         )
         .init();
+
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() == 3 {
+        let command = &args[1];
+        let key = &args[2];
+        let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
+
+        match command.as_str() {
+            "train" => {
+                let db_w_name = env::var("DB_W_NAME").expect("DB_W_NAME must be set");
+                let db_r_names = env::var("DB_R_NAMES").expect("DB_R_NAMES must be set");
+                let db_r_names: Vec<&str> = db_r_names.split(',').collect();
+
+                let mut transaction_logs: Vec<TransactionLog> = Vec::new();
+                for db_r_name in db_r_names.to_owned() {
+                    let log = TransactionLog::new(
+                        Some(0),
+                        Some(0),
+                        Some(0),
+                        &mongodb_uri,
+                        &db_r_name,
+                        &db_w_name,
+                        false,
+                    )
+                    .await;
+                    transaction_logs.push(log);
+                }
+
+                let model_params = ModelParams::new(&mongodb_uri, &db_w_name).await;
+
+                let (x, y_classifier, y_regressor) = download_data(&transaction_logs, key).await;
+
+                grid_search_and_train_classifier(key, &model_params, x.clone(), y_classifier, 5)
+                    .await;
+                grid_search_and_train_regressor(key, &model_params, x, y_regressor, 5).await;
+            }
+            _ => {}
+        }
+    }
 
     // Load the configs
     let config = config::get_config_from_env().expect("Invalid configuration");

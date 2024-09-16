@@ -27,13 +27,14 @@ bigdecimal = "0.3.1"
 chrono-tz = "0.8.2"
 ctor = "0.1"
 rust_decimal = { version = "1.0", features = ["serde"] }
+smartcore = { version = "0.3.2", features = ["serde"] }
 
 debot-market-analyzer = "1.4.*"
 debot-position-manager = "1.4.*"
 debot-utils = "1.0.*"
 debot-db = "1.4.*"
 dex-connector = "1.2.*"
-debot_ml = "0.2.*"
+debot_ml = "0.3.*"
 
 [[bin]]
 name = "debot"
