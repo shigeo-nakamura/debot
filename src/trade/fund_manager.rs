@@ -219,7 +219,6 @@ impl FundManager {
                 self.config.take_profit_ratio.unwrap_or_default(),
                 self.config.atr_spread,
                 self.config.open_order_tick_count_max,
-                self.config.risk_reward,
                 &self.config.atr_term,
             );
         }

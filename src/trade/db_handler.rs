@@ -158,10 +158,10 @@ impl DBHandler {
                     input_13: position.rsi().3.round_dp(4),
                     input_14: position.rsi().4.round_dp(4),
                     input_15: position.rsi().5.round_dp(4),
-                    input_16: position.take_profit_ratio().round_dp(4),
+                    input_16: Decimal::ZERO,
                     input_17: position.atr_spread().round_dp(4),
                     input_18: position.open_tick_count_max().into(),
-                    input_19: position.risk_reward().round_dp(4),
+                    input_19: Decimal::ZERO,
                     input_20: position.candle_pattern().0,
                     input_21: position.candle_pattern().1,
                     input_22: position.candle_pattern().2,
@@ -183,7 +183,7 @@ impl DBHandler {
                     },
                     output_2: if valid_data() {
                         if position.pnl().1 > Decimal::ZERO {
-                            position.pnl().1
+                            position.pnl().1.round_dp(4)
                         } else {
                             Decimal::ZERO
                         }
