@@ -128,7 +128,7 @@ impl DBHandler {
                 .to_string(),
                 close_price: position.close_price(),
                 asset_in_usd: position.asset_in_usd(),
-                pnl: position.pnl(),
+                pnl: position.pnl().0,
                 fee: position.fee(),
                 debug: DebugLog {
                     input_1: if position.atr_spread().is_zero() {
@@ -166,19 +166,18 @@ impl DBHandler {
                     input_29: CandlePattern::None,
                     output_1: match position.state() {
                         State::Closed(reason) => match reason.as_str() {
-                            "TakeProfit" => Decimal::new(1, 0),
-                            "CutLoss" => Decimal::new(-1, 0),
+                            "TakeProfit" | "CutLoss" | "Expired" => {
+                                if position.pnl().0 > Decimal::ZERO {
+                                    Decimal::ONE
+                                } else {
+                                    Decimal::ZERO
+                                }
+                            }
                             _ => Decimal::ZERO,
                         },
                         _ => Decimal::ZERO,
                     },
-                    output_2: if position.fee() == Decimal::ZERO {
-                        return;
-                    } else if position.pnl() > Decimal::ZERO {
-                        Decimal::ONE
-                    } else {
-                        Decimal::ZERO
-                    },
+                    output_2: position.pnl().1,
                 },
             };
 

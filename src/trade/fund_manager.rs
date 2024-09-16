@@ -804,14 +804,6 @@ impl FundManager {
         }
     }
 
-    #[allow(dead_code)]
-    fn pnl_of_open_position(&self) -> Decimal {
-        match self.get_open_position() {
-            Some(position) => position.pnl(),
-            None => Decimal::new(0, 0),
-        }
-    }
-
     fn unrealized_pnl_of_open_position(&self, price: Decimal) -> (Decimal, Decimal) {
         match self.get_open_position() {
             Some(position) => {
@@ -1031,10 +1023,10 @@ impl FundManager {
 
         if let Some(position) = self.get_open_position() {
             if matches!(position.state(), State::Closed(_)) {
-                self.state.amount += position.close_asset_in_usd() + position.pnl();
+                self.state.amount += position.close_asset_in_usd() + position.pnl().0;
                 self.state.latest_open_position_id = None;
                 self.state.trade_positions.remove(&position.id());
-                self.statistics.pnl += position.pnl();
+                self.statistics.pnl += position.pnl().0;
                 self.state.last_trade_time = None;
             }
 
