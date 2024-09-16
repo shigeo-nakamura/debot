@@ -182,7 +182,11 @@ impl DBHandler {
                         Decimal::ZERO
                     },
                     output_2: if valid_data() {
-                        position.pnl().1
+                        if position.pnl().1 > Decimal::ZERO {
+                            position.pnl().1
+                        } else {
+                            Decimal::ZERO
+                        }
                     } else {
                         Decimal::ZERO
                     },
