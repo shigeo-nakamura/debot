@@ -110,6 +110,14 @@ impl DBHandler {
         if let Some(db) = self.transaction_log.get_w_db().await {
             log::debug!("candle_pattern = {:?}", position.candle_pattern());
 
+            let valid_data = || match position.state() {
+                State::Closed(reason) => match reason.as_str() {
+                    "TakeProfit" | "CutLoss" | "Expired" => true,
+                    _ => false,
+                },
+                _ => false,
+            };
+
             let position_log = PositionLog {
                 id: Some(position.id()),
                 fund_name: position.fund_name().to_owned(),
@@ -164,20 +172,20 @@ impl DBHandler {
                     input_27: CandlePattern::None,
                     input_28: CandlePattern::None,
                     input_29: CandlePattern::None,
-                    output_1: match position.state() {
-                        State::Closed(reason) => match reason.as_str() {
-                            "TakeProfit" | "CutLoss" | "Expired" => {
-                                if position.pnl().0 > Decimal::ZERO {
-                                    Decimal::ONE
-                                } else {
-                                    Decimal::ZERO
-                                }
-                            }
-                            _ => Decimal::ZERO,
-                        },
-                        _ => Decimal::ZERO,
+                    output_1: if valid_data() {
+                        if position.pnl().0 > Decimal::ZERO {
+                            Decimal::ONE
+                        } else {
+                            Decimal::ZERO
+                        }
+                    } else {
+                        Decimal::ZERO
                     },
-                    output_2: position.pnl().1,
+                    output_2: if valid_data() {
+                        position.pnl().1
+                    } else {
+                        Decimal::ZERO
+                    },
                 },
             };
 
