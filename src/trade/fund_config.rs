@@ -35,11 +35,12 @@ pub fn get(
     ];
 
     let take_profit_ratio_values = vec![
-        None,
         Some(Decimal::new(5, 3)),
         Some(Decimal::new(10, 3)),
         Some(Decimal::new(15, 3)),
         Some(Decimal::new(20, 3)),
+        Some(Decimal::new(25, 3)),
+        Some(Decimal::new(30, 3)),
     ];
 
     let risk_reward_values = vec![Decimal::ONE];
