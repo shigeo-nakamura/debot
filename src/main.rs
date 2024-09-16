@@ -97,6 +97,7 @@ async fn main() -> std::io::Result<()> {
             }
             _ => {}
         }
+        std::process::exit(0);
     }
 
     // Load the configs
