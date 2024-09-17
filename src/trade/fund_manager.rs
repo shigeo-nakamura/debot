@@ -448,8 +448,13 @@ impl FundManager {
         match self.config.strategy {
             TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_) => {
                 log::info!(
-                    "{} pnl: {:.3}/{:.3}({:.3}%) profit/loss/expired = {}/{}/{}",
-                    format!("{}-{}", self.config.token_name, self.config.index),
+                    "{} pnl: {:.3}/{:.3}({:.3}%) {}/{}/{}",
+                    format!(
+                        "{}-{}-{}",
+                        self.config.token_name,
+                        self.config.take_profit_ratio.unwrap_or_default(),
+                        self.config.atr_spread.unwrap_or_default()
+                    ),
                     self.statistics.pnl,
                     pnl,
                     ratio * Decimal::new(100, 0),
