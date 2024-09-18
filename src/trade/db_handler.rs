@@ -34,6 +34,7 @@ impl DBHandler {
         db_w_name: &str,
         db_r_name: &str,
         back_test: bool,
+        path_to_models: Option<&String>,
     ) -> Self {
         let transaction_log = Arc::new(
             TransactionLog::new(
@@ -48,7 +49,13 @@ impl DBHandler {
             .await,
         );
 
-        let model_params = ModelParams::new(&mongodb_uri, &db_r_name).await;
+        let model_params = ModelParams::new(
+            &mongodb_uri,
+            &db_r_name,
+            path_to_models.is_none(),
+            path_to_models.cloned(),
+        )
+        .await;
         let model_params = Arc::new(model_params);
 
         Self {

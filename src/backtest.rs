@@ -79,7 +79,7 @@ pub async fn download_data(
 
     let input_slices: Vec<&[f64]> = inputs.iter().map(|v| v.as_slice()).collect();
     let x = DenseMatrix::from_2d_array(&input_slices);
-    log::info!("dense matrix x = {:?}", x);
+    log::trace!("dense matrix x = {:?}", x);
 
     (x, output_classifier, output_regressor)
 }

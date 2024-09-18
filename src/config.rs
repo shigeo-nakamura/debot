@@ -36,6 +36,7 @@ pub struct EnvConfig {
     pub strategy: Option<TradingStrategy>,
     pub only_read_price: bool,
     pub back_test: bool,
+    pub path_to_models: Option<String>,
 }
 
 #[derive(Debug)]
@@ -135,9 +136,10 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         "meanreversion" => Some(TradingStrategy::MeanReversion(TrendType::Unknown)),
         &_ => None,
     };
-
     let only_read_price = get_bool_env_var("ONLY_READ_PRICE", false);
     let back_test = get_bool_env_var("BACK_TEST", false);
+
+    let path_to_models = env::var("PATH_TO_MODELS").ok();
 
     let env_config = EnvConfig {
         mongodb_uri,
@@ -160,6 +162,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         strategy,
         only_read_price,
         back_test,
+        path_to_models,
     };
 
     Ok(env_config)
