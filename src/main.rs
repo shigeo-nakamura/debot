@@ -60,9 +60,6 @@ async fn main() -> std::io::Result<()> {
         )
         .init();
 
-    // Load the configs
-    let config = config::get_config_from_env().expect("Invalid configuration");
-
     let args: Vec<String> = std::env::args().collect();
     if args.len() == 3 {
         let command = &args[1];
@@ -74,6 +71,8 @@ async fn main() -> std::io::Result<()> {
                 let db_w_name = env::var("DB_W_NAME").expect("DB_W_NAME must be set");
                 let db_r_names = env::var("DB_R_NAMES").expect("DB_R_NAMES must be set");
                 let db_r_names: Vec<&str> = db_r_names.split(',').collect();
+
+                let path_to_models = env::var("PATH_TO_MODELS").ok();
 
                 let mut transaction_logs: Vec<TransactionLog> = Vec::new();
                 for db_r_name in db_r_names.to_owned() {
@@ -93,8 +92,8 @@ async fn main() -> std::io::Result<()> {
                 let model_params = ModelParams::new(
                     &mongodb_uri,
                     &db_w_name,
-                    config.path_to_models.is_none(),
-                    config.path_to_models,
+                    path_to_models.is_none(),
+                    path_to_models,
                 )
                 .await;
 
@@ -108,6 +107,9 @@ async fn main() -> std::io::Result<()> {
         }
         std::process::exit(0);
     }
+
+    // Load the configs
+    let config = config::get_config_from_env().expect("Invalid configuration");
 
     // Set up the DB handler
     let max_position_counter = config.position_log_limit;
