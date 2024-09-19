@@ -133,6 +133,7 @@ impl DBHandler {
                 state: position.state().to_string(),
                 token_name: position.token_name().to_owned(),
                 open_time_str: position.open_time_str().to_owned(),
+                open_timestamp: position.open_timestamp(),
                 close_time_str: position.close_time_str().to_owned(),
                 average_open_price: position.average_open_price(),
                 position_type: if position.position_type() == PositionType::Long {
@@ -247,7 +248,7 @@ impl DBHandler {
         id: Option<u32>,
     ) -> HashMap<String, HashMap<String, Vec<PricePoint>>> {
         if let Some(db) = self.transaction_log.get_r_db().await {
-            TransactionLog::get_price_market_data(&db, limit, id).await
+            TransactionLog::get_price_market_data(&db, limit, id, true).await
         } else {
             HashMap::new()
         }

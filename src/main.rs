@@ -73,6 +73,10 @@ async fn main() -> std::io::Result<()> {
                 let db_r_names: Vec<&str> = db_r_names.split(',').collect();
 
                 let path_to_models = env::var("PATH_TO_MODELS").ok();
+                let back_test_excluded_size = env::var("BACK_TEST_PRICE_SIZE")
+                    .unwrap_or_else(|_| "10000".to_string())
+                    .parse::<usize>()
+                    .expect("Failed to parse BACK_TEST_PRICE_SIZE");
 
                 let mut transaction_logs: Vec<TransactionLog> = Vec::new();
                 for db_r_name in db_r_names.to_owned() {
@@ -97,7 +101,8 @@ async fn main() -> std::io::Result<()> {
                 )
                 .await;
 
-                let (x, y_classifier, y_regressor) = download_data(&transaction_logs, key).await;
+                let (x, y_classifier, y_regressor) =
+                    download_data(&transaction_logs, key, back_test_excluded_size).await;
 
                 grid_search_and_train_classifier(key, &model_params, x.clone(), y_classifier, 5)
                     .await;
@@ -136,11 +141,7 @@ async fn main() -> std::io::Result<()> {
         loop {}
     }
 
-    let price_size_to_load = if config.back_test {
-        None
-    } else {
-        Some(max_price_size)
-    };
+    let price_size_to_load = config.back_test_price_size.or(Some(max_price_size));
 
     let price_market_data = db_handler
         .lock()

@@ -22,6 +22,7 @@ pub struct EnvConfig {
     pub position_log_limit: Option<u32>,
     pub dry_run: bool,
     pub max_price_size: u32,
+    pub back_test_price_size: Option<u32>,
     pub max_error_duration: u64,
     pub save_prices: bool,
     pub load_prices: bool,
@@ -115,6 +116,8 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "1")?;
     let max_price_size: u32 = max_price_size_hours * 60 * 60 * 1000 / interval_msec as u32;
 
+    let back_test_price_size: Option<u32> = get_optional_env_var("BACK_TEST_PRICE_SIZE");
+
     let max_error_duration = get_env_var("MAX_ERROR_DURATION", "60")?;
     let save_prices = get_bool_env_var("SAVE_PRICES", false);
     let load_prices = get_bool_env_var("LOAD_PRICES", false);
@@ -148,6 +151,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         position_log_limit,
         dry_run,
         max_price_size,
+        back_test_price_size,
         max_error_duration,
         save_prices,
         load_prices,
