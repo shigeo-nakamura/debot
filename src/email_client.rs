@@ -15,7 +15,9 @@ impl EmailClient {
         let to_address = env::var("TO_ADDRESS").ok();
         let app_password = env::var("GMAIL_APP_PASSWORD").ok();
 
-        if let (Some(from_address), Some(to_address), Some(app_password)) = (from_address, to_address, app_password) {
+        if let (Some(from_address), Some(to_address), Some(app_password)) =
+            (from_address, to_address, app_password)
+        {
             let creds = Credentials::new(from_address.clone(), app_password);
             let mailer = SmtpTransport::starttls_relay("smtp.gmail.com")
                 .unwrap()

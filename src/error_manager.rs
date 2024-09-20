@@ -1,5 +1,5 @@
-use std::time::{Duration, Instant};
 use crate::email_client::EmailClient;
+use std::time::{Duration, Instant};
 
 pub(crate) struct ErrorManager {
     first_error_time: Option<Instant>,
