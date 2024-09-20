@@ -268,6 +268,7 @@ async fn main_loop(
                             .log_app_state(None, None, true, None)
                             .await;
                         log::info!("returned due to Draw down!");
+                        error_manager.send("[debot] Draw down!", "");
                         return Ok(());
                     }
                 }
@@ -371,6 +372,7 @@ async fn handle_trader_activities(
                 Some(DateTimeUtils::get_current_datetime_string()),
             )
             .await;
+        error_manager.send("[debot] Continous error!", "");
         return Err(());
     }
 

@@ -1,14 +1,21 @@
 use std::time::{Duration, Instant};
+use crate::email_client::EmailClient;
 
 pub(crate) struct ErrorManager {
     first_error_time: Option<Instant>,
+    email_client: EmailClient,
 }
 
 impl ErrorManager {
     pub fn new() -> Self {
         ErrorManager {
             first_error_time: None,
+            email_client: EmailClient::new(),
         }
+    }
+
+    pub fn send(&self, subject: &str, body: &str) {
+        self.email_client.send(subject, body);
     }
 
     pub fn save_first_error_time(&mut self) {
