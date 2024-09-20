@@ -24,6 +24,7 @@ use std::time::{Duration, SystemTime};
 
 mod backtest;
 mod config;
+mod email_client;
 mod error_manager;
 mod trade;
 
