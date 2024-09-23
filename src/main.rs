@@ -18,7 +18,9 @@ use tokio::time::Instant;
 use trade::{trader_config, DerivativeTrader};
 
 use crate::trade::DBHandler;
+use csv::Writer;
 use std::collections::HashMap;
+use std::fs::File;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -79,7 +81,35 @@ async fn main() -> std::io::Result<()> {
 
     match command.as_str() {
         "get" => {
-            todo!()
+            let db_w_name = "unused";
+            let db_r_name = env::var("DB_R_NAME").expect("DB_R_NAME must be set");
+            let transaction_log = TransactionLog::new(
+                Some(0),
+                Some(0),
+                Some(0),
+                &mongodb_uri,
+                &db_r_name,
+                &db_w_name,
+                false,
+            )
+            .await;
+            let db = transaction_log.get_r_db().await.expect("db is none");
+            let positions = TransactionLog::get_all_open_positions(&db).await;
+
+            let mut wtr = Writer::from_writer(File::create(&key)?);
+
+            wtr.write_record(&["position_type", "pnl"])?;
+
+            for position in positions {
+                wtr.write_record(&[
+                    position.position_type.clone(),
+                    position.pnl.round_dp(3).to_string(),
+                ])?;
+            }
+
+            wtr.flush()?;
+
+            println!("Positions saved to {}", key);
         }
         "train" => {
             let db_w_name = env::var("DB_W_NAME").expect("DB_W_NAME must be set");
