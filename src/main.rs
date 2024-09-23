@@ -441,7 +441,7 @@ async fn handle_trader_activities(
 
 #[cfg(test)]
 mod tests {
-    use crate::config::get_hyperliquid_config_from_env;
+    use crate::{config::get_hyperliquid_config_from_env, trade::fund_config::TOKEN_LIST};
     use dex_connector::{DexConnector, HyperliquidConnector, OrderSide};
     use rust_decimal::Decimal;
     use std::{env, sync::Arc, time::Duration};
@@ -467,6 +467,7 @@ mod tests {
                         &hyperliquid_config.agent_private_key,
                         &hyperliquid_config.evm_wallet_address,
                         hyperliquid_config.vault_address,
+                        TOKEN_LIST,
                     )
                     .await
                     .expect("Failed to initialize DexConnector"),

@@ -5,7 +5,7 @@ use dex_connector::{
 };
 use rust_decimal::Decimal;
 
-use super::dex_emulator::DexEmulator;
+use super::{dex_emulator::DexEmulator, fund_config::TOKEN_LIST};
 use crate::config::get_hyperliquid_config_from_env;
 use lazy_static::lazy_static;
 use std::env;
@@ -45,6 +45,7 @@ impl DexConnectorBox {
                     &hyperliquid_config.agent_private_key,
                     &hyperliquid_config.evm_wallet_address,
                     hyperliquid_config.vault_address,
+                    TOKEN_LIST,
                 )
                 .await?;
 

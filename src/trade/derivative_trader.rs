@@ -369,7 +369,12 @@ impl DerivativeTrader {
             let mut market_data = market_data.write().await;
             log::info!("num of data = {}", price_points.len());
             for price_point in price_points {
-                market_data.add_price(Some(price_point.price), Some(price_point.timestamp));
+                market_data.add_price(
+                    Some(price_point.price),
+                    Some(price_point.timestamp),
+                    price_point.volume,
+                    price_point.num_trades,
+                );
             }
         }
         log::info!("restore_market_data return");
@@ -462,7 +467,7 @@ impl DerivativeTrader {
 
     pub async fn find_chances(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         // 1. Get token prices
-        log::info!("1. Get token prices: started");
+        log::debug!("1. Get token prices: started");
 
         let mut token_set = HashSet::new();
         let mut price_futures = Vec::new();
@@ -498,12 +503,15 @@ impl DerivativeTrader {
         }
 
         let price_results = join_all(price_futures).await;
-        log::info!("1. Get token prices: completed");
+        log::debug!("1. Get token prices: completed");
 
-        let mut prices: HashMap<String, Option<(Decimal, Decimal, Option<i64>)>> = HashMap::new();
+        let mut prices: HashMap<
+            String,
+            Option<(Decimal, Decimal, Option<i64>, Option<Decimal>, Option<u64>)>,
+        > = HashMap::new();
         for result in price_results {
-            let (token_name, price_min_tick) = result?;
-            prices.insert(token_name.to_owned(), price_min_tick);
+            let (token_name, price_point) = result?;
+            prices.insert(token_name.to_owned(), price_point);
         }
         log::debug!("Prices obtained: {:?}", prices);
 
@@ -519,7 +527,9 @@ impl DerivativeTrader {
         for key in market_data_keys {
             let token_name = &key.0;
             log::debug!("Processing market data key: {:?}", key);
-            if let Some((price, min_tick, timestamp)) = prices.get(token_name).and_then(|p| *p) {
+            if let Some((price, min_tick, timestamp, volume, num_trades)) =
+                prices.get(token_name).and_then(|p| *p)
+            {
                 let rounded_price = Self::round_price(price, Some(min_tick));
                 log::debug!("Rounded price for {}: {:.5}", token_name, rounded_price);
 
@@ -532,7 +542,9 @@ impl DerivativeTrader {
                 let price_point = match timeout(Duration::from_secs(5), market_data_clone.write())
                     .await
                 {
-                    Ok(mut market_data) => market_data.add_price(Some(rounded_price), timestamp),
+                    Ok(mut market_data) => {
+                        market_data.add_price(Some(rounded_price), timestamp, volume, num_trades)
+                    }
                     Err(_) => {
                         log::error!(
                             "Timeout while trying to acquire write lock for market data: {:?}",
@@ -576,7 +588,7 @@ impl DerivativeTrader {
         }
 
         // 2. Check newly filled orders after the new price is queried; otherwise DexEmulator can't fill any orders
-        log::info!("2. Check filled orders: started");
+        log::debug!("2. Check filled orders: started");
         let mut filled_orders_map: HashMap<String, FilledOrder> = HashMap::new();
         for (_, fund_manager) in self.state.fund_manager_map.iter_mut() {
             let token_name = fund_manager.token_name();
@@ -628,7 +640,7 @@ impl DerivativeTrader {
                 filled_orders_map_clone
             );
         }
-        log::debug!("3. Check filled orders: finished");
+        log::debug!("2. Check filled orders: finished");
 
         // 3. Find trade chanes
         let find_futures: Vec<_> = self
@@ -637,7 +649,9 @@ impl DerivativeTrader {
             .values_mut()
             .filter_map(|fund_manager| {
                 let token_name = fund_manager.token_name();
-                if let Some((price, _min_tick, _)) = prices.get(token_name).and_then(|p| *p) {
+                if let Some((price, _min_tick, _timestamp, _volume, _num_trades)) =
+                    prices.get(token_name).and_then(|p| *p)
+                {
                     Some(fund_manager.find_chances(price, self.config.dry_run))
                 } else {
                     None
@@ -645,9 +659,9 @@ impl DerivativeTrader {
             })
             .collect();
 
-        log::info!("3. Find trade chances: started");
+        log::debug!("3. Find trade chances: started");
         let find_results = join_all(find_futures).await;
-        log::info!("3. Find trade chances: finished");
+        log::debug!("3. Find trade chances: finished");
 
         for result in find_results {
             if result.is_err() {
