@@ -26,7 +26,7 @@ pub struct EnvConfig {
     pub max_error_duration: u64,
     pub save_prices: bool,
     pub load_prices: bool,
-    pub interval_msec: u64,
+    pub interval_secs: i64,
     pub liquidate_when_exit: bool,
     pub max_dd_ratio: Decimal,
     pub close_order_effective_duration_secs: i64,
@@ -111,10 +111,10 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let db_w_name = env::var("DB_W_NAME").expect("DB_W_NAME must be set");
     let position_log_limit: Option<u32> = get_optional_env_var("POSITION_LOG_LIMIT");
     let dry_run = get_bool_env_var("DRY_RUN", true);
-    let interval_msec = get_env_var("INTERVAL_MSEC", "1000")?;
+    let interval_secs = get_env_var("INTERVAL_SECS", "60")?;
 
     let max_price_size_hours: u32 = get_env_var("MAX_PRICE_SIZE_HOURS", "1")?;
-    let max_price_size: u32 = max_price_size_hours * 60 * 60 * 1000 / interval_msec as u32;
+    let max_price_size: u32 = max_price_size_hours * 60 * 60 / interval_secs as u32;
 
     let back_test_price_size: Option<u32> = get_optional_env_var("BACK_TEST_PRICE_SIZE");
 
@@ -155,7 +155,7 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         max_error_duration,
         save_prices,
         load_prices,
-        interval_msec,
+        interval_secs,
         liquidate_when_exit,
         max_dd_ratio,
         close_order_effective_duration_secs,

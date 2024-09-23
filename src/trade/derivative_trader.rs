@@ -77,7 +77,7 @@ impl DerivativeTrader {
         dry_run: bool,
         trade_interval: usize,
         sample_interval: SampleInterval,
-        interval_msecs: u64,
+        interval_secs: i64,
         max_price_size: u32,
         db_handler: Arc<Mutex<DBHandler>>,
         price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
@@ -95,7 +95,6 @@ impl DerivativeTrader {
     ) -> Self {
         log::info!("DerivativeTrader::new");
         const SECONDS_IN_MINUTE: usize = 60;
-        let interval_secs = interval_msecs as i64 / 1000;
 
         let mut config = DerivativeTraderConfig {
             trader_name: dex_name.to_owned(),

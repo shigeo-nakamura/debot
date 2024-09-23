@@ -216,7 +216,7 @@ async fn prepare_trader_instance(
         config.dry_run,
         *trading_interval,
         interval.clone(),
-        config.interval_msec,
+        config.interval_secs,
         config.max_price_size,
         db_handler,
         price_market_data.clone(),
@@ -359,7 +359,7 @@ async fn main_loop(
             Duration::from_secs(0)
         } else {
             if let Some(remaining) =
-                Duration::from_millis(config.interval_msec).checked_sub(elapsed)
+                Duration::from_secs(config.interval_secs.try_into().unwrap()).checked_sub(elapsed)
             {
                 remaining
             } else {
