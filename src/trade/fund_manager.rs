@@ -385,6 +385,8 @@ impl FundManager {
             Decimal::ZERO,
             Decimal::ZERO,
             Decimal::ZERO,
+            None,
+            None,
         );
         positions_vec.push(dummy_position);
 
@@ -772,6 +774,8 @@ impl FundManager {
                 self.config.atr_spread.unwrap_or_default(),
                 self.config.risk_reward,
                 self.config.atr_term.to_numeric(),
+                market_data.last_volume(),
+                market_data.last_num_trades(),
             );
 
             self.state.trade_positions.insert(position.id(), position);
