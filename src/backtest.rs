@@ -67,12 +67,22 @@ pub async fn download_data(
                     debug_log.input_17.to_f64().expect("conversion failed"),
                     debug_log.input_18.to_f64().expect("conversion failed"),
                     debug_log.input_19.to_f64().expect("conversion failed"),
+                    debug_log.input_20.to_f64().expect("conversion failed"),
+                    debug_log.input_21.to_f64().expect("conversion failed"),
+                    debug_log.input_22.to_f64().expect("conversion failed"),
+                    debug_log.input_23.to_f64().expect("conversion failed"),
+                    debug_log.input_24.to_f64().expect("conversion failed"),
+                    debug_log.input_25.to_f64().expect("conversion failed"),
+                    debug_log.input_26.to_f64().expect("conversion failed"),
+                    debug_log.input_27.to_f64().expect("conversion failed"),
+                    debug_log.input_28.to_f64().expect("conversion failed"),
+                    debug_log.input_29.to_f64().expect("conversion failed"),
                 ];
                 let candle_patterns = vec![
-                    debug_log.input_20.to_one_hot(),
-                    debug_log.input_21.to_one_hot(),
-                    debug_log.input_22.to_one_hot(),
-                    debug_log.input_23.to_one_hot(),
+                    debug_log.input_30.to_one_hot(),
+                    debug_log.input_31.to_one_hot(),
+                    debug_log.input_32.to_one_hot(),
+                    debug_log.input_33.to_one_hot(),
                 ];
                 for pattern in candle_patterns {
                     input_vector.extend(pattern.iter().map(|&d| d.to_f64().unwrap()));
