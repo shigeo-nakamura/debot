@@ -143,7 +143,16 @@ impl FundManager {
         &mut self,
         back_test_price: Option<&PricePoint>,
     ) -> Result<
-        (Decimal, Decimal, Option<i64>, Option<Decimal>, Option<u64>),
+        (
+            Decimal,
+            Decimal,
+            Option<i64>,
+            Option<Decimal>,
+            Option<u64>,
+            Option<Decimal>,
+            Option<Decimal>,
+            Option<Decimal>,
+        ),
         Box<dyn Error + Send + Sync>,
     > {
         let token_name = &self.config.token_name;
@@ -167,6 +176,9 @@ impl FundManager {
             timestamp,
             res.volume,
             res.num_trades,
+            res.funding_rate,
+            res.open_interest,
+            res.oracle_price,
         ))
     }
 

@@ -373,6 +373,9 @@ impl DerivativeTrader {
                     Some(price_point.timestamp),
                     price_point.volume,
                     price_point.num_trades,
+                    price_point.funding_rate,
+                    price_point.open_interest,
+                    price_point.oracle_price,
                 );
             }
         }
@@ -506,7 +509,16 @@ impl DerivativeTrader {
 
         let mut prices: HashMap<
             String,
-            Option<(Decimal, Decimal, Option<i64>, Option<Decimal>, Option<u64>)>,
+            Option<(
+                Decimal,
+                Decimal,
+                Option<i64>,
+                Option<Decimal>,
+                Option<u64>,
+                Option<Decimal>,
+                Option<Decimal>,
+                Option<Decimal>,
+            )>,
         > = HashMap::new();
         for result in price_results {
             let (token_name, price_point) = result?;
@@ -526,8 +538,16 @@ impl DerivativeTrader {
         for key in market_data_keys {
             let token_name = &key.0;
             log::debug!("Processing market data key: {:?}", key);
-            if let Some((price, min_tick, timestamp, volume, num_trades)) =
-                prices.get(token_name).and_then(|p| *p)
+            if let Some((
+                price,
+                min_tick,
+                timestamp,
+                volume,
+                num_trades,
+                funding_rate,
+                open_interest,
+                oracle_price,
+            )) = prices.get(token_name).and_then(|p| *p)
             {
                 let rounded_price = Self::round_price(price, Some(min_tick));
                 log::debug!("Rounded price for {}: {:.5}", token_name, rounded_price);
@@ -538,20 +558,25 @@ impl DerivativeTrader {
                 };
                 log::debug!("Market data clone obtained for key: {:?}", key);
 
-                let price_point = match timeout(Duration::from_secs(5), market_data_clone.write())
-                    .await
-                {
-                    Ok(mut market_data) => {
-                        market_data.add_price(Some(rounded_price), timestamp, volume, num_trades)
-                    }
-                    Err(_) => {
-                        log::error!(
-                            "Timeout while trying to acquire write lock for market data: {:?}",
-                            key
-                        );
-                        continue;
-                    }
-                };
+                let price_point =
+                    match timeout(Duration::from_secs(5), market_data_clone.write()).await {
+                        Ok(mut market_data) => market_data.add_price(
+                            Some(rounded_price),
+                            timestamp,
+                            volume,
+                            num_trades,
+                            funding_rate,
+                            open_interest,
+                            oracle_price,
+                        ),
+                        Err(_) => {
+                            log::error!(
+                                "Timeout while trying to acquire write lock for market data: {:?}",
+                                key
+                            );
+                            continue;
+                        }
+                    };
                 log::debug!("Price point added for token: {}", token_name);
 
                 if self.config.save_prices && !saved_tokens.contains(token_name) {
@@ -648,8 +673,16 @@ impl DerivativeTrader {
             .values_mut()
             .filter_map(|fund_manager| {
                 let token_name = fund_manager.token_name();
-                if let Some((price, _min_tick, _timestamp, _volume, _num_trades)) =
-                    prices.get(token_name).and_then(|p| *p)
+                if let Some((
+                    price,
+                    _min_tick,
+                    _timestamp,
+                    _volume,
+                    _num_trades,
+                    _funding_rate,
+                    _open_interest,
+                    _oracle_price,
+                )) = prices.get(token_name).and_then(|p| *p)
                 {
                     Some(fund_manager.find_chances(price, self.config.dry_run))
                 } else {
