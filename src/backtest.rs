@@ -5,7 +5,6 @@ use smartcore::linalg::basic::matrix::DenseMatrix;
 pub async fn download_data(
     transaction_logs: &Vec<TransactionLog>,
     key: &str,
-    ignore_oldest_n: usize,
 ) -> (DenseMatrix<f64>, Vec<i32>, Vec<f64>) {
     let parts: Vec<&str> = key.split('_').collect();
     if parts.len() != 2 {
@@ -19,27 +18,11 @@ pub async fn download_data(
     let mut output_classifier: Vec<i32> = Vec::new();
     let mut output_regressor: Vec<f64> = Vec::new();
 
-    let mut ignore_oldest_n_to_do = ignore_oldest_n;
-
     for transaction_log in transaction_logs {
         let db = transaction_log.get_r_db().await.expect("db is none");
-        let mut positions = TransactionLog::get_all_open_positions(&db).await;
+        let positions = TransactionLog::get_all_open_positions(&db).await;
 
-        log::info!(
-            "num positions = {}, ignore_oldest_n_to_do = {}",
-            positions.len(),
-            ignore_oldest_n_to_do
-        );
-
-        positions.sort_by(|a, b| b.open_timestamp.cmp(&a.open_timestamp));
-
-        if positions.len() > ignore_oldest_n_to_do {
-            positions = positions.split_off(ignore_oldest_n_to_do);
-            log::info!("ignore_latest_n = {}", ignore_oldest_n_to_do);
-            ignore_oldest_n_to_do = 0;
-        } else {
-            continue;
-        }
+        log::info!("num positions = {}", positions.len(),);
 
         for position in positions {
             if position.token_name == token_name

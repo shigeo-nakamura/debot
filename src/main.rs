@@ -133,12 +133,7 @@ async fn main() -> std::io::Result<()> {
             let db_w_name = env::var("DB_W_NAME").expect("DB_W_NAME must be set");
             let db_r_names = env::var("DB_R_NAMES").expect("DB_R_NAMES must be set");
             let db_r_names: Vec<&str> = db_r_names.split(',').collect();
-
             let path_to_models = env::var("PATH_TO_MODELS").ok();
-            let back_test_excluded_size = env::var("BACK_TEST_PRICE_SIZE")
-                .unwrap_or_else(|_| "10000".to_string())
-                .parse::<usize>()
-                .expect("Failed to parse BACK_TEST_PRICE_SIZE");
 
             let mut transaction_logs: Vec<TransactionLog> = Vec::new();
             for db_r_name in db_r_names.to_owned() {
@@ -163,8 +158,7 @@ async fn main() -> std::io::Result<()> {
             )
             .await;
 
-            let (x, y_classifier, y_regressor) =
-                download_data(&transaction_logs, key, back_test_excluded_size).await;
+            let (x, y_classifier, y_regressor) = download_data(&transaction_logs, key).await;
 
             grid_search_and_train_classifier(key, &model_params, x.clone(), y_classifier, 5).await;
             grid_search_and_train_regressor(key, &model_params, x, y_regressor, 5, 30).await;
