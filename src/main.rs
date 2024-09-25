@@ -80,6 +80,24 @@ async fn main() -> std::io::Result<()> {
     let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
 
     match command.as_str() {
+        "copy" => {
+            let db_w_name = key;
+            let db_r_name = env::var("DB_R_NAME").expect("DB_R_NAME must be set");
+            let transaction_log = TransactionLog::new(
+                Some(0),
+                Some(0),
+                Some(0),
+                &mongodb_uri,
+                &db_r_name,
+                &db_w_name,
+                false,
+            )
+            .await;
+            let db_r = transaction_log.get_r_db().await.expect("db_r is none");
+            let db_w = transaction_log.get_w_db().await.expect("db_w is none");
+            TransactionLog::copy_price(&db_r, &db_w, None).await;
+            log::info!("Price copied to {}", key);
+        }
         "get" => {
             let db_w_name = "unused";
             let db_r_name = env::var("DB_R_NAME").expect("DB_R_NAME must be set");
@@ -109,7 +127,7 @@ async fn main() -> std::io::Result<()> {
 
             wtr.flush()?;
 
-            println!("Positions saved to {}", key);
+            log::info!("Positions saved to {}", key);
         }
         "train" => {
             let db_w_name = env::var("DB_W_NAME").expect("DB_W_NAME must be set");
