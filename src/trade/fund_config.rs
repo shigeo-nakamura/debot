@@ -45,12 +45,25 @@ pub fn get(
 
     let risk_reward_values = vec![Decimal::ONE];
 
-    let atr_spread_values = vec![
+    let atr_spread_values_random = vec![
+        None,
         Some(Decimal::new(100, 3)),
+        Some(Decimal::new(200, 3)),
+        Some(Decimal::new(300, 3)),
+        Some(Decimal::new(400, 3)),
+        Some(Decimal::new(500, 3)),
+        Some(Decimal::new(600, 3)),
+        Some(Decimal::new(700, 3)),
+        Some(Decimal::new(800, 3)),
+        Some(Decimal::new(900, 3)),
+        Some(Decimal::new(1000, 3)),
+    ];
+
+    let atr_spread_values_meanreversion = vec![
+        None,
         Some(Decimal::new(200, 3)),
         Some(Decimal::new(400, 3)),
         Some(Decimal::new(800, 3)),
-        Some(Decimal::new(1600, 3)),
     ];
 
     let open_hours_values = vec![3, 6, 12, 24];
@@ -64,13 +77,13 @@ pub fn get(
             match strategy {
                 Some(TradingStrategy::RandomWalk(_)) => (
                     take_profit_ratio_values,
-                    atr_spread_values,
+                    atr_spread_values_random,
                     risk_reward_values,
                     open_hours_values,
                 ),
                 Some(TradingStrategy::MeanReversion(_)) | None => (
                     take_profit_ratio_values,
-                    atr_spread_values,
+                    atr_spread_values_meanreversion,
                     risk_reward_values,
                     open_hours_values,
                 ),
