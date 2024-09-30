@@ -302,11 +302,7 @@ impl DerivativeTrader {
                     .try_into()
                     .unwrap();
 
-                let execution_delay_secs = if config.back_test {
-                    0
-                } else {
-                    max_open_hours * 60 * 60
-                };
+                let execution_delay_tick_count_max = open_tick_count_max;
 
                 Some(FundManager::new(
                     &fund_name,
@@ -321,7 +317,7 @@ impl DerivativeTrader {
                     open_order_tick_count_max,
                     close_order_tick_count_max,
                     open_tick_count_max,
-                    execution_delay_secs,
+                    execution_delay_tick_count_max,
                     use_market_order,
                     take_profit_ratio,
                     risk_reward,

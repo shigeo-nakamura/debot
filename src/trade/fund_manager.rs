@@ -29,7 +29,7 @@ struct FundManagerState {
     db_handler: Arc<Mutex<DBHandler>>,
     dex_connector: Arc<DexConnectorBox>,
     market_data: Arc<RwLock<MarketData>>,
-    last_trade_time: Option<i64>,
+    trade_tick_count: u64,
     last_price: Decimal,
 }
 
@@ -43,7 +43,7 @@ struct FundManagerConfig {
     open_order_tick_count_max: u32,
     close_order_tick_count_max: u32,
     open_tick_count_max: u32,
-    execution_delay_secs: i64,
+    execution_delay_tick_count_max: u32,
     use_market_order: bool,
     take_profit_ratio: Option<Decimal>,
     risk_reward: Decimal,
@@ -83,7 +83,7 @@ impl FundManager {
         open_order_tick_count_max: u32,
         close_order_tick_count_max: u32,
         open_tick_count_max: u32,
-        execution_delay_secs: i64,
+        execution_delay_tick_count_max: u32,
         use_market_order: bool,
         take_profit_ratio: Option<Decimal>,
         risk_reward: Decimal,
@@ -100,7 +100,7 @@ impl FundManager {
             open_order_tick_count_max,
             close_order_tick_count_max,
             open_tick_count_max,
-            execution_delay_secs,
+            execution_delay_tick_count_max,
             use_market_order,
             take_profit_ratio,
             risk_reward,
@@ -116,7 +116,7 @@ impl FundManager {
             db_handler,
             dex_connector,
             market_data,
-            last_trade_time: None,
+            trade_tick_count: execution_delay_tick_count_max as u64,
             latest_open_position_id: None,
             last_price: Decimal::new(0, 0),
         };
@@ -187,6 +187,8 @@ impl FundManager {
         price: Decimal,
         dry_run: bool,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.state.trade_tick_count += 1;
+
         self.check_positions(price);
 
         self.find_expired_orders().await;
@@ -626,16 +628,12 @@ impl FundManager {
 
         match self.config.strategy {
             TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_) => {
-                if let Some(last_trade_time) = self.state.last_trade_time {
-                    let current_time = chrono::Utc::now().timestamp();
-                    let delay_secs = self.config.execution_delay_secs;
-                    if current_time - last_trade_time < delay_secs {
-                        log::info!(
-                            "{}: Waiting for delay period to pass before executing new trades",
-                            self.config.fund_name
-                        );
-                        return false;
-                    }
+                if self.state.trade_tick_count < self.config.execution_delay_tick_count_max.into() {
+                    log::info!(
+                        "{}: Waiting for delay period to pass before executing new trades",
+                        self.config.fund_name
+                    );
+                    return false;
                 }
             }
         }
@@ -720,7 +718,6 @@ impl FundManager {
                         chance.position_id,
                     )
                     .await?;
-                    self.state.last_trade_time = Some(chrono::Utc::now().timestamp());
                 }
             }
             Err(e) => {
@@ -1062,8 +1059,8 @@ impl FundManager {
                 self.state.latest_open_position_id = None;
                 self.state.trade_positions.remove(&position.id());
                 self.statistics.pnl += position.pnl().0;
-                if reason != "CutLoss" {
-                    self.state.last_trade_time = None;
+                if reason == "CutLoss" {
+                    self.state.trade_tick_count = 0;
                 }
             }
 
