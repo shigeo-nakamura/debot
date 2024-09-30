@@ -1054,12 +1054,12 @@ impl FundManager {
         let prev_amount = self.update_state_after_trade(filled_value);
 
         if let Some(position) = self.get_open_position() {
-            if let State::Closed(reason) = position.state() {
+            if let State::Closed(_reason) = position.state() {
                 self.state.amount += position.close_asset_in_usd() + position.pnl().0;
                 self.state.latest_open_position_id = None;
                 self.state.trade_positions.remove(&position.id());
                 self.statistics.pnl += position.pnl().0;
-                if reason == "CutLoss" {
+                if position.pnl().0 < Decimal::ZERO {
                     self.state.trade_tick_count = 0;
                 }
             }
