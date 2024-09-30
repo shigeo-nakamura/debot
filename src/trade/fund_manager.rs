@@ -1057,12 +1057,14 @@ impl FundManager {
         let prev_amount = self.update_state_after_trade(filled_value);
 
         if let Some(position) = self.get_open_position() {
-            if matches!(position.state(), State::Closed(_)) {
+            if let State::Closed(reason) = position.state() {
                 self.state.amount += position.close_asset_in_usd() + position.pnl().0;
                 self.state.latest_open_position_id = None;
                 self.state.trade_positions.remove(&position.id());
                 self.statistics.pnl += position.pnl().0;
-                self.state.last_trade_time = None;
+                if reason != "CutLoss" {
+                    self.state.last_trade_time = None;
+                }
             }
 
             // Save the position in the DB
