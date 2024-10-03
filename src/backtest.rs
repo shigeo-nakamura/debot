@@ -21,8 +21,7 @@ pub async fn download_data(
     for transaction_log in transaction_logs {
         let db = transaction_log.get_r_db().await.expect("db is none");
         let positions = TransactionLog::get_all_open_positions(&db).await;
-
-        log::info!("num positions = {}", positions.len(),);
+        let positions_len = positions.len();
 
         for position in positions {
             if position.token_name == token_name
@@ -79,13 +78,17 @@ pub async fn download_data(
                 output_regressor.push(debug_log.output_2.to_f64().expect("conversion failed"));
             }
         }
-        log::info!("num of positions = {}", inputs.len());
+        log::info!(
+            "num of inputs/positions = {}/{}",
+            inputs.len(),
+            positions_len
+        );
     }
 
     let count_class_0 = output_classifier.iter().filter(|&&x| x == 0).count();
     let count_class_1 = output_classifier.iter().filter(|&&x| x == 1).count();
 
-    log::info!("num of inputs = {}", inputs.len());
+    log::info!("total num of inputs = {}", inputs.len());
     log::info!("Number of class 0 samples = {}", count_class_0);
     log::info!("Number of class 1 samples = {}", count_class_1);
 
