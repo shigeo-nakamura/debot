@@ -129,6 +129,28 @@ async fn main() -> std::io::Result<()> {
 
             log::info!("Positions saved to {}", key);
         }
+        "save" => {
+            let db_w_name = "unused";
+            let db_r_name = env::var("DB_R_NAME").expect("DB_R_NAME must be set");
+            let transaction_log = TransactionLog::new(
+                Some(0),
+                Some(0),
+                Some(0),
+                &mongodb_uri,
+                &db_r_name,
+                &db_w_name,
+                false,
+            )
+            .await;
+            let db = transaction_log.get_r_db().await.expect("db is none");
+            let prices = TransactionLog::get_price_market_data(&db, None, None, true).await;
+
+            let file_path = &key;
+            let file = File::create(file_path)?;
+            serde_json::to_writer(file, &prices)?;
+
+            log::info!("prices saved to {}", key);
+        }
         "train" => {
             let db_w_name = env::var("DB_W_NAME").expect("DB_W_NAME must be set");
             let db_r_names = env::var("DB_R_NAMES").expect("DB_R_NAMES must be set");
