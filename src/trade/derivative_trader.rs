@@ -434,6 +434,7 @@ impl DerivativeTrader {
             config.trade_period,
             config.max_price_size as usize,
             random_foreset,
+            config.only_read_price,
         )
     }
 
