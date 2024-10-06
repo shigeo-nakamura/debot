@@ -87,6 +87,7 @@ impl DBHandler {
         last_equity: Option<Decimal>,
         circuit_break: bool,
         error_time: Option<String>,
+        invested_amount: Decimal,
     ) {
         log::info!("log_app_state: {:?}", last_execution_time);
 
@@ -97,6 +98,7 @@ impl DBHandler {
                 last_equity,
                 circuit_break,
                 error_time,
+                invested_amount,
             )
             .await
             {

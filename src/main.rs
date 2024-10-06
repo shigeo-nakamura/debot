@@ -289,6 +289,8 @@ async fn main_loop(
 
         let (trader, config, error_manager) = trader_instance;
 
+        let invested_amount = trader.invested_amount();
+
         // Check if last_execution_time is None or it's been more than one day
         if !config.back_test
             && last_execution_time.map_or(true, |last_time| {
@@ -317,7 +319,13 @@ async fn main_loop(
                 .db_handler()
                 .lock()
                 .await
-                .log_app_state(last_execution_time, last_equity, false, None)
+                .log_app_state(
+                    last_execution_time,
+                    last_equity,
+                    false,
+                    None,
+                    invested_amount,
+                )
                 .await;
         }
 
@@ -331,6 +339,14 @@ async fn main_loop(
         {
             last_dd_check_time = Some(now);
 
+            // log the invested amount
+            trader
+                .db_handler()
+                .lock()
+                .await
+                .log_app_state(None, None, false, None, invested_amount)
+                .await;
+
             match trader.is_max_dd_occurred().await {
                 Ok(is_dd) => {
                     if is_dd {
@@ -340,7 +356,7 @@ async fn main_loop(
                             .db_handler()
                             .lock()
                             .await
-                            .log_app_state(None, None, true, None)
+                            .log_app_state(None, None, true, None, invested_amount)
                             .await;
                         log::info!("returned due to Draw down!");
                         error_manager.send("[debot] Draw down!", &config.db_w_name);
@@ -431,6 +447,7 @@ async fn handle_trader_activities(
     error_manager: &mut ErrorManager,
 ) -> Result<(), ()> {
     let error_duration = Duration::from_secs(config.max_error_duration);
+    let invested_amount = trader.invested_amount();
 
     // Check if the error duration has passed
     if error_manager.has_error_duration_passed(error_duration) {
@@ -445,6 +462,7 @@ async fn handle_trader_activities(
                 None,
                 false,
                 Some(DateTimeUtils::get_current_datetime_string()),
+                invested_amount,
             )
             .await;
         error_manager.send("[debot] Continous error!", &config.db_w_name);

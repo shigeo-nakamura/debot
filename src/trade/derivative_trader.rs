@@ -762,4 +762,12 @@ impl DerivativeTrader {
         log::error!("failed to get the balance");
         return Err(());
     }
+
+    pub fn invested_amount(&self) -> Decimal {
+        let mut sum = Decimal::ZERO;
+        for (_, fund_manager) in self.state.fund_manager_map.iter() {
+            sum += fund_manager.asset_in_usd();
+        }
+        sum.round_dp(1).abs()
+    }
 }

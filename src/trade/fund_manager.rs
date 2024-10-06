@@ -1281,6 +1281,14 @@ impl FundManager {
         }
     }
 
+    pub fn asset_in_usd(&self) -> Decimal {
+        let mut sum = Decimal::ZERO;
+        for (_, position) in &self.state.trade_positions {
+            sum += position.asset_in_usd();
+        }
+        sum
+    }
+
     pub fn check_positions(&mut self, price: Decimal) {
         for (_, position) in &mut self.state.trade_positions {
             position.update_counter();
