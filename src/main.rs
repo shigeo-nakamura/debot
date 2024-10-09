@@ -403,6 +403,14 @@ async fn main_loop(
         }
 
         let elapsed = loop_start.elapsed();
+        if elapsed.as_secs() > config.interval_secs.try_into().unwrap() {
+            log::error!(
+                "Elapsed time {} seconds exceeded the configured interval of {} seconds",
+                elapsed.as_secs(),
+                config.interval_secs
+            );
+        }
+
         let sleep_duration = if config.back_test {
             Duration::from_secs(0)
         } else {
