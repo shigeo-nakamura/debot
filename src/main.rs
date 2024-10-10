@@ -34,7 +34,7 @@ mod trade;
 #[macro_use]
 extern crate lazy_static;
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> std::io::Result<()> {
     // Init logging
     let offset_seconds = env::var("TIMEZONE_OFFSET")
