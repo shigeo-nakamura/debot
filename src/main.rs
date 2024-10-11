@@ -13,6 +13,7 @@ use rust_decimal::Decimal;
 use std::env;
 use std::io::Write;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use trade::{trader_config, DerivativeTrader};
@@ -29,6 +30,8 @@ mod config;
 mod email_client;
 mod error_manager;
 mod trade;
+
+static MAX_ELAPSED: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(test)]
 #[macro_use]
@@ -263,6 +266,7 @@ async fn prepare_trader_instance(
         config.strategy.as_ref(),
         config.only_read_price,
         config.back_test,
+        config.input_data_chunk_size,
     )
     .await;
 
@@ -403,6 +407,18 @@ async fn main_loop(
         }
 
         let elapsed = loop_start.elapsed();
+        let elapsed_millis = elapsed.as_millis() as u64;
+
+        let max_elapsed = MAX_ELAPSED.load(Ordering::Relaxed);
+        let elapsed_ave_millis = (max_elapsed + elapsed_millis) / 2;
+        if elapsed_ave_millis > max_elapsed {
+            log::warn!(
+                "New max elapsed time: {:.1} s",
+                elapsed_ave_millis as f64 / 1000.0
+            );
+            MAX_ELAPSED.store(elapsed_ave_millis, Ordering::Relaxed);
+        }
+
         if elapsed.as_secs() > config.interval_secs.try_into().unwrap() {
             log::error!(
                 "Elapsed time {} seconds exceeded the configured interval of {} seconds",
