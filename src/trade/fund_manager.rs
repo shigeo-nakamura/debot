@@ -239,6 +239,7 @@ impl FundManager {
         if dry_run || !is_sunday() {
             actions = self.state.market_data.read().await.is_open_signaled(
                 self.config.strategy.clone(),
+                0,
                 self.config.take_profit_ratio.unwrap_or_default(),
                 self.config.atr_spread,
                 self.config.open_order_tick_count_max,
