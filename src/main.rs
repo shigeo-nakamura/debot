@@ -266,7 +266,6 @@ async fn prepare_trader_instance(
         config.strategy.as_ref(),
         config.only_read_price,
         config.back_test,
-        config.input_data_chunk_size,
     )
     .await;
 

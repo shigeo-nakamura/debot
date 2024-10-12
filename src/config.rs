@@ -37,7 +37,6 @@ pub struct EnvConfig {
     pub only_read_price: bool,
     pub back_test: bool,
     pub path_to_models: Option<String>,
-    pub input_data_chunk_size: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -142,8 +141,6 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
 
     let path_to_models = env::var("PATH_TO_MODELS").ok();
 
-    let input_data_chunk_size: Option<usize> = get_optional_env_var("INPUT_DATA_CHUNK_SIZE");
-
     let env_config = EnvConfig {
         mongodb_uri,
         db_r_name,
@@ -166,7 +163,6 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
         only_read_price,
         back_test,
         path_to_models,
-        input_data_chunk_size,
     };
 
     Ok(env_config)

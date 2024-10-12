@@ -55,7 +55,6 @@ struct DerivativeTraderConfig {
     only_read_price: bool,
     back_test: bool,
     interval_secs: i64,
-    input_data_chunk_size: Option<usize>,
 }
 
 struct DerivativeTraderState {
@@ -93,7 +92,6 @@ impl DerivativeTrader {
         strategy: Option<&TradingStrategy>,
         only_read_price: bool,
         back_test: bool,
-        input_data_chunk_size: Option<usize>,
     ) -> Self {
         log::info!("DerivativeTrader::new");
         const SECONDS_IN_MINUTE: usize = 60;
@@ -116,7 +114,6 @@ impl DerivativeTrader {
             only_read_price,
             back_test,
             interval_secs,
-            input_data_chunk_size,
         };
 
         let state = Self::initialize_state(
@@ -223,8 +220,7 @@ impl DerivativeTrader {
         market_data_map: Arc<RwLock<HashMap<(String, TradingStrategy), Arc<RwLock<MarketData>>>>>,
     ) -> Vec<FundManager> {
         log::info!("DerivativeTrader::create_fund_managers");
-        let fund_manager_configurations =
-            fund_config::get(&config.dex_name, strategy, config.interval_secs);
+        let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
         let mut futures = vec![];
 
@@ -237,7 +233,7 @@ impl DerivativeTrader {
             take_profit_ratio,
             atr_spread,
             atr_term,
-            open_tick_count_max,
+            max_open_hours,
         ) in fund_manager_configurations.into_iter()
         {
             let db_handler = db_handler.clone();
@@ -247,10 +243,8 @@ impl DerivativeTrader {
             let load_prices = load_prices;
             let use_market_order = use_market_order;
             let risk_reward = risk_reward;
-
-            let key = (token_name.clone(), strategy.clone());
-            let index = *token_name_indices.entry(key.clone()).or_insert(0);
-            *token_name_indices.get_mut(&key).unwrap() += 1;
+            let index = *token_name_indices.entry(token_name.clone()).or_insert(0);
+            *token_name_indices.get_mut(&token_name).unwrap() += 1;
 
             let fund_name = format!(
                 "{}-{:?}-{}-{}-p/l({:?})-spread({:?})",
@@ -297,6 +291,10 @@ impl DerivativeTrader {
                 };
 
                 log::info!("create {}", fund_name);
+
+                let open_tick_count_max: u32 = (max_open_hours * 60 * 60 / config.interval_secs)
+                    .try_into()
+                    .unwrap();
 
                 let open_order_tick_count_max = open_tick_count_max;
                 let close_order_tick_count_max: u32 = (close_order_effective_duration_secs
@@ -601,42 +599,6 @@ impl DerivativeTrader {
                     log::debug!("Price logged for token: {}", token_name);
 
                     saved_tokens.insert(token_name.clone());
-                }
-
-                if !self.config.only_read_price {
-                    let strategy = key.1;
-                    log::info!(
-                        "Precompute the model for token: {}, strategy: {:?}",
-                        token_name,
-                        strategy
-                    );
-
-                    let (take_profit_ratio, atr_spread, open_tick_count_max, atr_term, count) =
-                        fund_config::get_vectors_and_count(
-                            &self.config.dex_name,
-                            &strategy,
-                            self.config.interval_secs,
-                        );
-
-                    match timeout(Duration::from_secs(5), market_data_clone.write()).await {
-                        Ok(mut market_data) => {
-                            market_data.precompute_models(
-                                count,
-                                &take_profit_ratio,
-                                &atr_spread,
-                                &open_tick_count_max,
-                                &atr_term,
-                                self.config.input_data_chunk_size,
-                            );
-                        }
-                        Err(_) => {
-                            log::error!(
-                                "Timeout while trying to acquire write lock for market data: {:?}",
-                                key
-                            );
-                            continue;
-                        }
-                    };
                 }
             }
         }

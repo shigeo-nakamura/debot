@@ -17,7 +17,6 @@ lazy_static! {
 pub fn get(
     dex_name: &str,
     strategy: Option<&TradingStrategy>,
-    interval_secs: i64,
 ) -> Vec<(
     String,
     TradingStrategy,
@@ -27,7 +26,7 @@ pub fn get(
     Option<Decimal>,
     Option<Decimal>,
     SampleTerm,
-    u32,
+    i64,
 )> {
     let atr_term_values = vec![
         SampleTerm::TradingTerm,
@@ -106,8 +105,6 @@ pub fn get(
                 for atr_spread in atr_spread_values.clone() {
                     for risk_reward in risk_reward_values.clone() {
                         for open_hours in &open_hours_values {
-                            let open_tick_count_max: u32 =
-                                (open_hours * 60 * 60 / interval_secs).try_into().unwrap();
                             strategy_list.push((
                                 TOKEN_LIST[0].to_owned(), // BTC
                                 TradingStrategy::RandomWalk(TrendType::Up),
@@ -115,9 +112,9 @@ pub fn get(
                                 Decimal::new(8, 1), // position size ratio
                                 risk_reward,
                                 take_profit_ratio,
-                                atr_spread,          // spread by ATR
-                                atr_term.clone(),    // ATR SampleTerm
-                                open_tick_count_max, // max open tick count
+                                atr_spread,       // spread by ATR
+                                atr_term.clone(), // ATR SampleTerm
+                                *open_hours,      // max open hours
                             ));
 
                             strategy_list.push((
@@ -127,9 +124,9 @@ pub fn get(
                                 Decimal::new(8, 1), // position size ratio
                                 risk_reward,
                                 take_profit_ratio,
-                                atr_spread,          // spread by ATR
-                                atr_term.clone(),    // ATR SampleTerm
-                                open_tick_count_max, // max open tick count
+                                atr_spread,       // spread by ATR
+                                atr_term.clone(), // ATR SampleTerm
+                                *open_hours,      // max open hours
                             ));
 
                             strategy_list.push((
@@ -139,9 +136,9 @@ pub fn get(
                                 Decimal::new(8, 1), // position size ratio
                                 risk_reward,
                                 take_profit_ratio,
-                                atr_spread,          // spread by ATR
-                                atr_term.clone(),    // ATR SampleTerm
-                                open_tick_count_max, // max open tick count
+                                atr_spread,       // spread by ATR
+                                atr_term.clone(), // ATR SampleTerm
+                                *open_hours,      // max open hours
                             ));
 
                             strategy_list.push((
@@ -151,9 +148,9 @@ pub fn get(
                                 Decimal::new(8, 1), // position size ratio
                                 risk_reward,
                                 take_profit_ratio,
-                                atr_spread,          // spread by ATR
-                                atr_term.clone(),    // ATR SampleTerm
-                                open_tick_count_max, // max open tick count
+                                atr_spread,       // spread by ATR
+                                atr_term.clone(), // ATR SampleTerm
+                                *open_hours,      // max open hours
                             ));
                         }
                     }
@@ -184,7 +181,7 @@ pub fn get(
                 take_profit_ratio,
                 atr_spread,
                 atr_term,
-                open_tick_count_max,
+                open_hours,
             )| {
                 (
                     token,
@@ -195,58 +192,9 @@ pub fn get(
                     take_profit_ratio,
                     atr_spread,
                     atr_term,
-                    open_tick_count_max,
+                    open_hours,
                 )
             },
         )
         .collect()
-}
-
-pub fn get_vectors_and_count(
-    dex_name: &str,
-    strategy: &TradingStrategy,
-    interval_secs: i64,
-) -> (
-    Vec<Decimal>,    // take_profit_ratio
-    Vec<Decimal>,    // atr_spread
-    Vec<u32>,        // open_tick_count_max
-    Vec<SampleTerm>, // atr_term
-    usize,           // vector count
-) {
-    let strategies = get(dex_name, None, interval_secs);
-
-    let mut take_profit_ratio = Vec::new();
-    let mut atr_spread = Vec::new();
-    let mut open_tick_count_max = Vec::new();
-    let mut atr_term = Vec::new();
-
-    for (
-        _token,
-        _trading_strategy,
-        _amount,
-        _size_ratio,
-        _risk_reward,
-        take_profit,
-        atr,
-        atr_t,
-        open_tick,
-    ) in strategies
-        .into_iter()
-        .filter(|(_, trading_strategy, _, _, _, _, _, _, _)| trading_strategy == strategy)
-    {
-        take_profit_ratio.push(take_profit.unwrap_or_default());
-        atr_spread.push(atr.unwrap_or_default());
-        open_tick_count_max.push(open_tick);
-        atr_term.push(atr_t);
-    }
-
-    let vector_count = take_profit_ratio.len();
-
-    (
-        take_profit_ratio,
-        atr_spread,
-        open_tick_count_max,
-        atr_term,
-        vector_count,
-    )
 }
