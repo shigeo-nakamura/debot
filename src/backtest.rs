@@ -5,7 +5,7 @@ use smartcore::linalg::basic::matrix::DenseMatrix;
 pub async fn download_data(
     transaction_logs: &Vec<TransactionLog>,
     key: &str,
-) -> (DenseMatrix<f64>, Vec<i32>, Vec<f64>) {
+) -> (DenseMatrix<f64>, Vec<i32>, Vec<f64>, Vec<f64>) {
     let parts: Vec<&str> = key.split('_').collect();
     if parts.len() != 2 {
         panic!("Invalid key format. Expected format: <token_name>_<position_type>");
@@ -16,7 +16,8 @@ pub async fn download_data(
     // Collect inputs and outputs from positions
     let mut inputs: Vec<Vec<f64>> = Vec::new();
     let mut output_classifier: Vec<i32> = Vec::new();
-    let mut output_regressor: Vec<f64> = Vec::new();
+    let mut output_regressor_1: Vec<f64> = Vec::new();
+    let mut output_regressor_2: Vec<f64> = Vec::new();
 
     for transaction_log in transaction_logs {
         let db = transaction_log.get_r_db().await.expect("db is none");
@@ -75,7 +76,14 @@ pub async fn download_data(
                 inputs.push(input_vector);
 
                 output_classifier.push(debug_log.output_1.to_i32().expect("conversion failed"));
-                output_regressor.push(debug_log.output_2.to_f64().expect("conversion failed"));
+                output_regressor_1.push(debug_log.output_2.to_f64().expect("conversion failed"));
+                output_regressor_2.push(
+                    debug_log
+                        .output_3
+                        .unwrap_or_default()
+                        .to_f64()
+                        .expect("conversion failed"),
+                );
             }
         }
         log::info!(
@@ -96,5 +104,5 @@ pub async fn download_data(
     let x = DenseMatrix::from_2d_array(&input_slices);
     log::trace!("dense matrix x = {:?}", x);
 
-    (x, output_classifier, output_regressor)
+    (x, output_classifier, output_regressor_1, output_regressor_2)
 }

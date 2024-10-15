@@ -602,9 +602,9 @@ impl FundManager {
                 target_price: None,
                 token_amount: position.amount().abs() * confidence,
                 action: if position.position_type() == PositionType::Long {
-                    TradeAction::SellClose(TradeDetail::new(None, None, Decimal::ONE))
+                    TradeAction::SellClose(TradeDetail::new(None, None, Decimal::ONE, None))
                 } else {
-                    TradeAction::BuyClose(TradeDetail::new(None, None, Decimal::ONE))
+                    TradeAction::BuyClose(TradeDetail::new(None, None, Decimal::ONE, None))
                 },
                 position_id: Some(position_id),
             });
@@ -763,6 +763,10 @@ impl FundManager {
                 return Err(());
             }
 
+            let open_order_tick_count_max = trade_action
+                .tick_to_fill()
+                .unwrap_or(self.config.open_order_tick_count_max);
+
             let market_data = self.state.market_data.read().await;
 
             let position = TradePosition::new(
@@ -771,7 +775,7 @@ impl FundManager {
                 order_id,
                 ordered_price.unwrap(),
                 ordered_amount,
-                self.config.open_order_tick_count_max,
+                open_order_tick_count_max,
                 self.config.close_order_tick_count_max,
                 self.config.open_tick_count_max,
                 token_name,

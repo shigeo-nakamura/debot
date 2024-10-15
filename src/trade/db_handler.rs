@@ -180,7 +180,7 @@ impl DBHandler {
                         Decimal::ONE
                     },
                     input_23: position.atr_term().round_dp(4),
-                    input_24: position.tick_to_fill().into(),
+                    input_24: Decimal::ZERO,
                     input_25: Decimal::ZERO,
                     input_26: Decimal::ZERO,
                     input_27: Decimal::ZERO,
@@ -214,6 +214,13 @@ impl DBHandler {
                     } else {
                         Decimal::ZERO
                     },
+                    output_3: if position.pnl().0 > Decimal::ZERO {
+                        Some(position.tick_to_fill().into())
+                    } else {
+                        Some(Decimal::ZERO)
+                    },
+                    output_4: None,
+                    output_5: None,
                 },
             };
 
