@@ -187,9 +187,28 @@ async fn main() -> std::io::Result<()> {
                 download_data(&transaction_logs, key).await;
 
             grid_search_and_train_classifier(key, &model_params, x.clone(), y_classifier, 5).await;
-            grid_search_and_train_regressor(key, &model_params, x.clone(), y_regressor_1, 5, 30, 1)
-                .await;
-            grid_search_and_train_regressor(key, &model_params, x, y_regressor_2, 5, 30, 2).await;
+            grid_search_and_train_regressor(
+                key,
+                &model_params,
+                x.clone(),
+                y_regressor_1,
+                5,
+                30,
+                1,
+                Some(0.0),
+            )
+            .await;
+            grid_search_and_train_regressor(
+                key,
+                &model_params,
+                x,
+                y_regressor_2,
+                5,
+                30,
+                2,
+                Some(-1.0),
+            )
+            .await;
         }
         _ => {}
     }

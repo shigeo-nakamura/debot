@@ -217,7 +217,7 @@ impl DBHandler {
                     output_3: if position.pnl().0 > Decimal::ZERO {
                         Some(position.tick_to_fill().into())
                     } else {
-                        Some(Decimal::ZERO)
+                        Some(Decimal::new(-1, 0))
                     },
                     output_4: None,
                     output_5: None,
