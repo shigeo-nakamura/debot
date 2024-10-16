@@ -1,5 +1,5 @@
 use debot_db::TransactionLog;
-use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::{prelude::ToPrimitive, Decimal};
 use smartcore::linalg::basic::matrix::DenseMatrix;
 
 pub async fn download_data(
@@ -80,7 +80,7 @@ pub async fn download_data(
                 output_regressor_2.push(
                     debug_log
                         .output_3
-                        .unwrap_or_default()
+                        .unwrap_or(Decimal::new(-1, 0))
                         .to_f64()
                         .expect("conversion failed"),
                 );
