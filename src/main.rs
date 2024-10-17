@@ -247,7 +247,7 @@ async fn run_default_program() -> std::io::Result<()> {
     let price_market_data = db_handler
         .lock()
         .await
-        .get_price_market_data(None, None)
+        .get_latest_price_market_data(Some(config.max_price_size))
         .await;
 
     // Initialize a trader instance

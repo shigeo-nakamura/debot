@@ -265,13 +265,25 @@ impl DBHandler {
         }
     }
 
-    pub async fn get_price_market_data(
+    pub async fn get_latest_price_market_data(
         &self,
         limit: Option<u32>,
-        id: Option<u32>,
     ) -> HashMap<String, HashMap<String, Vec<PricePoint>>> {
         if let Some(db) = self.transaction_log.get_r_db().await {
-            TransactionLog::get_price_market_data(&db, limit, id, true).await
+            let mut data = TransactionLog::get_price_market_data(&db, None, None, true).await;
+
+            if let Some(data_size) = limit {
+                for (_, token_map) in data.iter_mut() {
+                    for (_, price_points) in token_map.iter_mut() {
+                        if price_points.len() > data_size as usize {
+                            let start_index = price_points.len() - data_size as usize;
+                            *price_points = price_points[start_index..].to_vec();
+                        }
+                    }
+                }
+            }
+
+            data
         } else {
             HashMap::new()
         }
