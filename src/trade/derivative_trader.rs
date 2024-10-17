@@ -349,6 +349,43 @@ impl DerivativeTrader {
         Ok(Arc::new(dex_connector))
     }
 
+    async fn create_market_data(
+        db_handler: Arc<Mutex<DBHandler>>,
+        config: DerivativeTraderConfig,
+        token_name: &str,
+        strategy: &TradingStrategy,
+    ) -> MarketData {
+        log::info!(
+            "create_market_data: {}-{:?}, max_price_size = {}",
+            token_name,
+            strategy,
+            config.max_price_size
+        );
+
+        let random_foreset = match strategy {
+            TradingStrategy::MeanReversion(trend_type) => {
+                let position_type = match trend_type {
+                    debot_market_analyzer::TrendType::Up => "Long",
+                    debot_market_analyzer::TrendType::Down => "Short",
+                    _ => "",
+                };
+                let key = format!("{}_{}", token_name, position_type);
+                Some(db_handler.lock().await.create_random_forest(&key).await)
+            }
+            _ => None,
+        };
+
+        MarketData::new(
+            config.trader_name.to_owned(),
+            config.short_trade_period,
+            config.long_trade_period,
+            config.trade_period,
+            config.max_price_size as usize,
+            random_foreset,
+            config.only_read_price,
+        )
+    }
+
     async fn restore_market_data(
         market_data: Arc<RwLock<MarketData>>,
         trader_name: &str,
@@ -406,36 +443,6 @@ impl DerivativeTrader {
         log::debug!("back test data[{}] = {:?}", index, price_point);
 
         Some(price_point)
-    }
-
-    async fn create_market_data(
-        db_handler: Arc<Mutex<DBHandler>>,
-        config: DerivativeTraderConfig,
-        token_name: &str,
-        strategy: &TradingStrategy,
-    ) -> MarketData {
-        let random_foreset = match strategy {
-            TradingStrategy::MeanReversion(trend_type) => {
-                let position_type = match trend_type {
-                    debot_market_analyzer::TrendType::Up => "Long",
-                    debot_market_analyzer::TrendType::Down => "Short",
-                    _ => "",
-                };
-                let key = format!("{}_{}", token_name, position_type);
-                Some(db_handler.lock().await.create_random_forest(&key).await)
-            }
-            _ => None,
-        };
-
-        MarketData::new(
-            config.trader_name.to_owned(),
-            config.short_trade_period,
-            config.long_trade_period,
-            config.trade_period,
-            config.max_price_size as usize,
-            random_foreset,
-            config.only_read_price,
-        )
     }
 
     fn round_price(price: Decimal, min_tick: Option<Decimal>) -> Decimal {
