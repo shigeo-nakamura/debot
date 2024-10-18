@@ -20,7 +20,6 @@ use std::io::ErrorKind;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
-use tokio::task;
 use tokio::time::{timeout, Duration};
 
 #[derive(Clone)]
@@ -222,7 +221,7 @@ impl DerivativeTrader {
         log::info!("DerivativeTrader::create_fund_managers");
         let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
         let mut token_name_indices = HashMap::new();
-        let mut futures = vec![];
+        let mut fund_managers = vec![];
 
         for (
             token_name,
@@ -239,7 +238,6 @@ impl DerivativeTrader {
             let db_handler = db_handler.clone();
             let dex_connector = dex_connector.clone();
             let config = config.clone();
-            let price_market_data = price_market_data.clone();
             let load_prices = load_prices;
             let use_market_order = use_market_order;
             let risk_reward = risk_reward;
@@ -257,80 +255,75 @@ impl DerivativeTrader {
             );
 
             let market_data_key = (token_name.clone(), strategy.clone());
-            let market_data_map = market_data_map.clone();
+            let market_data = {
+                let mut map = market_data_map.write().await;
+                if let Some(market_data) = map.get(&market_data_key) {
+                    market_data.clone()
+                } else {
+                    let new_market_data = Arc::new(RwLock::new(
+                        Self::create_market_data(
+                            db_handler.clone(),
+                            config.clone(),
+                            &token_name,
+                            &strategy,
+                        )
+                        .await,
+                    ));
 
-            let future = async move {
-                let market_data = {
-                    let mut map = market_data_map.write().await;
-                    if let Some(market_data) = map.get(&market_data_key) {
-                        market_data.clone()
-                    } else {
-                        let new_market_data = Arc::new(RwLock::new(
-                            Self::create_market_data(
-                                db_handler.clone(),
-                                config.clone(),
-                                &token_name,
-                                &strategy,
-                            )
-                            .await,
-                        ));
-
-                        if !config.back_test && load_prices {
-                            Self::restore_market_data(
-                                new_market_data.clone(),
-                                &config.trader_name,
-                                &token_name,
-                                &price_market_data,
-                            )
-                            .await;
-                        }
-
-                        map.insert(market_data_key.clone(), new_market_data.clone());
-                        new_market_data
+                    if !config.back_test && load_prices {
+                        Self::restore_market_data(
+                            new_market_data.clone(),
+                            &config.trader_name,
+                            &token_name,
+                            price_market_data,
+                        )
+                        .await;
                     }
-                };
 
-                log::info!("create {}", fund_name);
-
-                let open_tick_count_max: u32 = (max_open_hours * 60 * 60 / config.interval_secs)
-                    .try_into()
-                    .unwrap();
-
-                let open_order_tick_count_max = open_tick_count_max;
-                let close_order_tick_count_max: u32 = (close_order_effective_duration_secs
-                    / config.interval_secs)
-                    .try_into()
-                    .unwrap();
-
-                let execution_delay_tick_count_max = open_tick_count_max;
-
-                Some(FundManager::new(
-                    &fund_name,
-                    index,
-                    &token_name,
-                    market_data.clone(),
-                    strategy,
-                    initial_amount * position_size_ratio,
-                    initial_amount,
-                    db_handler,
-                    dex_connector,
-                    open_order_tick_count_max,
-                    close_order_tick_count_max,
-                    open_tick_count_max,
-                    execution_delay_tick_count_max,
-                    use_market_order,
-                    take_profit_ratio,
-                    risk_reward,
-                    atr_spread,
-                    atr_term,
-                ))
+                    map.insert(market_data_key.clone(), new_market_data.clone());
+                    new_market_data
+                }
             };
 
-            futures.push(task::spawn(future));
+            log::info!("create {}", fund_name);
+
+            let open_tick_count_max: u32 = (max_open_hours * 60 * 60 / config.interval_secs)
+                .try_into()
+                .unwrap();
+
+            let open_order_tick_count_max = open_tick_count_max;
+            let close_order_tick_count_max: u32 = (close_order_effective_duration_secs
+                / config.interval_secs)
+                .try_into()
+                .unwrap();
+
+            let execution_delay_tick_count_max = open_tick_count_max;
+
+            let fund_manager = FundManager::new(
+                &fund_name,
+                index,
+                &token_name,
+                market_data.clone(),
+                strategy,
+                initial_amount * position_size_ratio,
+                initial_amount,
+                db_handler,
+                dex_connector,
+                open_order_tick_count_max,
+                close_order_tick_count_max,
+                open_tick_count_max,
+                execution_delay_tick_count_max,
+                use_market_order,
+                take_profit_ratio,
+                risk_reward,
+                atr_spread,
+                atr_term,
+            );
+
+            fund_managers.push(fund_manager);
         }
 
-        let results = join_all(futures).await;
-        results.into_iter().filter_map(|res| res.unwrap()).collect()
+        fund_managers
     }
 
     async fn create_dex_connector(
