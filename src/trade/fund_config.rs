@@ -4,8 +4,9 @@ use rust_decimal::Decimal;
 use std::env;
 
 pub const TOKEN_LIST_SIZE: u32 = 1;
-
 pub const TOKEN_LIST: &[&str] = &["BTC-USD"];
+
+pub const CUT_LOSS_MIN_RATIO: f64 = 0.01;
 
 lazy_static! {
     static ref INITIAL_FUND_AMOUNT: Decimal = env::var("INITIAL_FUND_AMOUNT")

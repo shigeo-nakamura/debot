@@ -1,12 +1,13 @@
 // fund_manager.rs
 
-use super::dex_connector_box::DexConnectorBox;
 use super::DBHandler;
+use super::{dex_connector_box::DexConnectorBox, fund_config};
 use debot_db::{CandlePattern, PricePoint};
 use debot_market_analyzer::{MarketData, SampleTerm, TradeAction, TradeDetail, TradingStrategy};
 use debot_position_manager::{PositionType, ReasonForClose, State, TradePosition};
 use debot_utils::is_sunday;
 use dex_connector::{CreateOrderResponse, DexConnector, DexError, OrderSide};
+use num::FromPrimitive;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::error::Error;
@@ -1039,8 +1040,8 @@ impl FundManager {
             filled_price,
         );
 
-        let cut_loss_price = self.cut_loss_price(filled_price, filled_side).await;
         let take_profit_price = self.take_profit_price(target_price);
+        let cut_loss_price = self.cut_loss_price(filled_price, filled_side).await;
         let open_position_id = self.state.latest_open_position_id;
 
         self.process_trade_position(
@@ -1161,8 +1162,11 @@ impl FundManager {
         let cut_loss_distance = if atr == Decimal::ZERO {
             return None;
         } else {
-            atr
+            let least_distance = filled_price
+                * Decimal::from_f64(fund_config::CUT_LOSS_MIN_RATIO).unwrap_or_default();
+            std::cmp::max(least_distance, atr)
         };
+
         match side {
             OrderSide::Long => Some(filled_price - cut_loss_distance),
             _ => Some(filled_price + cut_loss_distance),
