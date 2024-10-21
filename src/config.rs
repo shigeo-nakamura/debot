@@ -33,7 +33,7 @@ pub struct EnvConfig {
     pub rest_endpoint: String,
     pub web_socket_endpoint: String,
     pub leverage: u32,
-    pub strategy: Option<TradingStrategy>,
+    pub strategy: TradingStrategy,
     pub only_read_price: bool,
     pub back_test: bool,
     pub path_to_models: Option<String>,
@@ -132,9 +132,10 @@ pub fn get_config_from_env() -> Result<EnvConfig, ConfigError> {
     let leverage = get_env_var("LEVERAGE", "1")?;
 
     let strategy = match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
-        "randomwalk" => Some(TradingStrategy::RandomWalk(TrendType::Unknown)),
-        "meanreversion" => Some(TradingStrategy::MeanReversion(TrendType::Unknown)),
-        &_ => None,
+        "randomwalk" => TradingStrategy::RandomWalk(TrendType::Unknown),
+        "meanreversion" => TradingStrategy::MeanReversion(TrendType::Unknown),
+        "trendfollow" => TradingStrategy::TrendFollow(TrendType::Unknown),
+        &_ => panic!("Unknown strategy"),
     };
     let only_read_price = get_bool_env_var("ONLY_READ_PRICE", false);
     let back_test = get_bool_env_var("BACK_TEST", false);

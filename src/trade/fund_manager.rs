@@ -228,13 +228,8 @@ impl FundManager {
         }
 
         let mut actions: Vec<TradeAction> = vec![];
-
-        match self.config.strategy {
-            TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_) => {
-                if !self.can_execute_new_trade() {
-                    return self.handle_open_chances(current_price, &actions).await;
-                }
-            }
+        if !self.can_execute_new_trade() {
+            return self.handle_open_chances(current_price, &actions).await;
         }
 
         if dry_run || !is_sunday() {
@@ -475,25 +470,21 @@ impl FundManager {
 
         let (pnl, ratio) = self.unrealized_pnl_of_open_position(current_price);
 
-        match self.config.strategy {
-            TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_) => {
-                log::info!(
-                    "{} pnl: {:.3}/{:.3}({:.3}%) {}/{}/{}",
-                    format!(
-                        "{}-{}-{}",
-                        self.config.token_name,
-                        self.config.take_profit_ratio.unwrap_or_default(),
-                        self.config.atr_spread.unwrap_or_default()
-                    ),
-                    self.statistics.pnl,
-                    pnl,
-                    ratio * Decimal::new(100, 0),
-                    self.statistics.take_profit_count,
-                    self.statistics.cut_loss_count,
-                    self.statistics.expired_count,
-                );
-            }
-        }
+        log::info!(
+            "{} pnl: {:.3}/{:.3}({:.3}%) {}/{}/{}",
+            format!(
+                "{}-{}-{}",
+                self.config.token_name,
+                self.config.take_profit_ratio.unwrap_or_default(),
+                self.config.atr_spread.unwrap_or_default()
+            ),
+            self.statistics.pnl,
+            pnl,
+            ratio * Decimal::new(100, 0),
+            self.statistics.take_profit_count,
+            self.statistics.cut_loss_count,
+            self.statistics.expired_count,
+        );
 
         Ok(())
     }
@@ -584,14 +575,9 @@ impl FundManager {
                     ReasonForClose::CutLoss => self.statistics.cut_loss_count += 1,
                     _ => {}
                 }
-            } else if matches!(
-                self.config.strategy,
-                TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_)
-            ) {
-                if position.should_open_expired() {
-                    reason_for_close = Some(ReasonForClose::Expired);
-                    self.statistics.expired_count += 1;
-                }
+            } else if position.should_open_expired() {
+                reason_for_close = Some(ReasonForClose::Expired);
+                self.statistics.expired_count += 1;
             }
         }
 
@@ -620,24 +606,16 @@ impl FundManager {
     }
 
     fn can_execute_new_trade(&self) -> bool {
-        if matches!(
-            self.config.strategy,
-            TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_)
-        ) && !self.state.trade_positions.is_empty()
-        {
+        if !self.state.trade_positions.is_empty() {
             return false;
         }
 
-        match self.config.strategy {
-            TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_) => {
-                if self.state.trade_tick_count < self.config.execution_delay_tick_count_max.into() {
-                    log::info!(
-                        "{}: Waiting for delay period to pass before executing new trades",
-                        self.config.fund_name
-                    );
-                    return false;
-                }
-            }
+        if self.state.trade_tick_count < self.config.execution_delay_tick_count_max.into() {
+            log::info!(
+                "{}: Waiting for delay period to pass before executing new trades",
+                self.config.fund_name
+            );
+            return false;
         }
 
         true
@@ -1144,11 +1122,9 @@ impl FundManager {
             None => return None,
         };
 
-        match self.config.strategy {
-            TradingStrategy::RandomWalk(_) | TradingStrategy::MeanReversion(_) => match side {
-                OrderSide::Long => Some(current_price + take_profit_distance),
-                _ => Some(current_price - take_profit_distance),
-            },
+        match side {
+            OrderSide::Long => Some(current_price + take_profit_distance),
+            _ => Some(current_price - take_profit_distance),
         }
     }
 

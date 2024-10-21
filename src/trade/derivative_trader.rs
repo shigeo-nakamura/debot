@@ -88,7 +88,7 @@ impl DerivativeTrader {
         rest_endpoint: &str,
         web_socket_endpoint: &str,
         leverage: u32,
-        strategy: Option<&TradingStrategy>,
+        strategy: &TradingStrategy,
         only_read_price: bool,
         back_test: bool,
     ) -> Self {
@@ -143,7 +143,7 @@ impl DerivativeTrader {
         close_order_effective_duration_secs: i64,
         use_market_order: bool,
         leverage: u32,
-        strategy: Option<&TradingStrategy>,
+        strategy: &TradingStrategy,
     ) -> DerivativeTraderState {
         log::info!("DerivativeTrader::initialize_state");
         let dex_connector = Self::create_dex_connector(config)
@@ -215,7 +215,7 @@ impl DerivativeTrader {
         load_prices: bool,
         close_order_effective_duration_secs: i64,
         use_market_order: bool,
-        strategy: Option<&TradingStrategy>,
+        strategy: &TradingStrategy,
         market_data_map: Arc<RwLock<HashMap<(String, TradingStrategy), Arc<RwLock<MarketData>>>>>,
     ) -> Vec<FundManager> {
         log::info!("DerivativeTrader::create_fund_managers");
@@ -356,7 +356,8 @@ impl DerivativeTrader {
         );
 
         let random_foreset = match strategy {
-            TradingStrategy::MeanReversion(trend_type) => {
+            TradingStrategy::MeanReversion(trend_type)
+            | TradingStrategy::TrendFollow(trend_type) => {
                 let position_type = match trend_type {
                     debot_market_analyzer::TrendType::Up => "Long",
                     debot_market_analyzer::TrendType::Down => "Short",

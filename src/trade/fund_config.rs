@@ -12,12 +12,12 @@ lazy_static! {
     static ref INITIAL_FUND_AMOUNT: Decimal = env::var("INITIAL_FUND_AMOUNT")
         .ok()
         .and_then(|val| val.parse::<Decimal>().ok())
-        .unwrap_or_else(|| Decimal::new(50, 0));
+        .unwrap_or_else(|| Decimal::ZERO);
 }
 
 pub fn get(
     dex_name: &str,
-    strategy: Option<&TradingStrategy>,
+    strategy: &TradingStrategy,
 ) -> Vec<(
     String,
     TradingStrategy,
@@ -46,7 +46,7 @@ pub fn get(
         Some(Decimal::new(30, 3)),
     ];
 
-    let take_profit_ratio_values_meanreversion = vec![
+    let take_profit_ratio_values_default = vec![
         Some(Decimal::new(5, 3)),
         Some(Decimal::new(75, 4)),
         Some(Decimal::new(10, 3)),
@@ -72,11 +72,12 @@ pub fn get(
     ];
 
     let atr_spread_values_meanreversion = vec![
-        None,
         Some(Decimal::new(200, 3)),
         Some(Decimal::new(400, 3)),
         Some(Decimal::new(800, 3)),
     ];
+
+    let atr_spread_values_trendfollow = vec![None];
 
     let open_hours_values = vec![3, 6, 12, 24];
 
@@ -87,72 +88,60 @@ pub fn get(
     if dex_name == "hyperliquid" {
         let (take_profit_ratio_values, atr_spread_values, risk_reward_values, open_hours_values) =
             match strategy {
-                Some(TradingStrategy::RandomWalk(_)) => (
+                TradingStrategy::RandomWalk(_) => (
                     take_profit_ratio_values_random,
                     atr_spread_values_random,
                     risk_reward_values,
                     open_hours_values,
                 ),
-                Some(TradingStrategy::MeanReversion(_)) | None => (
-                    take_profit_ratio_values_meanreversion,
+                TradingStrategy::MeanReversion(_) => (
+                    take_profit_ratio_values_default,
                     atr_spread_values_meanreversion,
                     risk_reward_values,
                     open_hours_values,
                 ),
+                TradingStrategy::TrendFollow(_) => (
+                    take_profit_ratio_values_default,
+                    atr_spread_values_trendfollow,
+                    risk_reward_values,
+                    open_hours_values,
+                ),
             };
+
+        let strategies = vec![
+            TradingStrategy::RandomWalk(TrendType::Up),
+            TradingStrategy::RandomWalk(TrendType::Down),
+            TradingStrategy::MeanReversion(TrendType::Up),
+            TradingStrategy::MeanReversion(TrendType::Down),
+            TradingStrategy::TrendFollow(TrendType::Up),
+            TradingStrategy::TrendFollow(TrendType::Down),
+        ];
+
+        let total_strategies = strategies.len()
+            * atr_term_values.len()
+            * take_profit_ratio_values.len()
+            * open_hours_values.len();
+
+        let amount_per_strategy = initial_amount / Decimal::from(total_strategies as u64);
 
         for atr_term in &atr_term_values {
             for take_profit_ratio in take_profit_ratio_values.clone() {
                 for atr_spread in atr_spread_values.clone() {
                     for risk_reward in risk_reward_values.clone() {
                         for open_hours in &open_hours_values {
-                            strategy_list.push((
-                                TOKEN_LIST[0].to_owned(), // BTC
-                                TradingStrategy::RandomWalk(TrendType::Up),
-                                initial_amount,     // initial amount (in USD)
-                                Decimal::new(8, 1), // position size ratio
-                                risk_reward,
-                                take_profit_ratio,
-                                atr_spread,       // spread by ATR
-                                atr_term.clone(), // ATR SampleTerm
-                                *open_hours,      // max open hours
-                            ));
-
-                            strategy_list.push((
-                                TOKEN_LIST[0].to_owned(), // BTC
-                                TradingStrategy::RandomWalk(TrendType::Down),
-                                initial_amount,     // initial amount (in USD)
-                                Decimal::new(8, 1), // position size ratio
-                                risk_reward,
-                                take_profit_ratio,
-                                atr_spread,       // spread by ATR
-                                atr_term.clone(), // ATR SampleTerm
-                                *open_hours,      // max open hours
-                            ));
-
-                            strategy_list.push((
-                                TOKEN_LIST[0].to_owned(), // BTC
-                                TradingStrategy::MeanReversion(TrendType::Up),
-                                initial_amount,     // initial amount (in USD)
-                                Decimal::new(8, 1), // position size ratio
-                                risk_reward,
-                                take_profit_ratio,
-                                atr_spread,       // spread by ATR
-                                atr_term.clone(), // ATR SampleTerm
-                                *open_hours,      // max open hours
-                            ));
-
-                            strategy_list.push((
-                                TOKEN_LIST[0].to_owned(), // BTC
-                                TradingStrategy::MeanReversion(TrendType::Down),
-                                initial_amount,     // initial amount (in USD)
-                                Decimal::new(8, 1), // position size ratio
-                                risk_reward,
-                                take_profit_ratio,
-                                atr_spread,       // spread by ATR
-                                atr_term.clone(), // ATR SampleTerm
-                                *open_hours,      // max open hours
-                            ));
+                            for strategy in &strategies {
+                                strategy_list.push((
+                                    TOKEN_LIST[0].to_owned(),
+                                    *strategy,
+                                    amount_per_strategy,
+                                    Decimal::new(8, 1), // position size ratio
+                                    risk_reward,
+                                    take_profit_ratio,
+                                    atr_spread,       // spread by ATR
+                                    atr_term.clone(), // ATR SampleTerm
+                                    *open_hours,      // max open hours
+                                ));
+                            }
                         }
                     }
                 }
@@ -162,21 +151,28 @@ pub fn get(
         panic!("Unsupported dex");
     }
 
-    // Add non-repeating items if any
-    let non_repeating_items = vec![];
-
-    strategy_list.extend(non_repeating_items);
-
-    strategy_list
+    // Filtered strategy list
+    let filtered_strategy_list: Vec<_> = strategy_list
         .into_iter()
-        .filter(|(_, trading_strategy, _, _, _, _, _, _, _)| {
-            strategy.is_none() || strategy == Some(trading_strategy)
-        })
+        .filter(|(_, trading_strategy, _, _, _, _, _, _, _)| strategy == trading_strategy)
+        .collect();
+
+    // Calculate the amount per strategy after filtering
+    let filtered_strategies_count = filtered_strategy_list.len();
+    let filtered_amount_per_strategy = if filtered_strategies_count > 0 {
+        initial_amount / Decimal::from(filtered_strategies_count as u64)
+    } else {
+        panic!("No strategies found after filtering");
+    };
+
+    // Update the amount for each filtered strategy
+    filtered_strategy_list
+        .into_iter()
         .map(
             |(
                 token,
                 trading_strategy,
-                amount,
+                _,
                 size_ratio,
                 risk_reward,
                 take_profit_ratio,
@@ -187,7 +183,7 @@ pub fn get(
                 (
                     token,
                     trading_strategy,
-                    amount,
+                    filtered_amount_per_strategy, // Updated amount per strategy
                     size_ratio,
                     risk_reward,
                     take_profit_ratio,

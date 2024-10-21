@@ -268,7 +268,7 @@ async fn prepare_trader_instance(
     price_market_data: HashMap<String, HashMap<String, Vec<PricePoint>>>,
 ) -> (DerivativeTrader, &EnvConfig, ErrorManager) {
     // todo: support multiple traders
-    let (trading_interval, interval, dex_name) = &trader_config::get(config.strategy.as_ref())[0];
+    let (trading_interval, interval, dex_name) = &trader_config::get(&config.strategy)[0];
 
     // Create an error manager
     let error_manager = ErrorManager::new();
@@ -290,7 +290,7 @@ async fn prepare_trader_instance(
         &config.rest_endpoint,
         &config.web_socket_endpoint,
         config.leverage,
-        config.strategy.as_ref(),
+        &config.strategy,
         config.only_read_price,
         config.back_test,
     )
