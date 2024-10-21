@@ -160,6 +160,7 @@ impl DerivativeTrader {
             load_prices,
             close_order_effective_duration_secs,
             use_market_order,
+            leverage,
             strategy,
             market_data_map.clone(),
         )
@@ -215,11 +216,12 @@ impl DerivativeTrader {
         load_prices: bool,
         close_order_effective_duration_secs: i64,
         use_market_order: bool,
+        leverage: u32,
         strategy: &TradingStrategy,
         market_data_map: Arc<RwLock<HashMap<(String, TradingStrategy), Arc<RwLock<MarketData>>>>>,
     ) -> Vec<FundManager> {
         log::info!("DerivativeTrader::create_fund_managers");
-        let fund_manager_configurations = fund_config::get(&config.dex_name, strategy);
+        let fund_manager_configurations = fund_config::get(&config.dex_name, strategy, leverage);
         let mut token_name_indices = HashMap::new();
         let mut fund_managers = vec![];
 

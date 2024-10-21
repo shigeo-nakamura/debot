@@ -18,6 +18,7 @@ lazy_static! {
 pub fn get(
     dex_name: &str,
     strategy: &TradingStrategy,
+    leverage: u32,
 ) -> Vec<(
     String,
     TradingStrategy,
@@ -83,8 +84,6 @@ pub fn get(
 
     let mut strategy_list = Vec::new();
 
-    let initial_amount = *INITIAL_FUND_AMOUNT;
-
     if dex_name == "hyperliquid" {
         let (take_profit_ratio_values, atr_spread_values, risk_reward_values, open_hours_values) =
             match strategy {
@@ -117,13 +116,6 @@ pub fn get(
             TradingStrategy::TrendFollow(TrendType::Down),
         ];
 
-        let total_strategies = strategies.len()
-            * atr_term_values.len()
-            * take_profit_ratio_values.len()
-            * open_hours_values.len();
-
-        let amount_per_strategy = initial_amount / Decimal::from(total_strategies as u64);
-
         for atr_term in &atr_term_values {
             for take_profit_ratio in take_profit_ratio_values.clone() {
                 for atr_spread in atr_spread_values.clone() {
@@ -133,7 +125,7 @@ pub fn get(
                                 strategy_list.push((
                                     TOKEN_LIST[0].to_owned(),
                                     *strategy,
-                                    amount_per_strategy,
+                                    Decimal::ZERO,
                                     Decimal::new(8, 1), // position size ratio
                                     risk_reward,
                                     take_profit_ratio,
@@ -160,6 +152,7 @@ pub fn get(
     // Calculate the amount per strategy after filtering
     let filtered_strategies_count = filtered_strategy_list.len();
     let filtered_amount_per_strategy = if filtered_strategies_count > 0 {
+        let initial_amount = *INITIAL_FUND_AMOUNT * Decimal::from(leverage);
         initial_amount / Decimal::from(filtered_strategies_count as u64)
     } else {
         panic!("No strategies found after filtering");
