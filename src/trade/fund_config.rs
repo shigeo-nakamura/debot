@@ -165,6 +165,8 @@ pub fn get(
         panic!("No strategies found after filtering");
     };
 
+    log::warn!("amount_per_strategy = {}", filtered_amount_per_strategy);
+
     // Update the amount for each filtered strategy
     filtered_strategy_list
         .into_iter()
