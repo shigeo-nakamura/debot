@@ -357,15 +357,20 @@ impl DerivativeTrader {
             config.max_price_size
         );
 
-        let random_foreset = match strategy {
+        let random_forest = match strategy {
             TradingStrategy::MeanReversion(trend_type)
             | TradingStrategy::TrendFollow(trend_type) => {
+                let strategy_name = match strategy {
+                    TradingStrategy::MeanReversion(_) => "MeanReversion",
+                    TradingStrategy::TrendFollow(_) => "TrendFollow",
+                    _ => unreachable!(),
+                };
                 let position_type = match trend_type {
                     debot_market_analyzer::TrendType::Up => "Long",
                     debot_market_analyzer::TrendType::Down => "Short",
                     _ => "",
                 };
-                let key = format!("{}_{}", token_name, position_type);
+                let key = format!("{}_{}_{}", token_name, position_type, strategy_name);
                 Some(db_handler.lock().await.create_random_forest(&key).await)
             }
             _ => None,
@@ -377,7 +382,7 @@ impl DerivativeTrader {
             config.long_trade_period,
             config.trade_period,
             config.max_price_size as usize,
-            random_foreset,
+            random_forest,
             config.only_read_price,
         )
     }

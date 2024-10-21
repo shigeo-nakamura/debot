@@ -1,14 +1,21 @@
 use debot_db::TransactionLog;
+use debot_market_analyzer::TradingStrategy;
 use rust_decimal::{prelude::ToPrimitive, Decimal};
 use smartcore::linalg::basic::matrix::DenseMatrix;
 
 pub async fn download_data(
     transaction_logs: &Vec<TransactionLog>,
     key: &str,
+    strategy: &TradingStrategy,
 ) -> (DenseMatrix<f64>, Vec<i32>, Vec<f64>, Vec<f64>) {
+    log::info!("Key passed to download_data: {}", key);
+
     let parts: Vec<&str> = key.split('_').collect();
     if parts.len() != 2 {
-        panic!("Invalid key format. Expected format: <token_name>_<position_type>");
+        panic!(
+            "Invalid key({}) format. Expected format: <token_name>_<position_type>",
+            key
+        );
     }
     let token_name = parts[0];
     let position_type = parts[1];
@@ -33,6 +40,14 @@ pub async fn download_data(
                 )
             {
                 let debug_log = &position.debug;
+
+                let input_20 = debug_log.input_20;
+                match strategy {
+                    TradingStrategy::MeanReversion(_) if input_20 == Decimal::ZERO => continue,
+                    TradingStrategy::TrendFollow(_) if input_20 != Decimal::ZERO => continue,
+                    _ => {}
+                }
+
                 let mut input_vector = vec![
                     debug_log.input_1.to_f64().expect("conversion failed"),
                     debug_log.input_2.to_f64().expect("conversion failed"),

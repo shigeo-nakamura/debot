@@ -4,6 +4,7 @@ use backtest::download_data;
 use chrono::{DateTime, FixedOffset, Utc};
 use config::EnvConfig;
 use debot_db::{ModelParams, PricePoint, TransactionLog};
+use debot_market_analyzer::{TradingStrategy, TrendType};
 use debot_ml::{grid_search_and_train_classifier, grid_search_and_train_regressor};
 use debot_utils::DateTimeUtils;
 use env_logger::Builder;
@@ -82,6 +83,8 @@ async fn main() -> std::io::Result<()> {
     let key = &args[2];
     let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI must be set");
 
+    log::info!("Received key: {}", key);
+
     match command.as_str() {
         "copy" => {
             let db_w_name = key;
@@ -159,6 +162,18 @@ async fn main() -> std::io::Result<()> {
             let db_r_names = env::var("DB_R_NAMES").expect("DB_R_NAMES must be set");
             let db_r_names: Vec<&str> = db_r_names.split(',').collect();
             let path_to_models = env::var("PATH_TO_MODELS").ok();
+            let (strategy, file_key) =
+                match env::var("TRADING_STRATEGY").unwrap_or_default().as_str() {
+                    "meanreversion" => (
+                        TradingStrategy::MeanReversion(TrendType::Unknown),
+                        format!("{}_MeanReversion", key),
+                    ),
+                    "trendfollow" => (
+                        TradingStrategy::TrendFollow(TrendType::Unknown),
+                        format!("{}_TrendFollow", key),
+                    ),
+                    &_ => panic!("Unknown strategy"),
+                };
 
             let mut transaction_logs: Vec<TransactionLog> = Vec::new();
             for db_r_name in db_r_names.to_owned() {
@@ -184,11 +199,12 @@ async fn main() -> std::io::Result<()> {
             .await;
 
             let (x, y_classifier, y_regressor_1, y_regressor_2) =
-                download_data(&transaction_logs, key).await;
+                download_data(&transaction_logs, key, &strategy).await;
 
-            grid_search_and_train_classifier(key, &model_params, x.clone(), y_classifier, 5).await;
+            grid_search_and_train_classifier(&file_key, &model_params, x.clone(), y_classifier, 5)
+                .await;
             grid_search_and_train_regressor(
-                key,
+                &file_key,
                 &model_params,
                 x.clone(),
                 y_regressor_1,
@@ -199,7 +215,7 @@ async fn main() -> std::io::Result<()> {
             )
             .await;
             grid_search_and_train_regressor(
-                key,
+                &file_key,
                 &model_params,
                 x,
                 y_regressor_2,
