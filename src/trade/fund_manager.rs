@@ -742,9 +742,16 @@ impl FundManager {
                 return Err(());
             }
 
-            let open_order_tick_count_max = trade_action
-                .tick_to_fill()
-                .unwrap_or(self.config.open_order_tick_count_max);
+            let open_order_tick_count_max =
+                if matches!(self.config.strategy, TradingStrategy::RandomWalk(_))
+                    && self.config.atr_spread.is_none()
+                {
+                    0
+                } else {
+                    trade_action
+                        .tick_to_fill()
+                        .unwrap_or(self.config.open_order_tick_count_max)
+                };
 
             let market_data = self.state.market_data.read().await;
 
