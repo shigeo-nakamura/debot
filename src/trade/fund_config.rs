@@ -153,7 +153,7 @@ pub fn get(
     let filtered_strategies_count = filtered_strategy_list.len();
     let filtered_amount_per_strategy = if filtered_strategies_count > 0 {
         let initial_amount = *INITIAL_FUND_AMOUNT * Decimal::from(leverage);
-        initial_amount / Decimal::from(filtered_strategies_count as u64)
+        (initial_amount / Decimal::from(filtered_strategies_count as u64)).round_dp(0)
     } else {
         panic!("No strategies found after filtering");
     };
